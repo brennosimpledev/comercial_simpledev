@@ -4,6 +4,7 @@ import {
   mapWebhookToLead,
   type LpWebhookPayload,
 } from "@/lib/mappers/webhook-lead";
+import { scheduleFollowUpsForLead } from "@/lib/followups/schedule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await supabase
     .from("leads")
     .insert(lead)
-    .select("id")
+    .select("id, nome, created_at")
     .single();
 
   if (error) {
@@ -42,6 +43,13 @@ export async function POST(request: NextRequest) {
       { error: "could not save lead" },
       { status: 500 }
     );
+  }
+
+  // Agenda a regua de follow-up (nao bloqueia a resposta se falhar).
+  try {
+    await scheduleFollowUpsForLead(supabase, data);
+  } catch (e) {
+    console.error("[webhook/lead] followup schedule error:", e);
   }
 
   return NextResponse.json({ ok: true, id: data.id }, { status: 201 });

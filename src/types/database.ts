@@ -14,6 +14,7 @@ export type LeadOrigin =
   | "meta_ads"
   | "indicacao"
   | "organico"
+  | "whatsapp"
   | "outro";
 
 export type LeadStatus = "ativo" | "ganho" | "perdido";
@@ -36,6 +37,13 @@ export interface Lead {
   estagio: LeadStage;
   status: LeadStatus;
   anotacoes: string | null;
+  descricao: string | null;
+
+  qualificado: boolean;
+  sem_resposta: boolean;
+  desqualificado: boolean;
+  bot_pausado: boolean;
+  whatsapp_digits: string | null;
 
   utm_source: string | null;
   utm_medium: string | null;
@@ -83,5 +91,36 @@ export const ORIGIN_LABELS: Record<LeadOrigin, string> = {
   meta_ads: "Meta Ads",
   indicacao: "Indicação",
   organico: "Orgânico",
+  whatsapp: "WhatsApp",
   outro: "Outro",
 };
+
+export type MessageDirection = "inbound" | "outbound";
+
+export interface LeadMessage {
+  id: string;
+  created_at: string;
+  lead_id: string;
+  direction: MessageDirection;
+  body: string | null;
+  media_url: string | null;
+  media_type: string | null;
+  wa_message_id: string | null;
+  status: string | null;
+  sent_by: string | null;
+}
+
+export type FollowUpStatus = "pendente" | "enviado" | "cancelado" | "pulado";
+
+export interface FollowUp {
+  id: string;
+  created_at: string;
+  lead_id: string;
+  template_key: string;
+  titulo: string | null;
+  body: string;
+  scheduled_at: string;
+  sent_at: string | null;
+  status: FollowUpStatus;
+  canal: string;
+}
