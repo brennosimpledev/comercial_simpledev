@@ -1,0 +1,53 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  mapWebhookToLead,
+  type LpWebhookPayload,
+} from "@/lib/mappers/webhook-lead";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// POST https://crm.simpledev.com.br/api/webhook/lead
+// Header esperado (se LEAD_WEBHOOK_SECRET estiver setado):
+//   x-webhook-secret: <segredo>
+export async function POST(request: NextRequest) {
+  const secret = process.env.LEAD_WEBHOOK_SECRET;
+  if (secret) {
+    const provided = request.headers.get("x-webhook-secret");
+    if (provided !== secret) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    }
+  }
+
+  let payload: LpWebhookPayload;
+  try {
+    payload = (await request.json()) as LpWebhookPayload;
+  } catch {
+    return NextResponse.json({ error: "invalid json" }, { status: 400 });
+  }
+
+  const lead = mapWebhookToLead(payload);
+
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("leads")
+    .insert(lead)
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("[webhook/lead] insert error:", error);
+    return NextResponse.json(
+      { error: "could not save lead" },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ ok: true, id: data.id }, { status: 201 });
+}
+
+// Health-check simples (GET) para testar se a rota esta no ar.
+export async function GET() {
+  return NextResponse.json({ ok: true, endpoint: "webhook/lead" });
+}
