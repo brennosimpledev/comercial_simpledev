@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { sendLeadMessage } from "@/app/(app)/leads/actions";
+import { sendLeadMessage, importLeadHistory } from "@/app/(app)/leads/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { LeadMessage } from "@/types/database";
 
@@ -118,8 +118,32 @@ export function Conversation({
     });
   }
 
+  const [importing, setImporting] = useState(false);
+  function importHistory() {
+    setImporting(true);
+    startTransition(async () => {
+      const res = await importLeadHistory(leadId);
+      setImporting(false);
+      if (res?.error) alert(res.error);
+      else {
+        if (res.imported === 0) alert("Nenhuma mensagem antiga encontrada.");
+        router.refresh();
+      }
+    });
+  }
+
   return (
     <div className="flex h-[70vh] flex-col rounded-xl border border-slate-800 bg-slate-900">
+      <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2">
+        <span className="text-xs text-slate-400">Conversa</span>
+        <button
+          onClick={importHistory}
+          disabled={importing || pending || !hasWhatsapp}
+          className="rounded-lg border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+        >
+          {importing ? "Carregando..." : "Carregar histórico"}
+        </button>
+      </div>
       <div className="flex-1 space-y-2 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="mt-10 text-center text-sm text-slate-500">

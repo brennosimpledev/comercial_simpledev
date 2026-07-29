@@ -18,6 +18,46 @@ export function toWaNumber(raw: string): string {
   return digits;
 }
 
+export interface EvoHistMessage {
+  key?: {
+    id?: string;
+    fromMe?: boolean;
+    remoteJid?: string;
+    remoteJidAlt?: string;
+  };
+  message?: Record<string, unknown> | null;
+  messageType?: string;
+  messageTimestamp?: number | string;
+  pushName?: string;
+}
+
+// Busca o historico de mensagens de um contato na Evolution.
+export async function fetchWhatsAppHistory(
+  numberDigits: string
+): Promise<EvoHistMessage[]> {
+  if (!evolutionConfigured()) return [];
+  const jid = `${numberDigits}@s.whatsapp.net`;
+  try {
+    const res = await fetch(
+      `${BASE}/chat/findMessages/${encodeURIComponent(INSTANCE!)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: API_KEY! },
+        body: JSON.stringify({ where: { key: { remoteJid: jid } } }),
+      }
+    );
+    if (!res.ok) return [];
+    const data = (await res.json()) as {
+      messages?: { records?: EvoHistMessage[] } | EvoHistMessage[];
+    };
+    const m = data?.messages;
+    const records = Array.isArray(m) ? m : (m?.records ?? []);
+    return Array.isArray(records) ? records : [];
+  } catch {
+    return [];
+  }
+}
+
 export interface SendTextResult {
   ok: boolean;
   waMessageId?: string;

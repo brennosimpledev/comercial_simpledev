@@ -5,7 +5,12 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { manualLeadSchema } from "@/lib/validators/lead";
 import { scheduleFollowUpsForLead } from "@/lib/followups/schedule";
-import { sendWhatsAppText } from "@/lib/evolution/client";
+import {
+  sendWhatsAppText,
+  toWaNumber,
+  fetchWhatsAppHistory,
+  type EvoHistMessage,
+} from "@/lib/evolution/client";
 import type { LeadStage, LeadOrigin } from "@/types/database";
 
 const VALID_STAGES: LeadStage[] = [
@@ -276,6 +281,74 @@ export async function sendFollowUpNow(followUpId: string) {
   revalidatePath(`/leads/${fu.lead_id}`);
   if (!result.ok) return { error: result.error };
   return { ok: true };
+}
+
+// Extrai o texto de uma mensagem historica da Evolution (varios tipos).
+function histText(m: EvoHistMessage): string {
+  const msg = (m.message ?? {}) as Record<string, unknown>;
+  const conv = msg.conversation as string | undefined;
+  if (conv) return conv;
+  const ext = msg.extendedTextMessage as { text?: string } | undefined;
+  if (ext?.text) return ext.text;
+  const img = msg.imageMessage as { caption?: string } | undefined;
+  if (img) return img.caption ? `[imagem] ${img.caption}` : "[imagem]";
+  const vid = msg.videoMessage as { caption?: string } | undefined;
+  if (vid) return vid.caption ? `[vídeo] ${vid.caption}` : "[vídeo]";
+  if (msg.audioMessage) return "[áudio]";
+  const doc = msg.documentMessage as { fileName?: string } | undefined;
+  if (doc) return `[documento] ${doc.fileName ?? ""}`.trim();
+  if (msg.stickerMessage) return "[figurinha]";
+  if (msg.locationMessage) return "[localização]";
+  if (msg.contactMessage) return "[contato]";
+  return "[mensagem]";
+}
+
+function tsToIso(ts: number | string | undefined): string | null {
+  if (ts === undefined || ts === null) return null;
+  const n = Number(ts);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return new Date(n * 1000).toISOString();
+}
+
+// Importa o historico de WhatsApp do lead (busca na Evolution e desduplica).
+export async function importLeadHistory(leadId: string) {
+  const supabase = await createClient();
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("whatsapp")
+    .eq("id", leadId)
+    .single();
+
+  if (!lead?.whatsapp) return { error: "Lead sem número de WhatsApp." };
+
+  const history = await fetchWhatsAppHistory(toWaNumber(lead.whatsapp));
+  if (history.length === 0) {
+    return { ok: true, imported: 0, message: "Nenhuma mensagem encontrada." };
+  }
+
+  const rows = history
+    .filter((m) => m.key?.id)
+    .map((m) => ({
+      lead_id: leadId,
+      direction: (m.key?.fromMe ? "outbound" : "inbound") as
+        | "outbound"
+        | "inbound",
+      body: histText(m),
+      wa_message_id: m.key!.id!,
+      status: m.key?.fromMe ? "sent" : "received",
+      created_at: tsToIso(m.messageTimestamp) ?? new Date().toISOString(),
+    }));
+
+  // Upsert ignorando o que ja existe (unique em wa_message_id).
+  const { error } = await supabase
+    .from("lead_messages")
+    .upsert(rows, { onConflict: "wa_message_id", ignoreDuplicates: true });
+
+  if (error) return { error: "Não foi possível importar o histórico." };
+
+  revalidatePath(`/leads/${leadId}`);
+  return { ok: true, imported: rows.length };
 }
 
 // Marca um follow-up como pulado/cancelado (sem enviar).
