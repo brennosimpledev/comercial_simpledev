@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 interface EvoKey {
   remoteJid?: string;
+  remoteJidAlt?: string; // numero real quando remoteJid vem como @lid
   fromMe?: boolean;
   id?: string;
 }
@@ -33,13 +34,17 @@ function extractText(msg?: EvoMessage): string | null {
   return msg.conversation ?? msg.extendedTextMessage?.text ?? null;
 }
 
-// "5573999224400@s.whatsapp.net" -> "5573999224400"
-// Aceita apenas conversas individuais; ignora grupos (@g.us),
-// newsletters/canais (@newsletter), status e broadcast.
-function jidToDigits(jid?: string): string | null {
-  if (!jid) return null;
-  if (!jid.endsWith("@s.whatsapp.net")) return null;
-  const digits = jid.split("@")[0]?.replace(/\D/g, "") || "";
+// Extrai os digitos do numero real do contato a partir da key.
+// O WhatsApp novo pode mandar remoteJid como "<id>@lid" (ofuscado) e o
+// numero real em remoteJidAlt. Ignora grupos/newsletters/status/broadcast.
+function keyToDigits(key?: EvoKey): string | null {
+  if (!key) return null;
+  const candidate =
+    (key.remoteJid?.endsWith("@s.whatsapp.net") && key.remoteJid) ||
+    (key.remoteJidAlt?.endsWith("@s.whatsapp.net") && key.remoteJidAlt) ||
+    null;
+  if (!candidate) return null;
+  const digits = candidate.split("@")[0]?.replace(/\D/g, "") || "";
   // Numero brasileiro/internacional plausivel (10 a 15 digitos).
   if (digits.length < 10 || digits.length > 15) return null;
   return digits;
@@ -98,7 +103,7 @@ export async function POST(request: NextRequest) {
 
   for (const data of items) {
     if (!data) continue;
-    const digits = jidToDigits(data.key?.remoteJid);
+    const digits = keyToDigits(data.key);
     if (!digits) continue;
 
     const text = extractText(data.message);
