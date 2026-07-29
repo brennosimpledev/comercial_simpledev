@@ -15,7 +15,11 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest) {
   const secret = process.env.LEAD_WEBHOOK_SECRET;
   if (secret) {
-    const provided = request.headers.get("x-webhook-secret");
+    // Aceita o segredo via header (preferencial) ou via ?token= (fallback
+    // para plataformas de LP que nao permitem header customizado).
+    const provided =
+      request.headers.get("x-webhook-secret") ??
+      request.nextUrl.searchParams.get("token");
     if (provided !== secret) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
