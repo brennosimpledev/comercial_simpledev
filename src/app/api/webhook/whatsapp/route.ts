@@ -46,6 +46,29 @@ function jidToDigits(jid?: string): string | null {
 }
 
 export async function POST(request: NextRequest) {
+  // Le o corpo cru para poder registrar no debug antes de qualquer validacao.
+  const raw = await request.text();
+
+  // DEBUG: registra TODA requisicao que bate aqui (best-effort).
+  // Serve para provar se a Evolution esta realmente entregando.
+  try {
+    let parsed: unknown = null;
+    try {
+      parsed = raw ? JSON.parse(raw) : null;
+    } catch {
+      parsed = { _unparsed: raw.slice(0, 2000) };
+    }
+    await createAdminClient()
+      .from("webhook_debug")
+      .insert({
+        source: "whatsapp",
+        headers: Object.fromEntries(request.headers.entries()),
+        body: parsed as Record<string, unknown>,
+      });
+  } catch {
+    /* tabela pode nao existir ainda; ignora */
+  }
+
   const secret = process.env.WHATSAPP_WEBHOOK_SECRET;
   if (secret) {
     const provided =
@@ -58,7 +81,7 @@ export async function POST(request: NextRequest) {
 
   let payload: { event?: string; data?: EvoData | EvoData[] };
   try {
-    payload = await request.json();
+    payload = raw ? JSON.parse(raw) : {};
   } catch {
     return NextResponse.json({ error: "invalid json" }, { status: 400 });
   }
