@@ -9,8 +9,8 @@ import {
   sendWhatsAppText,
   toWaNumber,
   fetchWhatsAppHistory,
-  type EvoHistMessage,
 } from "@/lib/evolution/client";
+import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 import type { LeadStage, LeadOrigin } from "@/types/database";
 
 const VALID_STAGES: LeadStage[] = [
@@ -283,26 +283,6 @@ export async function sendFollowUpNow(followUpId: string) {
   return { ok: true };
 }
 
-// Extrai o texto de uma mensagem historica da Evolution (varios tipos).
-function histText(m: EvoHistMessage): string {
-  const msg = (m.message ?? {}) as Record<string, unknown>;
-  const conv = msg.conversation as string | undefined;
-  if (conv) return conv;
-  const ext = msg.extendedTextMessage as { text?: string } | undefined;
-  if (ext?.text) return ext.text;
-  const img = msg.imageMessage as { caption?: string } | undefined;
-  if (img) return img.caption ? `[imagem] ${img.caption}` : "[imagem]";
-  const vid = msg.videoMessage as { caption?: string } | undefined;
-  if (vid) return vid.caption ? `[vídeo] ${vid.caption}` : "[vídeo]";
-  if (msg.audioMessage) return "[áudio]";
-  const doc = msg.documentMessage as { fileName?: string } | undefined;
-  if (doc) return `[documento] ${doc.fileName ?? ""}`.trim();
-  if (msg.stickerMessage) return "[figurinha]";
-  if (msg.locationMessage) return "[localização]";
-  if (msg.contactMessage) return "[contato]";
-  return "[mensagem]";
-}
-
 function tsToIso(ts: number | string | undefined): string | null {
   if (ts === undefined || ts === null) return null;
   const n = Number(ts);
@@ -340,9 +320,18 @@ export async function importLeadHistory(leadId: string) {
     )
   );
 
+  // Profundidade cresce conforme o que ja temos, pra cada clique trazer mais
+  // mensagens anteriores (paginacao na Evolution).
+  const { count: existingCount } = await supabase
+    .from("lead_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("lead_id", leadId);
+  const maxPages = Math.max(2, Math.ceil(((existingCount ?? 0) + 100) / 50));
+
   const history = await fetchWhatsAppHistory(
     toWaNumber(lead.whatsapp),
-    extraJids
+    extraJids,
+    maxPages
   );
   if (history.length === 0) {
     return { ok: true, imported: 0, message: "Nenhuma mensagem encontrada." };
@@ -350,16 +339,22 @@ export async function importLeadHistory(leadId: string) {
 
   const rows = history
     .filter((m) => m.key?.id)
-    .map((m) => ({
-      lead_id: leadId,
-      direction: (m.key?.fromMe ? "outbound" : "inbound") as
-        | "outbound"
-        | "inbound",
-      body: histText(m),
-      wa_message_id: m.key!.id!,
-      status: m.key?.fromMe ? "sent" : "received",
-      created_at: tsToIso(m.messageTimestamp) ?? new Date().toISOString(),
-    }));
+    .map((m) => {
+      const kind = mediaKind(m.message);
+      return {
+        lead_id: leadId,
+        direction: (m.key?.fromMe ? "outbound" : "inbound") as
+          | "outbound"
+          | "inbound",
+        body: messageBody(m.message),
+        media_type: kind,
+        // Guarda o payload cru so para midia (necessario para o proxy baixar).
+        raw: kind ? (m as unknown as Record<string, unknown>) : null,
+        wa_message_id: m.key!.id!,
+        status: m.key?.fromMe ? "sent" : "received",
+        created_at: tsToIso(m.messageTimestamp) ?? new Date().toISOString(),
+      };
+    });
 
   // Desduplica pelos IDs ja existentes (evita ON CONFLICT em indice parcial).
   const ids = rows.map((r) => r.wa_message_id);

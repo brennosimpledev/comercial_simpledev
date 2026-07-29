@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { brCanonical, last8 } from "@/lib/phone";
+import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,11 +28,6 @@ interface EvoData {
   message?: EvoMessage;
   messageType?: string;
   messageTimestamp?: number;
-}
-
-function extractText(msg?: EvoMessage): string | null {
-  if (!msg) return null;
-  return msg.conversation ?? msg.extendedTextMessage?.text ?? null;
 }
 
 // Extrai os digitos do numero real do contato a partir da key.
@@ -85,7 +81,8 @@ export async function POST(request: NextRequest) {
     const digits = keyToDigits(data.key);
     if (!digits) continue;
 
-    const text = extractText(data.message);
+    const text = messageBody(data.message);
+    const kind = mediaKind(data.message);
     const fromMe = Boolean(data.key?.fromMe);
     const waMessageId = data.key?.id ?? null;
     const pushName = data.pushName ?? null;
@@ -127,6 +124,7 @@ export async function POST(request: NextRequest) {
       lead_id: leadId,
       direction: fromMe ? "outbound" : "inbound",
       body: text,
+      media_type: kind,
       wa_message_id: waMessageId,
       status: fromMe ? "sent" : "received",
       raw: data as unknown as Record<string, unknown>,

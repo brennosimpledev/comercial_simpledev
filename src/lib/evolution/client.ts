@@ -46,49 +46,115 @@ function brNumberVariants(numberDigits: string): string[] {
   return Array.from(set);
 }
 
-async function findByJid(jid: string): Promise<EvoHistMessage[]> {
+const PAGE_SIZE = 50;
+
+async function findByJidPage(
+  jid: string,
+  page: number
+): Promise<{ records: EvoHistMessage[]; pages: number }> {
   try {
     const res = await fetch(
       `${BASE}/chat/findMessages/${encodeURIComponent(INSTANCE!)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", apikey: API_KEY! },
-        body: JSON.stringify({ where: { key: { remoteJid: jid } } }),
+        body: JSON.stringify({
+          where: { key: { remoteJid: jid } },
+          page,
+          offset: PAGE_SIZE,
+        }),
       }
     );
-    if (!res.ok) return [];
+    if (!res.ok) return { records: [], pages: 0 };
     const data = (await res.json()) as {
-      messages?: { records?: EvoHistMessage[] } | EvoHistMessage[];
+      messages?:
+        | { records?: EvoHistMessage[]; pages?: number }
+        | EvoHistMessage[];
     };
     const m = data?.messages;
-    const records = Array.isArray(m) ? m : (m?.records ?? []);
-    return Array.isArray(records) ? records : [];
+    if (Array.isArray(m)) return { records: m, pages: 1 };
+    return { records: m?.records ?? [], pages: m?.pages ?? 1 };
   } catch {
-    return [];
+    return { records: [], pages: 0 };
   }
 }
 
-// Busca o historico de um contato tentando varios jids (variacoes do numero
-// + jids extras, ex.: o @lid real capturado nas mensagens recebidas).
+// Busca o historico de um contato. Escolhe o PRIMEIRO jid que retorna dados
+// (prioridade: @lid definitivo > numero exato > variacoes) para nao misturar
+// conversas de numeros parecidos, e pagina esse jid ate maxPages.
 export async function fetchWhatsAppHistory(
   numberDigits: string,
-  extraJids: string[] = []
+  extraJids: string[] = [],
+  maxPages = 1
 ): Promise<EvoHistMessage[]> {
   if (!evolutionConfigured()) return [];
-  const jids = [
-    ...brNumberVariants(numberDigits).map((n) => `${n}@s.whatsapp.net`),
+
+  const candidates = [
     ...extraJids.filter(Boolean),
+    `${numberDigits}@s.whatsapp.net`,
+    ...brNumberVariants(numberDigits)
+      .filter((n) => n !== numberDigits)
+      .map((n) => `${n}@s.whatsapp.net`),
   ];
 
   const byId = new Map<string, EvoHistMessage>();
-  for (const jid of jids) {
-    const records = await findByJid(jid);
+  let chosen: string | null = null;
+  let pages = 1;
+
+  for (const jid of candidates) {
+    const first = await findByJidPage(jid, 1);
+    if (first.records.length > 0) {
+      chosen = jid;
+      pages = first.pages || 1;
+      for (const r of first.records) {
+        const id = r?.key?.id;
+        if (id && !byId.has(id)) byId.set(id, r);
+      }
+      break;
+    }
+  }
+  if (!chosen) return [];
+
+  for (let page = 2; page <= Math.min(maxPages, pages); page++) {
+    const { records } = await findByJidPage(chosen, page);
+    if (records.length === 0) break;
     for (const r of records) {
       const id = r?.key?.id;
       if (id && !byId.has(id)) byId.set(id, r);
     }
+    if (records.length < PAGE_SIZE) break;
   }
+
   return Array.from(byId.values());
+}
+
+// Baixa a midia de uma mensagem (base64) via Evolution.
+export async function getMediaBase64(
+  message: unknown
+): Promise<{ base64: string; mimetype: string } | null> {
+  if (!evolutionConfigured()) return null;
+  try {
+    const res = await fetch(
+      `${BASE}/chat/getBase64FromMediaMessage/${encodeURIComponent(INSTANCE!)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: API_KEY! },
+        body: JSON.stringify({ message, convertToMp4: false }),
+      }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      base64?: string;
+      mimetype?: string;
+    };
+    if (!data?.base64) return null;
+    return {
+      base64: data.base64,
+      mimetype: data.mimetype ?? "application/octet-stream",
+    };
+  } catch {
+    return null;
+  }
 }
 
 export interface SendTextResult {

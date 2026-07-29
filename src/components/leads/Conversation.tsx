@@ -6,6 +6,43 @@ import { sendLeadMessage, importLeadHistory } from "@/app/(app)/leads/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { LeadMessage } from "@/types/database";
 
+function MediaBlock({ message }: { message: LeadMessage }) {
+  const kind = message.media_type;
+  if (!kind) return null;
+  const src = `/api/media/${message.id}`;
+
+  if (kind === "image" || kind === "sticker") {
+    // eslint-disable-next-line @next/next/no-img-element
+    return (
+      <img
+        src={src}
+        alt="imagem"
+        className="mb-1 max-h-64 max-w-full rounded-lg"
+        loading="lazy"
+      />
+    );
+  }
+  if (kind === "audio") {
+    return <audio controls src={src} className="mb-1 w-56" />;
+  }
+  if (kind === "video") {
+    return (
+      <video controls src={src} className="mb-1 max-h-64 max-w-full rounded-lg" />
+    );
+  }
+  // document / outros
+  return (
+    <a
+      href={src}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mb-1 flex items-center gap-2 rounded-lg bg-black/20 px-2 py-1 text-xs underline"
+    >
+      📎 Baixar arquivo
+    </a>
+  );
+}
+
 function fmt(iso: string) {
   return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
@@ -165,7 +202,8 @@ export function Conversation({
                     : "bg-slate-700 text-slate-100")
                 }
               >
-                <div>{m.body}</div>
+                <MediaBlock message={m} />
+                {m.body && <div>{m.body}</div>}
                 <div
                   className={
                     "mt-1 text-right text-[10px] " +
