@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { brCanonical, last8 } from "@/lib/phone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,16 +79,18 @@ export async function POST(request: NextRequest) {
     const waMessageId = data.key?.id ?? null;
     const pushName = data.pushName ?? null;
 
-    // Casa com um lead existente pelos ultimos 8 digitos; senao cria um.
-    const suffix = digits.slice(-8);
-    const { data: found } = await supabase
+    // Prefiltro barato pelos ultimos 8 digitos e confirmacao pelo numero
+    // canonico (DDD + 8), evitando casar numeros de DDDs diferentes.
+    const canon = brCanonical(digits);
+    const { data: candidates } = await supabase
       .from("leads")
-      .select("id")
-      .like("whatsapp_digits", `%${suffix}`)
-      .limit(1)
-      .maybeSingle();
+      .select("id, whatsapp")
+      .like("whatsapp_digits", `%${last8(digits)}`)
+      .limit(10);
 
-    let leadId = found?.id as string | undefined;
+    let leadId = (candidates ?? []).find(
+      (c) => brCanonical(c.whatsapp as string | null) === canon
+    )?.id as string | undefined;
 
     if (!leadId) {
       // Nao cria lead para mensagens que NOS enviamos a um numero desconhecido.
