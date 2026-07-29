@@ -85,6 +85,7 @@ export default async function LeadDetailPage({
                   year: "2-digit",
                   hour: "2-digit",
                   minute: "2-digit",
+                  timeZone: "America/Sao_Paulo",
                 })}
               />
               <Field label="Orçamento" value={lead.orcamento} />

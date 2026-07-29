@@ -23,6 +23,7 @@ function fmtDateTime(iso: string) {
     year: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
   });
 }
 
@@ -62,8 +63,8 @@ export function LeadsView({
   const responded = useMemo(() => new Set(respondedIds), [respondedIds]);
 
   const filtered = useMemo(() => {
-    const start = new Date(from + "T00:00:00");
-    const end = new Date(to + "T23:59:59");
+    const start = new Date(from + "T00:00:00Z");
+    const end = new Date(to + "T23:59:59Z");
     return leads.filter((l) => {
       const c = new Date(l.created_at);
       if (c < start || c > end) return false;
@@ -83,8 +84,8 @@ export function LeadsView({
   }, [filtered, responded]);
 
   const chartPoints = useMemo(() => {
-    const start = new Date(from + "T00:00:00");
-    const end = new Date(to + "T00:00:00");
+    const start = new Date(from + "T00:00:00Z");
+    const end = new Date(to + "T00:00:00Z");
     const days: { label: string; value: number }[] = [];
     const counts = new Map<string, number>();
     for (const l of filtered) {
@@ -97,6 +98,7 @@ export function LeadsView({
         label: d.toLocaleDateString("pt-BR", {
           day: "2-digit",
           month: "2-digit",
+          timeZone: "UTC",
         }),
         value: counts.get(key) ?? 0,
       });
