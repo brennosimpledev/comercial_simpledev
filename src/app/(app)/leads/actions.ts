@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { manualLeadSchema } from "@/lib/validators/lead";
 import { scheduleFollowUpsForLead } from "@/lib/followups/schedule";
 import { sendWhatsAppText } from "@/lib/evolution/client";
-import type { LeadStage } from "@/types/database";
+import type { LeadStage, LeadOrigin } from "@/types/database";
 
 const VALID_STAGES: LeadStage[] = [
   "novo",
@@ -77,10 +77,72 @@ export async function createManualLead(_prev: unknown, formData: FormData) {
 // Exclui um lead (e, em cascata, mensagens e follow-ups).
 export async function deleteLead(id: string) {
   const supabase = await createClient();
-  const { error } = await supabase.from("leads").delete().eq("id", id);
-  if (error) return { error: "Não foi possível excluir." };
+  const { data, error } = await supabase
+    .from("leads")
+    .delete()
+    .eq("id", id)
+    .select("id");
+  if (error) return { error: `Não foi possível excluir: ${error.message}` };
+  if (!data || data.length === 0) {
+    return { error: "Nada foi excluído (sem permissão ou lead inexistente)." };
+  }
   revalidatePath("/leads");
   revalidatePath("/dashboard");
+  return { ok: true };
+}
+
+const VALID_ORIGINS: LeadOrigin[] = [
+  "google_ads",
+  "meta_ads",
+  "indicacao",
+  "organico",
+  "whatsapp",
+  "workana",
+  "outro",
+];
+
+// Edita os campos principais do lead (painel de infos).
+export async function updateLeadInfo(
+  id: string,
+  fields: {
+    nome?: string;
+    whatsapp?: string;
+    email?: string;
+    origem?: string;
+    orcamento?: string;
+    necessidade?: string;
+    prazo?: string;
+  }
+) {
+  const nome = (fields.nome ?? "").trim();
+  if (!nome) return { error: "Nome é obrigatório." };
+
+  const origem: LeadOrigin = VALID_ORIGINS.includes(fields.origem as LeadOrigin)
+    ? (fields.origem as LeadOrigin)
+    : "outro";
+
+  const clean = (v?: string) => {
+    const s = (v ?? "").trim();
+    return s.length ? s : null;
+  };
+
+  const { error } = await (await createClient())
+    .from("leads")
+    .update({
+      nome,
+      whatsapp: clean(fields.whatsapp),
+      email: clean(fields.email),
+      origem,
+      orcamento: clean(fields.orcamento),
+      necessidade: clean(fields.necessidade),
+      prazo: clean(fields.prazo),
+    })
+    .eq("id", id);
+
+  if (error) return { error: "Não foi possível salvar as alterações." };
+
+  revalidatePath(`/leads/${id}`);
+  revalidatePath("/leads");
   return { ok: true };
 }
 

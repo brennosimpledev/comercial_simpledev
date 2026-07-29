@@ -5,8 +5,8 @@ import { Conversation } from "@/components/leads/Conversation";
 import { LeadFlags } from "@/components/leads/LeadFlags";
 import { FollowUpPanel } from "@/components/leads/FollowUpPanel";
 import { NotesEditor } from "@/components/leads/NotesEditor";
+import { LeadInfoEditor } from "@/components/leads/LeadInfoEditor";
 import {
-  ORIGIN_LABELS,
   STAGE_LABELS,
   type FollowUp,
   type Lead,
@@ -14,15 +14,6 @@ import {
 } from "@/types/database";
 
 export const dynamic = "force-dynamic";
-
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-[11px] uppercase text-slate-400">{label}</dt>
-      <dd className="mt-0.5 text-sm text-slate-800">{value || "—"}</dd>
-    </div>
-  );
-}
 
 export default async function LeadDetailPage({
   params,
@@ -67,31 +58,7 @@ export default async function LeadDetailPage({
         {/* Coluna de infos */}
         <aside className="space-y-4">
           <section className="rounded-xl border border-slate-200 bg-white p-5">
-            <h1 className="mb-4 text-base font-semibold text-slate-900">
-              {lead.nome}
-            </h1>
-            <dl className="space-y-3">
-              <Field label="Telefone" value={lead.whatsapp} />
-              <Field label="E-mail" value={lead.email} />
-              <Field
-                label="Meio de aquisição"
-                value={ORIGIN_LABELS[lead.origem]}
-              />
-              <Field
-                label="Data de criação"
-                value={new Date(lead.created_at).toLocaleString("pt-BR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  timeZone: "America/Sao_Paulo",
-                })}
-              />
-              <Field label="Orçamento" value={lead.orcamento} />
-              <Field label="Necessidade" value={lead.necessidade} />
-              <Field label="Prazo / início" value={lead.prazo} />
-            </dl>
+            <LeadInfoEditor lead={lead} />
           </section>
 
           <section className="rounded-xl border border-slate-200 bg-white p-5">

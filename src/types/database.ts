@@ -15,6 +15,7 @@ export type LeadOrigin =
   | "indicacao"
   | "organico"
   | "whatsapp"
+  | "workana"
   | "outro";
 
 export type LeadStatus = "ativo" | "ganho" | "perdido";
@@ -92,6 +93,7 @@ export const ORIGIN_LABELS: Record<LeadOrigin, string> = {
   indicacao: "Indicação",
   organico: "Orgânico",
   whatsapp: "WhatsApp",
+  workana: "Workana",
   outro: "Outro",
 };
 
