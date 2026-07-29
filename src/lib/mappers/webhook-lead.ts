@@ -36,6 +36,24 @@ function clean(v: unknown): string | null {
   return s.length ? s : null;
 }
 
+const VALID_ORIGINS: LeadOrigin[] = [
+  "google_ads",
+  "meta_ads",
+  "indicacao",
+  "organico",
+  "whatsapp",
+  "workana",
+  "outro",
+];
+
+// Origem explicita no payload (ex.: ferramenta de automacao mandando "meta_ads").
+function explicitOrigin(payload: LpWebhookPayload): LeadOrigin | null {
+  const o = clean(payload.origem as string | undefined)?.toLowerCase();
+  return o && VALID_ORIGINS.includes(o as LeadOrigin)
+    ? (o as LeadOrigin)
+    : null;
+}
+
 // Deriva a origem do lead a partir de gclid / utm_source.
 export function deriveOrigin(payload: LpWebhookPayload): LeadOrigin {
   if (clean(payload.gclid)) return "google_ads";
@@ -73,7 +91,7 @@ export function mapWebhookToLead(payload: LpWebhookPayload) {
     email: clean(payload.email),
     whatsapp: clean(payload.whatsapp),
 
-    origem: deriveOrigin(payload),
+    origem: explicitOrigin(payload) ?? deriveOrigin(payload),
     orcamento: clean(payload.orcamento),
     necessidade: clean(payload.necessidade),
     prazo: clean(payload.inicio),
