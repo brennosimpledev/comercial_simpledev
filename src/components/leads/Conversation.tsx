@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { sendLeadMessage } from "@/app/(app)/leads/actions";
+import { createClient } from "@/lib/supabase/client";
 import type { LeadMessage } from "@/types/database";
 
 function fmt(iso: string) {
@@ -16,7 +17,7 @@ function fmt(iso: string) {
 
 export function Conversation({
   leadId,
-  messages,
+  messages: initialMessages,
   hasWhatsapp,
 }: {
   leadId: string;
@@ -26,7 +27,47 @@ export function Conversation({
   const router = useRouter();
   const [text, setText] = useState("");
   const [pending, startTransition] = useTransition();
+  const [messages, setMessages] = useState<LeadMessage[]>(initialMessages);
   const endRef = useRef<HTMLDivElement>(null);
+
+  // Sincroniza quando o servidor traz novas mensagens (ex.: apos enviar).
+  useEffect(() => {
+    setMessages((prev) => {
+      const map = new Map(prev.map((m) => [m.id, m]));
+      for (const m of initialMessages) map.set(m.id, m);
+      return Array.from(map.values()).sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+    });
+  }, [initialMessages]);
+
+  // Realtime: novas mensagens (recebidas ou enviadas) aparecem sozinhas.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`lead-messages-${leadId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "lead_messages",
+          filter: `lead_id=eq.${leadId}`,
+        },
+        (payload) => {
+          const m = payload.new as LeadMessage;
+          setMessages((prev) =>
+            prev.some((x) => x.id === m.id) ? prev : [...prev, m]
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [leadId]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
