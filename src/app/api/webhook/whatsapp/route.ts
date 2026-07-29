@@ -152,5 +152,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true, endpoint: "webhook/whatsapp" });
+  return NextResponse.json({
+    ok: true,
+    endpoint: "webhook/whatsapp",
+    version: "tz-hydration-fix",
+  });
 }
