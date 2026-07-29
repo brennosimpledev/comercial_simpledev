@@ -254,7 +254,7 @@ export function Conversation({
   }
 
   return (
-    <div className="flex h-[70vh] flex-col rounded-xl border border-slate-800 bg-slate-900">
+    <div className="flex h-[70vh] flex-col rounded-xl border border-white/10 bg-navy-mid">
       <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2">
         <span className="text-xs text-slate-400">Conversa</span>
         <button
@@ -355,7 +355,7 @@ export function Conversation({
                   : "Responder..."
           }
           disabled={!hasWhatsapp || pending || busy || recording}
-          className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-500 disabled:opacity-50"
+          className="flex-1 rounded-lg border border-white/10 bg-[#0b2a49] px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-500 disabled:opacity-50"
         />
         <button
           onClick={send}

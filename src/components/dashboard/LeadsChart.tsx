@@ -38,8 +38,8 @@ export function LeadsChart({
       >
         <defs>
           <linearGradient id="leadArea" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02" />
+            <stop offset="0%" stopColor="#00B2FF" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="#00B2FF" stopOpacity="0.02" />
           </linearGradient>
         </defs>
 
@@ -50,7 +50,7 @@ export function LeadsChart({
               x2={W - padX}
               y1={y(t)}
               y2={y(t)}
-              stroke="#e2e8f0"
+              stroke="rgba(255,255,255,0.08)"
               strokeWidth={1}
             />
             <text x={8} y={y(t) + 4} fontSize={12} fill="#94a3b8">
@@ -63,7 +63,7 @@ export function LeadsChart({
         <polyline
           points={line}
           fill="none"
-          stroke="#3b82f6"
+          stroke="#00B2FF"
           strokeWidth={2.5}
           strokeLinejoin="round"
           strokeLinecap="round"
@@ -71,7 +71,7 @@ export function LeadsChart({
 
         {points.map((p, i) => (
           <g key={i}>
-            <circle cx={x(i)} cy={y(p.value)} r={3.5} fill="#3b82f6" />
+            <circle cx={x(i)} cy={y(p.value)} r={3.5} fill="#00B2FF" />
             <text
               x={x(i)}
               y={H - 4}

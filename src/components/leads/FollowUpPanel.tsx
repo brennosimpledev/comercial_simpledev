@@ -46,10 +46,10 @@ export function FollowUpPanel({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-700">
+        <h3 className="text-sm font-semibold text-slate-200">
           Follow up recomendado
         </h3>
-        <label className="flex items-center gap-2 text-xs text-slate-500">
+        <label className="flex items-center gap-2 text-xs text-slate-400">
           Pausar bot
           <input
             type="checkbox"
@@ -73,15 +73,15 @@ export function FollowUpPanel({
         {pendentes.map((f) => (
           <div
             key={f.id}
-            className="rounded-xl border border-slate-200 bg-white p-3"
+            className="rounded-xl border border-white/10 bg-navy p-3"
           >
-            <div className="mb-1 flex items-center gap-2 text-xs text-slate-500">
-              <span className="rounded bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
+            <div className="mb-1 flex items-center gap-2 text-xs text-slate-400">
+              <span className="rounded bg-white/10 px-2 py-0.5 font-medium text-slate-300">
                 {f.titulo ?? "Follow-up"}
               </span>
               <span>agendado {fmt(f.scheduled_at)}</span>
             </div>
-            <p className="whitespace-pre-wrap text-sm text-slate-700">
+            <p className="whitespace-pre-wrap text-sm text-slate-200">
               {f.body}
             </p>
             <div className="mt-2 flex items-center gap-2">
@@ -96,7 +96,7 @@ export function FollowUpPanel({
               <button
                 onClick={() => run(() => skipFollowUp(f.id))}
                 disabled={pending}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-slate-300 hover:bg-white/5 disabled:opacity-50"
               >
                 Pular
               </button>
@@ -106,7 +106,7 @@ export function FollowUpPanel({
       </div>
 
       {botPausado && (
-        <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        <p className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
           Bot pausado — os follow-ups não serão enviados automaticamente.
         </p>
       )}

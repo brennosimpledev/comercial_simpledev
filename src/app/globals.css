@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 html,
@@ -12,5 +12,23 @@ body {
 }
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply bg-navy text-slate-100 antialiased;
+}
+
+@layer components {
+  .sd-card {
+    @apply rounded-xl border border-white/10 bg-navy-mid;
+  }
+  .sd-input {
+    @apply w-full rounded-lg border border-white/10 bg-[#0b2a49] px-3 py-2 text-sm text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-brand focus:ring-2 focus:ring-brand/30;
+  }
+  .sd-label {
+    @apply mb-1 block text-[11px] font-medium uppercase tracking-wide text-slate-400;
+  }
+  .sd-btn {
+    @apply rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-navy transition hover:bg-brand-dark disabled:opacity-60;
+  }
+  .sd-btn-ghost {
+    @apply rounded-lg border border-white/15 px-3 py-2 text-sm text-slate-200 transition hover:bg-white/5;
+  }
 }

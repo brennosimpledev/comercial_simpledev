@@ -17,26 +17,25 @@ export default async function AppLayout({
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white">
+      <header className="sticky top-0 z-10 border-b border-white/10 bg-navy/80 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-6">
-            <span className="text-sm font-semibold text-slate-900">
-              Comercial SimpleDEV
+            <span className="text-sm font-semibold text-white">
+              Comercial <span className="text-brand">SimpleDEV</span>
             </span>
             <nav className="flex items-center gap-1">
-              <NavLink href="/dashboard">Pipeline</NavLink>
               <NavLink href="/leads">Leads</NavLink>
             </nav>
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="hidden text-xs text-slate-500 sm:block">
+            <span className="hidden text-xs text-slate-400 sm:block">
               {user.email}
             </span>
             <form action={signOut}>
               <button
                 type="submit"
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100"
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-slate-200 transition hover:bg-white/5"
               >
                 Sair
               </button>

@@ -5,9 +5,8 @@ import { useRouter } from "next/navigation";
 import { updateLeadInfo } from "@/app/(app)/leads/actions";
 import { ORIGIN_LABELS, type Lead } from "@/types/database";
 
-const inputCls =
-  "w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
-const labelCls = "text-[11px] uppercase text-slate-400";
+const inputCls = "sd-input px-2 py-1.5";
+const labelCls = "sd-label";
 
 export function LeadInfoEditor({ lead }: { lead: Lead }) {
   const router = useRouter();
@@ -95,7 +94,7 @@ export function LeadInfoEditor({ lead }: { lead: Lead }) {
 
       <div>
         <label className={labelCls}>Data de criação</label>
-        <p className="mt-0.5 text-sm text-slate-500">{criadoEm}</p>
+        <p className="mt-0.5 text-sm text-slate-300">{criadoEm}</p>
       </div>
 
       <div>
@@ -130,7 +129,7 @@ export function LeadInfoEditor({ lead }: { lead: Lead }) {
         <button
           onClick={save}
           disabled={pending}
-          className="rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-60"
+          className="rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-navy transition hover:bg-brand-dark disabled:opacity-60"
         >
           {pending ? "Salvando..." : "Salvar dados"}
         </button>

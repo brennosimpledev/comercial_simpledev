@@ -7,9 +7,8 @@ import { ORIGIN_LABELS, STAGE_LABELS } from "@/types/database";
 
 const initialState: { error?: string } = {};
 
-const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand focus:ring-2 focus:ring-brand/20";
-const labelClass = "mb-1 block text-sm font-medium text-slate-700";
+const inputClass = "sd-input";
+const labelClass = "sd-label";
 
 export function LeadForm() {
   const [state, formAction, pending] = useActionState(
@@ -20,7 +19,7 @@ export function LeadForm() {
   return (
     <form
       action={formAction}
-      className="space-y-4 rounded-xl border border-slate-200 bg-white p-6"
+      className="sd-card space-y-4 p-6"
     >
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2">
@@ -120,23 +119,16 @@ export function LeadForm() {
       </div>
 
       {state?.error && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+        <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">
           {state.error}
         </p>
       )}
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-dark disabled:opacity-60"
-        >
+        <button type="submit" disabled={pending} className="sd-btn">
           {pending ? "Salvando..." : "Salvar lead"}
         </button>
-        <Link
-          href="/leads"
-          className="text-sm text-slate-500 hover:underline"
-        >
+        <Link href="/leads" className="text-sm text-slate-400 hover:text-brand">
           Cancelar
         </Link>
       </div>

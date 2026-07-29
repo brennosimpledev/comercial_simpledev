@@ -21,7 +21,7 @@ export default async function LeadsPage() {
 
   return (
     <div>
-      <h1 className="mb-4 text-lg font-semibold text-slate-900">Leads</h1>
+      <h1 className="mb-4 text-lg font-semibold text-white">Leads</h1>
       <LeadsView leads={(leads ?? []) as Lead[]} respondedIds={respondedIds} />
     </div>
   );

@@ -21,5 +21,5 @@ export async function login(_prev: unknown, formData: FormData) {
     return { error: "E-mail ou senha inválidos." };
   }
 
-  redirect("/dashboard");
+  redirect("/leads");
 }

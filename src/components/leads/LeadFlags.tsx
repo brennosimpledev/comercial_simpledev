@@ -27,7 +27,7 @@ function Toggle({
   }[color];
   return (
     <div className="flex items-center justify-between">
-      <span className="text-sm text-slate-700">{label}</span>
+      <span className="text-sm text-slate-200">{label}</span>
       <button
         type="button"
         disabled={disabled}

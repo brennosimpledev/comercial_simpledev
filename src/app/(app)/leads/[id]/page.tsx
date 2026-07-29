@@ -46,10 +46,10 @@ export default async function LeadDetailPage({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <Link href="/leads" className="text-sm text-slate-500 hover:underline">
+        <Link href="/leads" className="text-sm text-slate-400 hover:text-brand">
           ← Voltar
         </Link>
-        <span className="rounded-full bg-brand/10 px-3 py-1 text-sm font-medium text-brand">
+        <span className="rounded-full bg-brand/15 px-3 py-1 text-sm font-medium text-brand">
           {STAGE_LABELS[lead.estagio]}
         </span>
       </div>
@@ -57,19 +57,19 @@ export default async function LeadDetailPage({
       <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
         {/* Coluna de infos */}
         <aside className="space-y-4">
-          <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <section className="sd-card p-5">
             <LeadInfoEditor lead={lead} />
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">
+          <section className="sd-card p-5">
+            <h2 className="mb-3 text-sm font-semibold text-slate-200">
               Qualificação
             </h2>
             <LeadFlags lead={lead} />
           </section>
 
-          <section className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="mb-3 text-sm font-semibold text-slate-700">
+          <section className="sd-card p-5">
+            <h2 className="mb-3 text-sm font-semibold text-slate-200">
               Anotações
             </h2>
             <NotesEditor leadId={lead.id} initial={lead.anotacoes} />
@@ -83,7 +83,7 @@ export default async function LeadDetailPage({
             messages={messages}
             hasWhatsapp={hasWhatsapp}
           />
-          <section className="rounded-xl border border-slate-200 bg-slate-50 p-5">
+          <section className="sd-card p-5">
             <FollowUpPanel
               leadId={lead.id}
               followUps={followUps}

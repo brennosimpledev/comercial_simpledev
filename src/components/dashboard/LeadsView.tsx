@@ -41,7 +41,7 @@ function StatusIcon({ lead }: { lead: Lead }) {
     return <span title="Desqualificado">👎</span>;
   if (lead.qualificado) return <span title="Qualificado">👍</span>;
   if (lead.sem_resposta) return <span title="Sem resposta">🛌</span>;
-  return <span className="text-slate-300">—</span>;
+  return <span className="text-slate-600">—</span>;
 }
 
 export function LeadsView({
@@ -126,12 +126,12 @@ export function LeadsView({
   }
 
   const inputCls =
-    "rounded-lg border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-brand";
+    "rounded-lg border border-white/10 bg-[#0b2a49] px-2 py-1.5 text-sm text-slate-100 outline-none focus:border-brand";
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="mb-2 text-center text-sm font-semibold text-slate-500">
+      <div className="sd-card p-4">
+        <h2 className="mb-2 text-center text-sm font-semibold text-slate-400">
           Leads
         </h2>
         <LeadsChart points={chartPoints} />
@@ -172,39 +172,41 @@ export function LeadsView({
         />
         <Link
           href="/leads/novo"
-          className="rounded-full bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-dark"
+          className="rounded-full bg-brand px-3 py-1.5 text-sm font-semibold text-navy hover:bg-brand-dark"
         >
           + Lead
         </Link>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="sd-card overflow-hidden">
         {sorted.map((lead) => (
           <div
             key={lead.id}
             className={
-              "flex items-center gap-3 border-b border-slate-100 px-4 py-3 text-sm last:border-b-0 " +
-              (lead.qualificado ? "bg-amber-50" : "hover:bg-slate-50")
+              "flex items-center gap-3 border-b border-white/5 px-4 py-3 text-sm last:border-b-0 " +
+              (lead.qualificado
+                ? "bg-brand/5 hover:bg-brand/10"
+                : "hover:bg-white/5")
             }
           >
-            <div className="w-48 shrink-0 font-medium text-slate-900">
-              <Link href={`/leads/${lead.id}`} className="hover:underline">
+            <div className="w-48 shrink-0 font-medium text-white">
+              <Link href={`/leads/${lead.id}`} className="hover:text-brand">
                 {lead.nome}
               </Link>
             </div>
-            <div className="w-36 shrink-0 text-slate-600">
+            <div className="w-36 shrink-0 text-slate-300">
               {lead.whatsapp ?? "—"}
             </div>
-            <div className="hidden flex-1 truncate text-slate-500 md:block">
+            <div className="hidden flex-1 truncate text-slate-400 md:block">
               {lead.email ?? ""}
             </div>
-            <div className="w-32 shrink-0 text-slate-500">
+            <div className="w-32 shrink-0 text-slate-400">
               {fmtDateTime(lead.created_at)}
             </div>
-            <div className="w-28 shrink-0 text-slate-600">
+            <div className="w-28 shrink-0 text-slate-300">
               {ORIGIN_LABELS[lead.origem]}
             </div>
-            <div className="w-20 shrink-0 text-center text-slate-500">
+            <div className="w-20 shrink-0 text-center text-slate-400">
               {STAGE_LABELS[lead.estagio]}
             </div>
             <div className="w-8 shrink-0 text-center text-base">
@@ -222,7 +224,7 @@ export function LeadsView({
                 onClick={() => handleDelete(lead.id, lead.nome)}
                 disabled={pending}
                 title="Excluir"
-                className="text-slate-400 hover:text-red-500 disabled:opacity-50"
+                className="text-slate-400 hover:text-red-400 disabled:opacity-50"
               >
                 🗑
               </button>
