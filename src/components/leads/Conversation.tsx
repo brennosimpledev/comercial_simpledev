@@ -42,29 +42,54 @@ export function Conversation({
     });
   }, [initialMessages]);
 
-  // Realtime: novas mensagens (recebidas ou enviadas) aparecem sozinhas.
+  // Realtime (instantaneo) + poll de fallback (garante a atualizacao).
   useEffect(() => {
     const supabase = createClient();
-    const channel = supabase
-      .channel(`lead-messages-${leadId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "lead_messages",
-          filter: `lead_id=eq.${leadId}`,
-        },
-        (payload) => {
-          const m = payload.new as LeadMessage;
-          setMessages((prev) =>
-            prev.some((x) => x.id === m.id) ? prev : [...prev, m]
-          );
-        }
-      )
-      .subscribe();
+    let cancelled = false;
+
+    const addMsg = (m: LeadMessage) =>
+      setMessages((prev) =>
+        prev.some((x) => x.id === m.id)
+          ? prev
+          : [...prev, m].sort(
+              (a, b) =>
+                new Date(a.created_at).getTime() -
+                new Date(b.created_at).getTime()
+            )
+      );
+
+    const channel = supabase.channel(`lead-messages-${leadId}`).on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "lead_messages",
+        filter: `lead_id=eq.${leadId}`,
+      },
+      (payload) => addMsg(payload.new as LeadMessage)
+    );
+
+    // Autentica o realtime com o token do usuario (RLS = authenticated).
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) supabase.realtime.setAuth(data.session.access_token);
+      channel.subscribe();
+    });
+
+    // Fallback: busca mensagens novas a cada 5s enquanto a aba esta visivel.
+    const poll = async () => {
+      if (cancelled || document.visibilityState !== "visible") return;
+      const { data } = await supabase
+        .from("lead_messages")
+        .select("*")
+        .eq("lead_id", leadId)
+        .order("created_at", { ascending: true });
+      if (!cancelled && data) (data as LeadMessage[]).forEach(addMsg);
+    };
+    const interval = setInterval(poll, 5000);
 
     return () => {
+      cancelled = true;
+      clearInterval(interval);
       supabase.removeChannel(channel);
     };
   }, [leadId]);
