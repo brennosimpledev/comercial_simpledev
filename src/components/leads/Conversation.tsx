@@ -75,17 +75,14 @@ export function Conversation({
       channel.subscribe();
     });
 
-    // Fallback: busca mensagens novas a cada 5s enquanto a aba esta visivel.
-    const poll = async () => {
-      if (cancelled || document.visibilityState !== "visible") return;
-      const { data } = await supabase
-        .from("lead_messages")
-        .select("*")
-        .eq("lead_id", leadId)
-        .order("created_at", { ascending: true });
-      if (!cancelled && data) (data as LeadMessage[]).forEach(addMsg);
-    };
-    const interval = setInterval(poll, 5000);
+    // Fallback confiavel: revalida os dados no SERVIDOR (que esta autenticado
+    // via cookie) a cada 5s. Nao depende de auth no navegador, ao contrario
+    // do realtime. As novas mensagens chegam via prop e entram no estado.
+    const interval = setInterval(() => {
+      if (!cancelled && document.visibilityState === "visible") {
+        router.refresh();
+      }
+    }, 5000);
 
     return () => {
       cancelled = true;
