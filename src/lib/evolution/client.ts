@@ -31,12 +31,22 @@ export interface EvoHistMessage {
   pushName?: string;
 }
 
-// Busca o historico de mensagens de um contato na Evolution.
-export async function fetchWhatsAppHistory(
-  numberDigits: string
-): Promise<EvoHistMessage[]> {
-  if (!evolutionConfigured()) return [];
-  const jid = `${numberDigits}@s.whatsapp.net`;
+// Gera variacoes do numero BR (com e sem o 9o digito).
+function brNumberVariants(numberDigits: string): string[] {
+  const set = new Set<string>([numberDigits]);
+  if (numberDigits.startsWith("55") && numberDigits.length >= 12) {
+    const ddd = numberDigits.slice(2, 4);
+    const num = numberDigits.slice(4);
+    if (num.length === 9 && num.startsWith("9")) {
+      set.add("55" + ddd + num.slice(1)); // remove o 9
+    } else if (num.length === 8) {
+      set.add("55" + ddd + "9" + num); // adiciona o 9
+    }
+  }
+  return Array.from(set);
+}
+
+async function findByJid(jid: string): Promise<EvoHistMessage[]> {
   try {
     const res = await fetch(
       `${BASE}/chat/findMessages/${encodeURIComponent(INSTANCE!)}`,
@@ -56,6 +66,29 @@ export async function fetchWhatsAppHistory(
   } catch {
     return [];
   }
+}
+
+// Busca o historico de um contato tentando varios jids (variacoes do numero
+// + jids extras, ex.: o @lid real capturado nas mensagens recebidas).
+export async function fetchWhatsAppHistory(
+  numberDigits: string,
+  extraJids: string[] = []
+): Promise<EvoHistMessage[]> {
+  if (!evolutionConfigured()) return [];
+  const jids = [
+    ...brNumberVariants(numberDigits).map((n) => `${n}@s.whatsapp.net`),
+    ...extraJids.filter(Boolean),
+  ];
+
+  const byId = new Map<string, EvoHistMessage>();
+  for (const jid of jids) {
+    const records = await findByJid(jid);
+    for (const r of records) {
+      const id = r?.key?.id;
+      if (id && !byId.has(id)) byId.set(id, r);
+    }
+  }
+  return Array.from(byId.values());
 }
 
 export interface SendTextResult {

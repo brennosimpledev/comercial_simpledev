@@ -322,7 +322,28 @@ export async function importLeadHistory(leadId: string) {
 
   if (!lead?.whatsapp) return { error: "Lead sem número de WhatsApp." };
 
-  const history = await fetchWhatsAppHistory(toWaNumber(lead.whatsapp));
+  // Tenta descobrir o @lid real a partir de uma mensagem ja recebida.
+  const { data: rawMsgs } = await supabase
+    .from("lead_messages")
+    .select("raw")
+    .eq("lead_id", leadId)
+    .not("raw", "is", null)
+    .limit(5);
+  const extraJids = Array.from(
+    new Set(
+      (rawMsgs ?? [])
+        .map((r) => {
+          const key = (r.raw as { key?: { remoteJid?: string } } | null)?.key;
+          return key?.remoteJid;
+        })
+        .filter((j): j is string => Boolean(j))
+    )
+  );
+
+  const history = await fetchWhatsAppHistory(
+    toWaNumber(lead.whatsapp),
+    extraJids
+  );
   if (history.length === 0) {
     return { ok: true, imported: 0, message: "Nenhuma mensagem encontrada." };
   }
