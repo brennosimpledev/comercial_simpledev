@@ -340,15 +340,27 @@ export async function importLeadHistory(leadId: string) {
       created_at: tsToIso(m.messageTimestamp) ?? new Date().toISOString(),
     }));
 
-  // Upsert ignorando o que ja existe (unique em wa_message_id).
-  const { error } = await supabase
+  // Desduplica pelos IDs ja existentes (evita ON CONFLICT em indice parcial).
+  const ids = rows.map((r) => r.wa_message_id);
+  const { data: existing } = await supabase
     .from("lead_messages")
-    .upsert(rows, { onConflict: "wa_message_id", ignoreDuplicates: true });
+    .select("wa_message_id")
+    .in("wa_message_id", ids);
+  const have = new Set((existing ?? []).map((e) => e.wa_message_id as string));
 
-  if (error) return { error: "Não foi possível importar o histórico." };
+  const toInsert = rows.filter((r) => !have.has(r.wa_message_id));
+  if (toInsert.length === 0) {
+    return { ok: true, imported: 0, message: "Histórico já estava completo." };
+  }
+
+  const { error } = await supabase.from("lead_messages").insert(toInsert);
+  if (error) {
+    console.error("[importLeadHistory]", error);
+    return { error: "Não foi possível importar o histórico." };
+  }
 
   revalidatePath(`/leads/${leadId}`);
-  return { ok: true, imported: rows.length };
+  return { ok: true, imported: toInsert.length };
 }
 
 // Marca um follow-up como pulado/cancelado (sem enviar).
