@@ -75,14 +75,23 @@ export function Conversation({
       channel.subscribe();
     });
 
-    // Fallback confiavel: revalida os dados no SERVIDOR (que esta autenticado
-    // via cookie) a cada 5s. Nao depende de auth no navegador, ao contrario
-    // do realtime. As novas mensagens chegam via prop e entram no estado.
-    const interval = setInterval(() => {
-      if (!cancelled && document.visibilityState === "visible") {
-        router.refresh();
+    // Poll confiavel: busca as mensagens no nosso endpoint (autenticado por
+    // cookie no servidor) a cada 4s. Independe de auth do Supabase no cliente.
+    const poll = async () => {
+      if (cancelled || document.visibilityState !== "visible") return;
+      try {
+        const res = await fetch(`/api/leads/${leadId}/messages`, {
+          cache: "no-store",
+        });
+        if (!res.ok) return;
+        const json = (await res.json()) as { messages: LeadMessage[] };
+        if (!cancelled) json.messages.forEach(addMsg);
+      } catch {
+        /* ignora falha de rede pontual */
       }
-    }, 5000);
+    };
+    const interval = setInterval(poll, 4000);
+    poll();
 
     return () => {
       cancelled = true;
