@@ -2,7 +2,12 @@
 
 import { useState, useRef, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { sendLeadMessage, importLeadHistory } from "@/app/(app)/leads/actions";
+import {
+  sendLeadMessage,
+  importLeadHistory,
+  sendLeadMedia,
+  sendLeadAudio,
+} from "@/app/(app)/leads/actions";
 import { createClient } from "@/lib/supabase/client";
 import type { LeadMessage } from "@/types/database";
 
@@ -155,6 +160,85 @@ export function Conversation({
     });
   }
 
+  const [busy, setBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
+
+  function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onloadend = () => resolve(String(r.result).split(",")[1] ?? "");
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+  }
+
+  async function handleFile(file: File) {
+    if (file.size > 4 * 1024 * 1024) {
+      alert("Arquivo muito grande (máx. 4MB).");
+      return;
+    }
+    setBusy(true);
+    try {
+      const base64 = await blobToBase64(file);
+      const mediatype = file.type.startsWith("image/")
+        ? "image"
+        : file.type.startsWith("video/")
+          ? "video"
+          : "document";
+      const res = await sendLeadMedia(leadId, {
+        mediatype,
+        base64,
+        mimetype: file.type || "application/octet-stream",
+        fileName: file.name,
+      });
+      if (res?.error) alert(res.error);
+      else router.refresh();
+    } finally {
+      setBusy(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  }
+
+  async function toggleRecord() {
+    if (recording) {
+      recorderRef.current?.stop();
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const rec = new MediaRecorder(stream);
+      chunksRef.current = [];
+      rec.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+      rec.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setRecording(false);
+        const blob = new Blob(chunksRef.current, {
+          type: chunksRef.current[0]?.type || "audio/webm",
+        });
+        if (blob.size === 0) return;
+        setBusy(true);
+        try {
+          const base64 = await blobToBase64(blob);
+          const res = await sendLeadAudio(leadId, base64);
+          if (res?.error) alert(res.error);
+          else router.refresh();
+        } finally {
+          setBusy(false);
+        }
+      };
+      recorderRef.current = rec;
+      rec.start();
+      setRecording(true);
+    } catch {
+      alert("Não foi possível acessar o microfone.");
+    }
+  }
+
   const [importing, setImporting] = useState(false);
   function importHistory() {
     setImporting(true);
@@ -223,6 +307,36 @@ export function Conversation({
 
       <div className="flex items-center gap-2 border-t border-slate-800 p-3">
         <input
+          ref={fileRef}
+          type="file"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleFile(f);
+          }}
+        />
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={!hasWhatsapp || busy || pending}
+          title="Anexar foto ou arquivo"
+          className="rounded-lg border border-slate-700 px-2.5 py-2 text-slate-300 hover:bg-slate-800 disabled:opacity-50"
+        >
+          📎
+        </button>
+        <button
+          onClick={toggleRecord}
+          disabled={!hasWhatsapp || busy || pending}
+          title={recording ? "Parar e enviar" : "Gravar áudio"}
+          className={
+            "rounded-lg border px-2.5 py-2 disabled:opacity-50 " +
+            (recording
+              ? "border-red-500 bg-red-500/20 text-red-400 animate-pulse"
+              : "border-slate-700 text-slate-300 hover:bg-slate-800")
+          }
+        >
+          {recording ? "⏺" : "🎤"}
+        </button>
+        <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -232,14 +346,20 @@ export function Conversation({
             }
           }}
           placeholder={
-            hasWhatsapp ? "Responder..." : "Lead sem WhatsApp cadastrado"
+            !hasWhatsapp
+              ? "Lead sem WhatsApp cadastrado"
+              : recording
+                ? "Gravando áudio..."
+                : busy
+                  ? "Enviando..."
+                  : "Responder..."
           }
-          disabled={!hasWhatsapp || pending}
+          disabled={!hasWhatsapp || pending || busy || recording}
           className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-emerald-500 disabled:opacity-50"
         />
         <button
           onClick={send}
-          disabled={!hasWhatsapp || pending}
+          disabled={!hasWhatsapp || pending || busy}
           className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
         >
           {pending ? "..." : "Enviar"}

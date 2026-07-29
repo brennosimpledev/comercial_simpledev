@@ -7,9 +7,12 @@ import { manualLeadSchema } from "@/lib/validators/lead";
 import { scheduleFollowUpsForLead } from "@/lib/followups/schedule";
 import {
   sendWhatsAppText,
+  sendWhatsAppMedia,
+  sendWhatsAppAudio,
   toWaNumber,
   fetchWhatsAppHistory,
 } from "@/lib/evolution/client";
+import type { MediaKind } from "@/lib/whatsapp-message";
 import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 import type { LeadStage, LeadOrigin } from "@/types/database";
 
@@ -223,6 +226,92 @@ export async function sendLeadMessage(leadId: string, text: string) {
     direction: "outbound",
     body,
     wa_message_id: result.waMessageId ?? null,
+    status: result.ok ? "sent" : "failed",
+    sent_by: user?.id ?? null,
+  });
+
+  revalidatePath(`/leads/${leadId}`);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+// Envia foto / video / documento pela conversa.
+export async function sendLeadMedia(
+  leadId: string,
+  payload: {
+    mediatype: "image" | "video" | "document";
+    base64: string;
+    mimetype: string;
+    fileName: string;
+    caption?: string;
+  }
+) {
+  if (!payload.base64) return { error: "Arquivo vazio." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("whatsapp")
+    .eq("id", leadId)
+    .single();
+  if (!lead?.whatsapp) return { error: "Lead sem número de WhatsApp." };
+
+  const result = await sendWhatsAppMedia(lead.whatsapp, payload);
+
+  const kind: MediaKind =
+    payload.mediatype === "image"
+      ? "image"
+      : payload.mediatype === "video"
+        ? "video"
+        : "document";
+  const fallback =
+    kind === "image" ? "📷 Foto" : kind === "video" ? "🎥 Vídeo" : "📎 Arquivo";
+
+  await supabase.from("lead_messages").insert({
+    lead_id: leadId,
+    direction: "outbound",
+    body: payload.caption?.trim() || fallback,
+    media_type: result.ok ? kind : null,
+    wa_message_id: result.waMessageId ?? null,
+    raw: result.ok ? (result.raw as Record<string, unknown>) : null,
+    status: result.ok ? "sent" : "failed",
+    sent_by: user?.id ?? null,
+  });
+
+  revalidatePath(`/leads/${leadId}`);
+  if (!result.ok) return { error: result.error };
+  return { ok: true };
+}
+
+// Envia audio gravado (nota de voz) pela conversa.
+export async function sendLeadAudio(leadId: string, base64: string) {
+  if (!base64) return { error: "Áudio vazio." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("whatsapp")
+    .eq("id", leadId)
+    .single();
+  if (!lead?.whatsapp) return { error: "Lead sem número de WhatsApp." };
+
+  const result = await sendWhatsAppAudio(lead.whatsapp, base64);
+
+  await supabase.from("lead_messages").insert({
+    lead_id: leadId,
+    direction: "outbound",
+    body: "🎤 Áudio",
+    media_type: result.ok ? "audio" : null,
+    wa_message_id: result.waMessageId ?? null,
+    raw: result.ok ? (result.raw as Record<string, unknown>) : null,
     status: result.ok ? "sent" : "failed",
     sent_by: user?.id ?? null,
   });

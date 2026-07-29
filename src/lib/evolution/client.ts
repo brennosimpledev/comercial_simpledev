@@ -128,6 +128,81 @@ export async function fetchWhatsAppHistory(
   return Array.from(byId.values());
 }
 
+// Envia midia (imagem/video/documento) via Evolution.
+export async function sendWhatsAppMedia(
+  toRaw: string,
+  opts: {
+    mediatype: "image" | "video" | "document";
+    base64: string;
+    mimetype: string;
+    fileName: string;
+    caption?: string;
+  }
+): Promise<SendTextResult> {
+  if (!evolutionConfigured()) {
+    return { ok: false, error: "Evolution API não configurada." };
+  }
+  const number = toWaNumber(toRaw);
+  if (!number) return { ok: false, error: "Número inválido." };
+
+  try {
+    const res = await fetch(
+      `${BASE}/message/sendMedia/${encodeURIComponent(INSTANCE!)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: API_KEY! },
+        body: JSON.stringify({
+          number,
+          mediatype: opts.mediatype,
+          mimetype: opts.mimetype,
+          media: opts.base64,
+          fileName: opts.fileName,
+          caption: opts.caption ?? "",
+        }),
+      }
+    );
+    const data = (await res.json().catch(() => ({}))) as {
+      key?: { id?: string };
+    };
+    if (!res.ok) {
+      return { ok: false, error: `Evolution ${res.status}` };
+    }
+    return { ok: true, waMessageId: data?.key?.id, raw: data };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+// Envia audio (nota de voz) via Evolution.
+export async function sendWhatsAppAudio(
+  toRaw: string,
+  base64: string
+): Promise<SendTextResult> {
+  if (!evolutionConfigured()) {
+    return { ok: false, error: "Evolution API não configurada." };
+  }
+  const number = toWaNumber(toRaw);
+  if (!number) return { ok: false, error: "Número inválido." };
+
+  try {
+    const res = await fetch(
+      `${BASE}/message/sendWhatsAppAudio/${encodeURIComponent(INSTANCE!)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: API_KEY! },
+        body: JSON.stringify({ number, audio: base64 }),
+      }
+    );
+    const data = (await res.json().catch(() => ({}))) as {
+      key?: { id?: string };
+    };
+    if (!res.ok) return { ok: false, error: `Evolution ${res.status}` };
+    return { ok: true, waMessageId: data?.key?.id, raw: data };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
 // Baixa a midia de uma mensagem (base64) via Evolution.
 export async function getMediaBase64(
   message: unknown
@@ -161,6 +236,7 @@ export interface SendTextResult {
   ok: boolean;
   waMessageId?: string;
   error?: string;
+  raw?: unknown;
 }
 
 // Envia uma mensagem de texto via Evolution API.
