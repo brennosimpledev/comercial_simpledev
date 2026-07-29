@@ -34,11 +34,15 @@ function extractText(msg?: EvoMessage): string | null {
 }
 
 // "5573999224400@s.whatsapp.net" -> "5573999224400"
+// Aceita apenas conversas individuais; ignora grupos (@g.us),
+// newsletters/canais (@newsletter), status e broadcast.
 function jidToDigits(jid?: string): string | null {
   if (!jid) return null;
-  const at = jid.split("@");
-  if (jid.includes("@g.us")) return null; // grupo: ignorar
-  return at[0]?.replace(/\D/g, "") || null;
+  if (!jid.endsWith("@s.whatsapp.net")) return null;
+  const digits = jid.split("@")[0]?.replace(/\D/g, "") || "";
+  // Numero brasileiro/internacional plausivel (10 a 15 digitos).
+  if (digits.length < 10 || digits.length > 15) return null;
+  return digits;
 }
 
 export async function POST(request: NextRequest) {
