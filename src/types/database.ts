@@ -112,6 +112,19 @@ export interface LeadMessage {
   sent_by: string | null;
 }
 
+export type MeetingStatus = "agendada" | "realizada" | "furada" | "cancelada";
+
+export const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
+  agendada: "Agendada",
+  realizada: "Realizada",
+  furada: "Furada",
+  cancelada: "Cancelada",
+};
+
+export type MeetingWithLead = Meeting & {
+  leads: { id: string; nome: string; email: string | null; whatsapp: string | null };
+};
+
 export interface Meeting {
   id: string;
   created_at: string;
@@ -123,7 +136,7 @@ export interface Meeting {
   google_event_id: string | null;
   meet_link: string | null;
   html_link: string | null;
-  status: string;
+  status: MeetingStatus;
 }
 
 export type FollowUpStatus = "pendente" | "enviado" | "cancelado" | "pulado";

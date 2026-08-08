@@ -20,14 +20,12 @@ function fmtBR(d: Date) {
   });
 }
 
-// Agenda uma reuniao: cria o evento no Google com link do Meet, convida o
-// lead por e-mail e (opcional) manda o link no WhatsApp.
 export async function scheduleMeeting(
   leadId: string,
   opts: {
-    startLocal: string; // "YYYY-MM-DDTHH:mm" (horario de Brasilia)
+    startLocal: string;
     durationMin: number;
-    titulo?: string;
+    attendeeEmail?: string;
     notifyWhatsapp?: boolean;
   }
 ) {
@@ -49,17 +47,43 @@ export async function scheduleMeeting(
     .single();
   if (!lead) return { error: "Lead não encontrado." };
 
-  // "-03:00" = horario de Brasilia (sem horario de verao desde 2019).
   const start = new Date(`${opts.startLocal}:00-03:00`);
   if (isNaN(start.getTime())) return { error: "Data/horário inválido." };
+
+  const timePart = opts.startLocal.split("T")[1] ?? "";
+  const [brH, brM] = timePart.split(":").map(Number);
+  const totalMin = brH * 60 + brM;
+  const inMorning = totalMin >= 540 && totalMin < 720;
+  const inAfternoon = totalMin >= 840 && totalMin < 1080;
+  if (!inMorning && !inAfternoon) {
+    return { error: "Horário fora do comercial (9h–12h ou 14h–18h)." };
+  }
+
+  const datePart = opts.startLocal.split("T")[0];
+  const [y, mo, da] = datePart.split("-").map(Number);
+  const dow = new Date(y, mo - 1, da).getDay();
+  if (dow === 0 || dow === 6) {
+    return { error: "Reuniões apenas de segunda a sexta." };
+  }
+
   const end = new Date(start.getTime() + (opts.durationMin || 30) * 60_000);
 
+  const title = `${lead.nome} — SimpleDEV`;
+  const emailForInvite = opts.attendeeEmail?.trim() || lead.email;
+
+  if (opts.attendeeEmail?.trim() && !lead.email) {
+    await supabase
+      .from("leads")
+      .update({ email: opts.attendeeEmail.trim() })
+      .eq("id", leadId);
+  }
+
   const result = await createMeetEvent(token, {
-    summary: opts.titulo?.trim() || `Reunião — ${lead.nome}`,
+    summary: title,
     description: `Reunião comercial com ${lead.nome} (SimpleDEV).`,
     startISO: start.toISOString(),
     endISO: end.toISOString(),
-    attendeeEmail: lead.email ?? undefined,
+    attendeeEmail: emailForInvite ?? undefined,
   });
 
   if (!result.ok) {
@@ -70,7 +94,7 @@ export async function scheduleMeeting(
   await supabase.from("meetings").insert({
     lead_id: leadId,
     created_by: user.id,
-    titulo: opts.titulo?.trim() || `Reunião — ${lead.nome}`,
+    titulo: title,
     starts_at: start.toISOString(),
     ends_at: end.toISOString(),
     google_event_id: result.eventId ?? null,
@@ -84,11 +108,10 @@ export async function scheduleMeeting(
     .update({ estagio: "reuniao_marcada" })
     .eq("id", leadId);
 
-  // Envia o link por WhatsApp, se pedido.
   if (opts.notifyWhatsapp && lead.whatsapp && result.meetLink) {
     const msg =
       `Olá ${firstName(lead.nome)}! Sua reunião com a SimpleDEV está agendada ` +
-      `para ${fmtBR(start)}.\n\nLink do Google Meet: ${result.meetLink}`;
+      `para ${fmtBR(start)}.\n\nLink do Google Meet: ${result.meetLink}\n\nTe esperamos lá!`;
     const sent = await sendWhatsAppText(lead.whatsapp, msg);
     await supabase.from("lead_messages").insert({
       lead_id: leadId,
@@ -101,11 +124,14 @@ export async function scheduleMeeting(
   }
 
   revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/reunioes");
   return { ok: true, meetLink: result.meetLink };
 }
 
-// Cancela a reuniao (remove do Google e marca como cancelada).
-export async function cancelMeeting(meetingId: string) {
+export async function updateMeetingStatus(
+  meetingId: string,
+  status: "realizada" | "furada" | "cancelada"
+) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -119,21 +145,27 @@ export async function cancelMeeting(meetingId: string) {
     .single();
   if (!mtg) return { error: "Reunião não encontrada." };
 
-  const token = await getValidAccessToken(supabase, user.id);
-  if (token && mtg.google_event_id) {
-    await deleteEvent(token, mtg.google_event_id);
+  if (status === "cancelada") {
+    const token = await getValidAccessToken(supabase, user.id);
+    if (token && mtg.google_event_id) {
+      await deleteEvent(token, mtg.google_event_id);
+    }
   }
 
   await supabase
     .from("meetings")
-    .update({ status: "cancelada" })
+    .update({ status })
     .eq("id", meetingId);
 
+  revalidatePath("/reunioes");
   revalidatePath(`/leads/${mtg.lead_id}`);
   return { ok: true };
 }
 
-// Desconecta a conta Google do usuario.
+export async function cancelMeeting(meetingId: string) {
+  return updateMeetingStatus(meetingId, "cancelada");
+}
+
 export async function disconnectGoogle() {
   const supabase = await createClient();
   const {

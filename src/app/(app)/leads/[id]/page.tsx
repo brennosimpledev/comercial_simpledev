@@ -92,6 +92,8 @@ export default async function LeadDetailPage({
               meetings={meetings}
               googleConnected={googleConnected}
               hasWhatsapp={hasWhatsapp}
+              leadName={lead.nome}
+              leadEmail={lead.email}
             />
           </section>
 
