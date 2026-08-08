@@ -6,11 +6,13 @@ import { LeadFlags } from "@/components/leads/LeadFlags";
 import { FollowUpPanel } from "@/components/leads/FollowUpPanel";
 import { NotesEditor } from "@/components/leads/NotesEditor";
 import { LeadInfoEditor } from "@/components/leads/LeadInfoEditor";
+import { MeetingsPanel } from "@/components/leads/MeetingsPanel";
 import {
   STAGE_LABELS,
   type FollowUp,
   type Lead,
   type LeadMessage,
+  type Meeting,
 } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -22,25 +24,41 @@ export default async function LeadDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const [{ data: leadRow }, { data: msgs }, { data: fus }] = await Promise.all([
-    supabase.from("leads").select("*").eq("id", id).single(),
-    supabase
-      .from("lead_messages")
-      .select("*")
-      .eq("lead_id", id)
-      .order("created_at", { ascending: true }),
-    supabase
-      .from("follow_ups")
-      .select("*")
-      .eq("lead_id", id)
-      .order("scheduled_at", { ascending: true }),
-  ]);
+  const [{ data: leadRow }, { data: msgs }, { data: fus }, { data: mtgs }, { data: gacc }] =
+    await Promise.all([
+      supabase.from("leads").select("*").eq("id", id).single(),
+      supabase
+        .from("lead_messages")
+        .select("*")
+        .eq("lead_id", id)
+        .order("created_at", { ascending: true }),
+      supabase
+        .from("follow_ups")
+        .select("*")
+        .eq("lead_id", id)
+        .order("scheduled_at", { ascending: true }),
+      supabase
+        .from("meetings")
+        .select("*")
+        .eq("lead_id", id)
+        .order("starts_at", { ascending: true }),
+      supabase
+        .from("google_accounts")
+        .select("user_id")
+        .eq("user_id", user?.id ?? "")
+        .maybeSingle(),
+    ]);
 
   if (!leadRow) notFound();
   const lead = leadRow as Lead;
   const messages = (msgs ?? []) as LeadMessage[];
   const followUps = (fus ?? []) as FollowUp[];
+  const meetings = (mtgs ?? []) as Meeting[];
+  const googleConnected = Boolean(gacc);
   const hasWhatsapp = Boolean(lead.whatsapp);
 
   return (
@@ -66,6 +84,15 @@ export default async function LeadDetailPage({
               Qualificação
             </h2>
             <LeadFlags lead={lead} />
+          </section>
+
+          <section className="sd-card p-5">
+            <MeetingsPanel
+              leadId={lead.id}
+              meetings={meetings}
+              googleConnected={googleConnected}
+              hasWhatsapp={hasWhatsapp}
+            />
           </section>
 
           <section className="sd-card p-5">

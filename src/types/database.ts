@@ -112,6 +112,20 @@ export interface LeadMessage {
   sent_by: string | null;
 }
 
+export interface Meeting {
+  id: string;
+  created_at: string;
+  lead_id: string;
+  created_by: string | null;
+  titulo: string | null;
+  starts_at: string;
+  ends_at: string;
+  google_event_id: string | null;
+  meet_link: string | null;
+  html_link: string | null;
+  status: string;
+}
+
 export type FollowUpStatus = "pendente" | "enviado" | "cancelado" | "pulado";
 
 export interface FollowUp {
