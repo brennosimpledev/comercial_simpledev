@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { MeetingsList } from "@/components/meetings/MeetingsList";
+import { MeetingsCalendar } from "@/components/meetings/MeetingsCalendar";
 import type { MeetingWithLead } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export default async function ReunioesPage() {
 
   const { data, error } = await supabase
     .from("meetings")
-    .select("*, leads(id, nome, email, whatsapp)")
+    .select("*, leads(id, nome, email, whatsapp, origem)")
     .order("starts_at", { ascending: false });
 
   if (error) {
@@ -26,5 +26,5 @@ export default async function ReunioesPage() {
 
   const meetings = (data ?? []) as MeetingWithLead[];
 
-  return <MeetingsList meetings={meetings} />;
+  return <MeetingsCalendar meetings={meetings} />;
 }

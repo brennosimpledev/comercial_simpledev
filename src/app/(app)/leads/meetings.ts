@@ -166,6 +166,34 @@ export async function updateMeetingStatus(
   return { ok: true };
 }
 
+export async function updateMeetingNotes(
+  meetingId: string,
+  notes: { resumo?: string; transcricao?: string }
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." };
+
+  const update: Record<string, string | null> = {};
+  if (notes.resumo !== undefined) update.resumo = notes.resumo;
+  if (notes.transcricao !== undefined) update.transcricao = notes.transcricao;
+  if (Object.keys(update).length === 0) return { ok: true };
+
+  const { data: mtg } = await supabase
+    .from("meetings")
+    .select("lead_id")
+    .eq("id", meetingId)
+    .single();
+
+  await supabase.from("meetings").update(update).eq("id", meetingId);
+
+  revalidatePath("/reunioes");
+  if (mtg) revalidatePath(`/leads/${mtg.lead_id}`);
+  return { ok: true };
+}
+
 export async function cancelMeeting(meetingId: string) {
   return updateMeetingStatus(meetingId, "cancelada");
 }

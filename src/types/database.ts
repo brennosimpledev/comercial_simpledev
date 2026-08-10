@@ -122,7 +122,7 @@ export const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
 };
 
 export type MeetingWithLead = Meeting & {
-  leads: { id: string; nome: string; email: string | null; whatsapp: string | null };
+  leads: { id: string; nome: string; email: string | null; whatsapp: string | null; origem: string | null };
 };
 
 export interface Meeting {
@@ -137,6 +137,8 @@ export interface Meeting {
   meet_link: string | null;
   html_link: string | null;
   status: MeetingStatus;
+  resumo: string | null;
+  transcricao: string | null;
 }
 
 export type FollowUpStatus = "pendente" | "enviado" | "cancelado" | "pulado";
