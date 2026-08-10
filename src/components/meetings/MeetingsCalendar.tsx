@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import {
   updateMeetingStatus,
   updateMeetingNotes,
+  uploadTranscricao,
+  deleteTranscricao,
 } from "@/app/(app)/leads/meetings";
 import {
   ORIGIN_LABELS,
@@ -92,6 +94,15 @@ function calGrid(year: number, month: number) {
   return days;
 }
 
+function fileNameFromUrl(url: string) {
+  try {
+    const path = new URL(url).pathname;
+    return decodeURIComponent(path.split("/").pop() || "arquivo");
+  } catch {
+    return "arquivo";
+  }
+}
+
 export function MeetingsCalendar({
   meetings,
 }: {
@@ -105,7 +116,6 @@ export function MeetingsCalendar({
   const [vMonth, setVMonth] = useState(now.getMonth());
   const [sel, setSel] = useState<MeetingWithLead | null>(null);
   const [resumo, setResumo] = useState("");
-  const [transcricao, setTranscricao] = useState("");
 
   const today = dKey(now);
   const grid = useMemo(() => calGrid(vYear, vMonth), [vYear, vMonth]);
@@ -166,16 +176,41 @@ export function MeetingsCalendar({
   function openMeeting(m: MeetingWithLead) {
     setSel(m);
     setResumo(m.resumo ?? "");
-    setTranscricao(m.transcricao ?? "");
   }
 
   function salvar() {
     if (!sel) return;
     startTransition(async () => {
-      const res = await updateMeetingNotes(sel.id, { resumo, transcricao });
+      const res = await updateMeetingNotes(sel.id, { resumo });
       if (res?.error) alert(res.error);
       else {
         setSel(null);
+        router.refresh();
+      }
+    });
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!sel || !e.target.files?.[0]) return;
+    const fd = new FormData();
+    fd.append("file", e.target.files[0]);
+    startTransition(async () => {
+      const res = await uploadTranscricao(sel.id, fd);
+      if (res?.error) alert(res.error);
+      else {
+        setSel({ ...sel, transcricao: res.url ?? null });
+        router.refresh();
+      }
+    });
+  }
+
+  function removeFile() {
+    if (!sel || !confirm("Remover transcrição?")) return;
+    startTransition(async () => {
+      const res = await deleteTranscricao(sel.id);
+      if (res?.error) alert(res.error);
+      else {
+        setSel({ ...sel, transcricao: null });
         router.refresh();
       }
     });
@@ -252,7 +287,6 @@ export function MeetingsCalendar({
       {/* Calendario */}
       <div className="overflow-x-auto">
         <div className="min-w-[700px]">
-          {/* Header dias da semana */}
           <div className="mb-1 grid grid-cols-7">
             {WDAYS.map((d, i) => (
               <div
@@ -266,7 +300,6 @@ export function MeetingsCalendar({
             ))}
           </div>
 
-          {/* Grid de dias */}
           <div className="grid grid-cols-7 gap-1">
             {grid.map((day) => {
               const dm = byDate[day.key] ?? [];
@@ -322,7 +355,10 @@ export function MeetingsCalendar({
         {(
           ["agendada", "realizada", "furada", "cancelada"] as MeetingStatus[]
         ).map((s) => (
-          <div key={s} className="flex items-center gap-1.5 text-xs text-slate-400">
+          <div
+            key={s}
+            className="flex items-center gap-1.5 text-xs text-slate-400"
+          >
             <span
               className={`inline-block h-2.5 w-2.5 rounded-sm ${STATUS_CFG[s].pill}`}
             />
@@ -417,27 +453,52 @@ export function MeetingsCalendar({
             )}
 
             {/* Resumo SDR */}
-            <div className="mb-3">
+            <div className="mb-4">
               <label className="sd-label">Resumo do SDR</label>
               <textarea
                 value={resumo}
                 onChange={(e) => setResumo(e.target.value)}
-                rows={3}
-                placeholder="Como foi a reunião..."
+                rows={6}
+                placeholder="Como foi a reunião, pontos discutidos, próximos passos..."
                 className="sd-input px-2 py-1.5"
               />
             </div>
 
-            {/* Transcricao */}
-            <div className="mb-4">
-              <label className="sd-label">Transcrição / Anotações</label>
-              <textarea
-                value={transcricao}
-                onChange={(e) => setTranscricao(e.target.value)}
-                rows={4}
-                placeholder="Anotações detalhadas da reunião..."
-                className="sd-input px-2 py-1.5"
-              />
+            {/* Transcricao - file upload */}
+            <div className="mb-5">
+              <label className="sd-label">Transcrição</label>
+              {sel.transcricao ? (
+                <div className="flex items-center gap-3 rounded-lg border border-white/5 bg-navy px-3 py-2.5">
+                  <a
+                    href={sel.transcricao}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 truncate text-sm text-brand hover:underline"
+                  >
+                    {fileNameFromUrl(sel.transcricao)}
+                  </a>
+                  <button
+                    onClick={removeFile}
+                    disabled={pending}
+                    className="shrink-0 text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                  >
+                    Remover
+                  </button>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-white/10 px-3 py-4 text-sm text-slate-400 transition hover:border-brand/40 hover:text-slate-200">
+                  {pending
+                    ? "Enviando..."
+                    : "Clique para enviar arquivo (PDF, DOC, audio...)"}
+                  <input
+                    type="file"
+                    className="hidden"
+                    onChange={handleFile}
+                    accept=".pdf,.doc,.docx,.txt,.mp3,.wav,.m4a,.ogg,.mp4,.webm"
+                    disabled={pending}
+                  />
+                </label>
+              )}
             </div>
 
             {/* Acoes */}

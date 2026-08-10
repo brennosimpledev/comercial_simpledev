@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getValidAccessToken, getTeamAccessToken } from "@/lib/google/tokens";
 import { createMeetEvent, deleteEvent } from "@/lib/google/calendar";
 import { sendWhatsAppText } from "@/lib/evolution/client";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 function firstName(nome: string) {
   return (nome ?? "").trim().split(/\s+/)[0] || "";
@@ -187,7 +188,102 @@ export async function updateMeetingNotes(
     .eq("id", meetingId)
     .single();
 
-  await supabase.from("meetings").update(update).eq("id", meetingId);
+  const { error: updateError } = await supabase
+    .from("meetings")
+    .update(update)
+    .eq("id", meetingId);
+
+  if (updateError) {
+    console.error("[updateMeetingNotes]", updateError);
+    return { error: `Erro ao salvar: ${updateError.message}` };
+  }
+
+  revalidatePath("/reunioes");
+  if (mtg) revalidatePath(`/leads/${mtg.lead_id}`);
+  return { ok: true };
+}
+
+export async function uploadTranscricao(meetingId: string, formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." };
+
+  const file = formData.get("file") as File;
+  if (!file || typeof file === "string")
+    return { error: "Nenhum arquivo selecionado." };
+
+  const admin = createAdminClient();
+  await admin.storage.createBucket("meetings", { public: true });
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${meetingId}/${safeName}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const { error: upErr } = await admin.storage
+    .from("meetings")
+    .upload(path, buffer, { contentType: file.type, upsert: true });
+
+  if (upErr) {
+    console.error("[uploadTranscricao]", upErr);
+    return { error: "Falha ao enviar arquivo." };
+  }
+
+  const { data: urlData } = admin.storage
+    .from("meetings")
+    .getPublicUrl(path);
+
+  const { error: dbErr } = await supabase
+    .from("meetings")
+    .update({ transcricao: urlData.publicUrl })
+    .eq("id", meetingId);
+
+  if (dbErr) {
+    console.error("[uploadTranscricao db]", dbErr);
+    return { error: "Arquivo enviado mas falha ao salvar link." };
+  }
+
+  const { data: mtg } = await supabase
+    .from("meetings")
+    .select("lead_id")
+    .eq("id", meetingId)
+    .single();
+
+  revalidatePath("/reunioes");
+  if (mtg) revalidatePath(`/leads/${mtg.lead_id}`);
+  return { ok: true, url: urlData.publicUrl };
+}
+
+export async function deleteTranscricao(meetingId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." };
+
+  const { data: mtg } = await supabase
+    .from("meetings")
+    .select("lead_id, transcricao")
+    .eq("id", meetingId)
+    .single();
+  if (!mtg) return { error: "Reunião não encontrada." };
+
+  if (mtg.transcricao) {
+    try {
+      const url = new URL(mtg.transcricao);
+      const parts = url.pathname.split("/meetings/");
+      if (parts[1]) {
+        const admin = createAdminClient();
+        await admin.storage.from("meetings").remove([decodeURIComponent(parts[1])]);
+      }
+    } catch {}
+  }
+
+  await supabase
+    .from("meetings")
+    .update({ transcricao: null })
+    .eq("id", meetingId);
 
   revalidatePath("/reunioes");
   if (mtg) revalidatePath(`/leads/${mtg.lead_id}`);
