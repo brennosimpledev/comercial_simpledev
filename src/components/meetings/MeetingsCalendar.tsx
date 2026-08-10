@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   updateMeetingStatus,
-  updateMeetingNotes,
   uploadTranscricao,
   deleteTranscricao,
 } from "@/app/(app)/leads/meetings";
+import { updateLeadNotes } from "@/app/(app)/leads/actions";
 import {
   ORIGIN_LABELS,
   type LeadOrigin,
@@ -175,13 +175,13 @@ export function MeetingsCalendar({
 
   function openMeeting(m: MeetingWithLead) {
     setSel(m);
-    setResumo(m.resumo ?? "");
+    setResumo(m.leads.anotacoes ?? "");
   }
 
   function salvar() {
     if (!sel) return;
     startTransition(async () => {
-      const res = await updateMeetingNotes(sel.id, { resumo });
+      const res = await updateLeadNotes(sel.leads.id, resumo);
       if (res?.error) alert(res.error);
       else {
         setSel(null);
@@ -452,9 +452,9 @@ export function MeetingsCalendar({
               </div>
             )}
 
-            {/* Resumo SDR */}
+            {/* Anotacoes SDR */}
             <div className="mb-4">
-              <label className="sd-label">Resumo do SDR</label>
+              <label className="sd-label">Anotações SDR</label>
               <textarea
                 value={resumo}
                 onChange={(e) => setResumo(e.target.value)}

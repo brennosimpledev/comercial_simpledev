@@ -100,7 +100,7 @@ export default async function LeadDetailPage({
 
           <section className="sd-card p-5">
             <h2 className="mb-3 text-sm font-semibold text-slate-200">
-              Anotações
+              Anotações SDR
             </h2>
             <NotesEditor leadId={lead.id} initial={lead.anotacoes} />
           </section>

@@ -9,7 +9,7 @@ export default async function ReunioesPage() {
 
   const { data, error } = await supabase
     .from("meetings")
-    .select("*, leads(id, nome, email, whatsapp, origem)")
+    .select("*, leads(id, nome, email, whatsapp, origem, anotacoes)")
     .order("starts_at", { ascending: false });
 
   if (error) {
