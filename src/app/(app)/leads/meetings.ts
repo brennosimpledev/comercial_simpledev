@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { getValidAccessToken } from "@/lib/google/tokens";
+import { getValidAccessToken, getTeamAccessToken } from "@/lib/google/tokens";
 import { createMeetEvent, deleteEvent } from "@/lib/google/calendar";
 import { sendWhatsAppText } from "@/lib/evolution/client";
 
@@ -37,8 +37,10 @@ export async function scheduleMeeting(
 
   if (!opts.startLocal) return { error: "Escolha data e horário." };
 
-  const token = await getValidAccessToken(supabase, user.id);
-  if (!token) return { error: "Conecte sua conta Google primeiro." };
+  const token =
+    (await getValidAccessToken(supabase, user.id)) ??
+    (await getTeamAccessToken(supabase));
+  if (!token) return { error: "Nenhuma conta Google conectada na equipe." };
 
   const { data: lead } = await supabase
     .from("leads")
@@ -146,7 +148,9 @@ export async function updateMeetingStatus(
   if (!mtg) return { error: "Reunião não encontrada." };
 
   if (status === "cancelada") {
-    const token = await getValidAccessToken(supabase, user.id);
+    const token =
+      (await getValidAccessToken(supabase, user.id)) ??
+      (await getTeamAccessToken(supabase));
     if (token && mtg.google_event_id) {
       await deleteEvent(token, mtg.google_event_id);
     }

@@ -49,7 +49,7 @@ export default async function LeadDetailPage({
       supabase
         .from("google_accounts")
         .select("user_id")
-        .eq("user_id", user?.id ?? "")
+        .limit(1)
         .maybeSingle(),
     ]);
 
