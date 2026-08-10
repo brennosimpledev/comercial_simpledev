@@ -39,7 +39,7 @@ export async function scheduleMeeting(
 
   const token =
     (await getValidAccessToken(supabase, user.id)) ??
-    (await getTeamAccessToken(supabase));
+    (await getTeamAccessToken());
   if (!token) return { error: "Nenhuma conta Google conectada na equipe." };
 
   const { data: lead } = await supabase
@@ -150,7 +150,7 @@ export async function updateMeetingStatus(
   if (status === "cancelada") {
     const token =
       (await getValidAccessToken(supabase, user.id)) ??
-      (await getTeamAccessToken(supabase));
+      (await getTeamAccessToken());
     if (token && mtg.google_event_id) {
       await deleteEvent(token, mtg.google_event_id);
     }

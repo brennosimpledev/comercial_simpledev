@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { refreshAccessToken } from "./oauth";
 
 // Retorna um access_token valido do usuario (renova via refresh_token se preciso).
@@ -38,10 +39,9 @@ export async function getValidAccessToken(
 
 // Busca um access_token de qualquer conta Google conectada (conta da equipe).
 // Permite que qualquer membro autenticado agende reunioes na agenda principal.
-export async function getTeamAccessToken(
-  supabase: SupabaseClient
-): Promise<string | null> {
-  const { data } = await supabase
+export async function getTeamAccessToken(): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data } = await admin
     .from("google_accounts")
     .select("user_id, refresh_token, access_token, token_expiry")
     .limit(1)
@@ -62,7 +62,7 @@ export async function getTeamAccessToken(
   if (!r.access_token) return null;
 
   const newExpiry = new Date(now + (r.expires_in ?? 3600) * 1000).toISOString();
-  await supabase
+  await admin
     .from("google_accounts")
     .update({ access_token: r.access_token, token_expiry: newExpiry })
     .eq("user_id", data.user_id);

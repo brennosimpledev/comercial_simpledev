@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Conversation } from "@/components/leads/Conversation";
 import { LeadFlags } from "@/components/leads/LeadFlags";
 import { FollowUpPanel } from "@/components/leads/FollowUpPanel";
@@ -46,7 +47,7 @@ export default async function LeadDetailPage({
         .select("*")
         .eq("lead_id", id)
         .order("starts_at", { ascending: true }),
-      supabase
+      createAdminClient()
         .from("google_accounts")
         .select("user_id")
         .limit(1)
