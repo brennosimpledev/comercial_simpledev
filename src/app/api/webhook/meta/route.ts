@@ -73,13 +73,27 @@ export async function POST(request: NextRequest) {
   const token = process.env.META_PAGE_ACCESS_TOKEN;
   const supabase = createAdminClient();
   let processed = 0;
+  // Motivos de descarte, devolvidos na resposta para facilitar o diagnostico
+  // (a rota so chega aqui com assinatura valida).
+  const skipped: string[] = [];
 
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
-      if (change.field !== "leadgen") continue;
+      if (change.field !== "leadgen") {
+        skipped.push(`campo_ignorado:${change.field}`);
+        continue;
+      }
       const value = change.value ?? {};
       const leadgenId = value.leadgen_id as string | undefined;
-      if (!leadgenId || !token) continue;
+      if (!leadgenId) {
+        skipped.push("sem_leadgen_id");
+        continue;
+      }
+      if (!token) {
+        console.error("[webhook/meta] META_PAGE_ACCESS_TOKEN nao configurado");
+        skipped.push("META_PAGE_ACCESS_TOKEN_ausente");
+        continue;
+      }
 
       // Busca os dados completos do lead na Graph API.
       let lead: {
@@ -99,10 +113,16 @@ export async function POST(request: NextRequest) {
         lead = await res.json();
         if (!res.ok) {
           console.error("[webhook/meta] graph error:", lead);
+          const gErr = (lead as { error?: { message?: string; code?: number } })
+            ?.error;
+          skipped.push(
+            `graph_${res.status}:${gErr?.code ?? "?"}:${gErr?.message ?? "erro"}`
+          );
           continue;
         }
       } catch (e) {
         console.error("[webhook/meta] graph fetch failed:", e);
+        skipped.push("graph_fetch_falhou");
         continue;
       }
 
@@ -155,6 +175,7 @@ export async function POST(request: NextRequest) {
 
       if (error) {
         console.error("[webhook/meta] insert error:", error);
+        skipped.push(`db:${error.code ?? ""}:${error.message}`);
         continue;
       }
 
@@ -167,5 +188,5 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, processed });
+  return NextResponse.json({ ok: true, processed, skipped });
 }
