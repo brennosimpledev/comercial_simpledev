@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getValidAccessToken, getTeamAccessToken } from "@/lib/google/tokens";
-import { createMeetEvent, deleteEvent } from "@/lib/google/calendar";
+import { createMeetEvent, deleteEvent, patchEvent } from "@/lib/google/calendar";
 import { sendWhatsAppText } from "@/lib/evolution/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -287,6 +287,73 @@ export async function deleteTranscricao(meetingId: string) {
 
   revalidatePath("/reunioes");
   if (mtg) revalidatePath(`/leads/${mtg.lead_id}`);
+  return { ok: true };
+}
+
+export async function rescheduleMeeting(
+  meetingId: string,
+  startLocal: string,
+  durationMin: number
+) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." };
+
+  if (!startLocal) return { error: "Escolha data e horário." };
+
+  const start = new Date(`${startLocal}:00-03:00`);
+  if (isNaN(start.getTime())) return { error: "Data/horário inválido." };
+
+  const timePart = startLocal.split("T")[1] ?? "";
+  const [brH, brM] = timePart.split(":").map(Number);
+  const totalMin = brH * 60 + brM;
+  const inMorning = totalMin >= 540 && totalMin < 720;
+  const inAfternoon = totalMin >= 840 && totalMin < 1080;
+  if (!inMorning && !inAfternoon) {
+    return { error: "Horário fora do comercial (9h–12h ou 14h–18h)." };
+  }
+
+  const datePart = startLocal.split("T")[0];
+  const [y, mo, da] = datePart.split("-").map(Number);
+  const dow = new Date(y, mo - 1, da).getDay();
+  if (dow === 0 || dow === 6) {
+    return { error: "Reuniões apenas de segunda a sexta." };
+  }
+
+  const end = new Date(start.getTime() + (durationMin || 30) * 60_000);
+
+  const { data: mtg } = await supabase
+    .from("meetings")
+    .select("lead_id, google_event_id")
+    .eq("id", meetingId)
+    .single();
+  if (!mtg) return { error: "Reunião não encontrada." };
+
+  if (mtg.google_event_id) {
+    const token =
+      (await getValidAccessToken(supabase, user.id)) ??
+      (await getTeamAccessToken());
+    if (token) {
+      await patchEvent(token, mtg.google_event_id, {
+        startISO: start.toISOString(),
+        endISO: end.toISOString(),
+      });
+    }
+  }
+
+  await supabase
+    .from("meetings")
+    .update({
+      starts_at: start.toISOString(),
+      ends_at: end.toISOString(),
+      status: "agendada",
+    })
+    .eq("id", meetingId);
+
+  revalidatePath("/reunioes");
+  revalidatePath(`/leads/${mtg.lead_id}`);
   return { ok: true };
 }
 

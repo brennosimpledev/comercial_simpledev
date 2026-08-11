@@ -65,6 +65,29 @@ export async function createMeetEvent(
   };
 }
 
+// Atualiza horário de um evento existente no Google Calendar.
+export async function patchEvent(
+  accessToken: string,
+  eventId: string,
+  opts: { startISO: string; endISO: string }
+): Promise<boolean> {
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        start: { dateTime: opts.startISO, timeZone: "America/Sao_Paulo" },
+        end: { dateTime: opts.endISO, timeZone: "America/Sao_Paulo" },
+      }),
+    }
+  );
+  return res.ok;
+}
+
 // Cancela (deleta) um evento no Google Calendar.
 export async function deleteEvent(
   accessToken: string,

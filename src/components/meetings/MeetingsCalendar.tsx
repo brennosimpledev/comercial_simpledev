@@ -7,6 +7,7 @@ import {
   updateMeetingStatus,
   uploadTranscricao,
   deleteTranscricao,
+  rescheduleMeeting,
 } from "@/app/(app)/leads/meetings";
 import { updateLeadNotes } from "@/app/(app)/leads/actions";
 import {
@@ -103,6 +104,16 @@ function fileNameFromUrl(url: string) {
   }
 }
 
+function genSlots(startH: number, endH: number) {
+  const slots: string[] = [];
+  for (let h = startH; h < endH; h++) {
+    for (let m = 0; m < 60; m += 10) {
+      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return slots;
+}
+
 export function MeetingsCalendar({
   meetings,
 }: {
@@ -116,6 +127,9 @@ export function MeetingsCalendar({
   const [vMonth, setVMonth] = useState(now.getMonth());
   const [sel, setSel] = useState<MeetingWithLead | null>(null);
   const [resumo, setResumo] = useState("");
+  const [showReschedule, setShowReschedule] = useState(false);
+  const [rescDate, setRescDate] = useState("");
+  const [rescTime, setRescTime] = useState("");
 
   const today = dKey(now);
   const grid = useMemo(() => calGrid(vYear, vMonth), [vYear, vMonth]);
@@ -176,6 +190,9 @@ export function MeetingsCalendar({
   function openMeeting(m: MeetingWithLead) {
     setSel(m);
     setResumo(m.leads.anotacoes ?? "");
+    setShowReschedule(false);
+    setRescDate("");
+    setRescTime("");
   }
 
   function salvar() {
@@ -226,6 +243,19 @@ export function MeetingsCalendar({
     if (!confirm(msgs[st])) return;
     startTransition(async () => {
       const res = await updateMeetingStatus(sel.id, st);
+      if (res?.error) alert(res.error);
+      else {
+        setSel(null);
+        router.refresh();
+      }
+    });
+  }
+
+  function reagendar() {
+    if (!sel || !rescDate || !rescTime) return;
+    const startLocal = `${rescDate}T${rescTime}`;
+    startTransition(async () => {
+      const res = await rescheduleMeeting(sel.id, startLocal, 60);
       if (res?.error) alert(res.error);
       else {
         setSel(null);
@@ -501,8 +531,94 @@ export function MeetingsCalendar({
               )}
             </div>
 
-            {/* Acoes */}
-            <div className="flex flex-wrap gap-2">
+            {/* Status */}
+            <div className="mb-4">
+              <label className="sd-label">Status</label>
+              <div className="flex flex-wrap gap-2">
+                {(["agendada", "realizada", "furada", "cancelada"] as const).map(
+                  (st) => {
+                    const c = STATUS_CFG[st];
+                    const active = sel.status === st;
+                    return (
+                      <button
+                        key={st}
+                        disabled={pending || active}
+                        onClick={() => {
+                          if (st === "agendada") return;
+                          marcar(st);
+                        }}
+                        className={`rounded-lg px-3 py-1.5 text-sm font-medium transition disabled:opacity-60 ${
+                          active
+                            ? `${c.bg} ${c.text} ring-1 ring-current`
+                            : `${c.bg} ${c.text} opacity-50 hover:opacity-100`
+                        }`}
+                      >
+                        {c.label}
+                      </button>
+                    );
+                  }
+                )}
+              </div>
+            </div>
+
+            {/* Reagendar */}
+            <div className="mb-5">
+              {!showReschedule ? (
+                <button
+                  onClick={() => setShowReschedule(true)}
+                  className="text-sm text-slate-400 hover:text-brand"
+                >
+                  Reagendar reunião
+                </button>
+              ) : (
+                <div className="rounded-lg border border-white/5 bg-navy p-3">
+                  <label className="sd-label">Nova data e horário</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="date"
+                      value={rescDate}
+                      onChange={(e) => setRescDate(e.target.value)}
+                      className="sd-input flex-1"
+                    />
+                    <select
+                      value={rescTime}
+                      onChange={(e) => setRescTime(e.target.value)}
+                      className="sd-input w-28"
+                    >
+                      <option value="">Horário</option>
+                      <optgroup label="Manhã">
+                        {genSlots(9, 12).map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Tarde">
+                        {genSlots(14, 18).map((t) => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={reagendar}
+                      disabled={pending || !rescDate || !rescTime}
+                      className="rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-navy hover:bg-brand-dark disabled:opacity-60"
+                    >
+                      {pending ? "Reagendando..." : "Confirmar"}
+                    </button>
+                    <button
+                      onClick={() => setShowReschedule(false)}
+                      className="text-sm text-slate-400 hover:text-white"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Salvar anotacoes */}
+            <div>
               <button
                 onClick={salvar}
                 disabled={pending}
@@ -510,31 +626,6 @@ export function MeetingsCalendar({
               >
                 {pending ? "Salvando..." : "Salvar"}
               </button>
-              {sel.status === "agendada" && (
-                <>
-                  <button
-                    onClick={() => marcar("realizada")}
-                    disabled={pending}
-                    className="rounded-lg bg-emerald-500/15 px-3 py-1.5 text-sm font-medium text-emerald-400 hover:bg-emerald-500/25 disabled:opacity-50"
-                  >
-                    Realizada
-                  </button>
-                  <button
-                    onClick={() => marcar("furada")}
-                    disabled={pending}
-                    className="rounded-lg bg-amber-500/15 px-3 py-1.5 text-sm font-medium text-amber-400 hover:bg-amber-500/25 disabled:opacity-50"
-                  >
-                    Furada
-                  </button>
-                  <button
-                    onClick={() => marcar("cancelada")}
-                    disabled={pending}
-                    className="rounded-lg bg-red-500/15 px-3 py-1.5 text-sm font-medium text-red-400 hover:bg-red-500/25 disabled:opacity-50"
-                  >
-                    Cancelar
-                  </button>
-                </>
-              )}
             </div>
           </div>
         </div>
