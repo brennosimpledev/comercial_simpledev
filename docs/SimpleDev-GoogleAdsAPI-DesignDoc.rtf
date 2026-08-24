@@ -1,0 +1,31 @@
+{\rtf1\ansi\deff0{\fonttbl{\f0 Calibri;}}\fs22
+\pard\sa240\qc\b\fs32 SimpleDev - Google Ads API Integration Design Document\b0\fs22\par
+\pard\sa60\qc Applicant: SimpleDev (Simpledev Ltda)  |  Website: https://simpledev.com.br\par
+\pard\sa240\qc Manager account (MCC): 850-555-5105  |  Operating account: 536-991-8697\par
+\pard\sb240\sa120\b\fs26 1. Company overview\b0\fs22\par
+\pard\sa120 SimpleDev is a Brazilian software development company that builds custom software for business clients. We advertise our own services on Google Ads. We do not manage advertising accounts for third parties, and we do not resell or redistribute Google Ads data or tooling.\par
+\pard\sb240\sa120\b\fs26 2. Purpose of API access\b0\fs22\par
+\pard\sa120 We request Basic Access for a single, narrow purpose: importing offline conversions from our own internal CRM into our own Google Ads account. No other API service is used.\par
+\pard\sb240\sa120\b\fs26 3. Business model and why offline conversions are needed\b0\fs22\par
+\pard\sa120 We sell software development projects B2B. Leads arrive through Google Ads Search campaigns pointing to our landing page at lp.simpledev.com.br. A sales team then contacts, qualifies and eventually closes each lead. The sales cycle typically spans several weeks.\par
+\pard\sa120 Because of this delay, the value of a click is unknown at click time. Form submissions alone are a poor optimization signal, since a large share of raw leads never qualify. Importing the qualified and closed outcomes back into Google Ads lets Smart Bidding optimize toward clicks that produce real business rather than toward form volume.\par
+\pard\sb240\sa120\b\fs26 4. The tool\b0\fs22\par
+\pard\sa120 An internal CRM built with Next.js (App Router) and Supabase (PostgreSQL), deployed on Vercel at comercial-simpledev.vercel.app. It is used exclusively by SimpleDev employees to manage the sales pipeline. The Google Ads integration is one feature inside this CRM, not a standalone product.\par
+\pard\sa120 Data flow:\par
+\pard\fi-280\li560\sa120 \bullet\tab The landing page captures the GCLID query parameter from the ad click and posts it to the CRM together with the lead form data. The GCLID is stored on the lead record.\par
+\pard\fi-280\li560\sa120 \bullet\tab When a sales rep marks a lead as qualified, the CRM calls ConversionUploadService.uploadClickConversions with the stored GCLID and the conversion action "Lead Qualificado - CRM" (ID 7732596679), using a fixed value representing the internal worth of a qualified lead.\par
+\pard\fi-280\li560\sa120 \bullet\tab When a lead reaches the closed stage, the same call is made with the conversion action "Venda Fechada - CRM" (ID 7732596682) and the actual contract value entered by the sales team.\par
+\pard\sb240\sa120\b\fs26 5. API services used\b0\fs22\par
+\pard\sa120 ConversionUploadService.uploadClickConversions is the only service called. We do not create, read or modify campaigns, ad groups, ads, keywords, budgets or bids through the API. All campaign management is done manually in the Google Ads web interface.\par
+\pard\sa120 Expected volume: fewer than 200 operations per month, driven by our actual lead volume.\par
+\pard\sb240\sa120\b\fs26 6. Authentication\b0\fs22\par
+\pard\sa120 OAuth 2.0 authorization code flow with the scope https://www.googleapis.com/auth/adwords. The authorizing account is a Google account that administers the SimpleDev Google Ads account. Refresh tokens are stored server-side in our database and are never exposed to the browser. The developer token and client secret are stored as server-only environment variables.\par
+\pard\sb240\sa120\b\fs26 7. Who has access\b0\fs22\par
+\pard\sa120 Internal users only - SimpleDev employees. The tool is not offered to the general public, to clients, or to any third party. There is no multi-tenant capability: the account IDs are fixed configuration values, so the tool cannot operate on any account other than our own.\par
+\pard\sb240\sa120\b\fs26 8. Data handling and safeguards\b0\fs22\par
+\pard\sa120 Only four fields are transmitted per conversion: GCLID, conversion action resource name, conversion timestamp and conversion value. No personally identifiable information (name, email, phone) is ever sent to the Google Ads API.\par
+\pard\sa120 A dedicated database table records every conversion upload with a uniqueness constraint on (lead, conversion type). This makes uploads idempotent and prevents the same conversion from being counted twice, which would otherwise distort bidding. Failed uploads are recorded with their error for review rather than retried blindly.\par
+\pard\sa120 Leads that arrive without a GCLID, such as organic traffic or other channels, are recorded as such and are never sent to the API.\par
+\pard\sb240\sa120\b\fs26 9. Compliance\b0\fs22\par
+\pard\sa120 The tool is used solely for the SimpleDev advertising account. We do not offer it to third parties, do not act as an agency, and do not redistribute Google Ads data. We accept and comply with the Google Ads API Terms and Conditions.\par
+}
