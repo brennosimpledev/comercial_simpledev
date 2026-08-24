@@ -19,6 +19,8 @@ export function LeadInfoEditor({ lead }: { lead: Lead }) {
     email: lead.email ?? "",
     origem: lead.origem,
     orcamento: lead.orcamento ?? "",
+    valor_fechado:
+      lead.valor_fechado != null ? String(lead.valor_fechado) : "",
     necessidade: lead.necessidade ?? "",
     prazo: lead.prazo ?? "",
   });
@@ -102,6 +104,17 @@ export function LeadInfoEditor({ lead }: { lead: Lead }) {
         <input
           value={form.orcamento}
           onChange={(e) => set("orcamento", e.target.value)}
+          className={inputCls}
+        />
+      </div>
+
+      <div>
+        <label className={labelCls}>Valor fechado (R$)</label>
+        <input
+          value={form.valor_fechado}
+          onChange={(e) => set("valor_fechado", e.target.value)}
+          inputMode="decimal"
+          placeholder="0,00"
           className={inputCls}
         />
       </div>

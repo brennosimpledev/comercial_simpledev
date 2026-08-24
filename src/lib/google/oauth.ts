@@ -1,4 +1,4 @@
-// OAuth 2.0 do Google (Calendar). SERVER-ONLY.
+// OAuth 2.0 do Google (Calendar + Ads). SERVER-ONLY.
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -8,6 +8,7 @@ const SCOPES = [
   "openid",
   "email",
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/adwords",
 ].join(" ");
 
 export function googleConfigured(): boolean {

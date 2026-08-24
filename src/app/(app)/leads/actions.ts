@@ -14,6 +14,8 @@ import {
 } from "@/lib/evolution/client";
 import type { MediaKind } from "@/lib/whatsapp-message";
 import { mediaKind, messageBody } from "@/lib/whatsapp-message";
+import { after } from "next/server";
+import { reportConversion } from "@/lib/google/ads";
 import type { LeadStage, LeadOrigin } from "@/types/database";
 
 const VALID_STAGES: LeadStage[] = [
@@ -44,6 +46,12 @@ export async function updateLeadStage(id: string, estagio: LeadStage) {
     .eq("id", id);
 
   if (error) return { error: "Não foi possível mover o lead." };
+
+  // Conversao offline para o Google Ads. Roda depois da resposta para
+  // nao atrasar a UI, e nunca lanca (ver reportConversion).
+  if (estagio === "fechado") {
+    after(() => reportConversion(id, "fechado"));
+  }
 
   revalidatePath("/dashboard");
   revalidatePath("/leads");
@@ -118,6 +126,7 @@ export async function updateLeadInfo(
     email?: string;
     origem?: string;
     orcamento?: string;
+    valor_fechado?: string;
     necessidade?: string;
     prazo?: string;
   }
@@ -134,6 +143,14 @@ export async function updateLeadInfo(
     return s.length ? s : null;
   };
 
+  // Aceita "12.500,00" ou "12500.00"; vazio vira null.
+  const toMoney = (v?: string) => {
+    const s = (v ?? "").trim();
+    if (!s) return null;
+    const n = Number(s.replace(/./g, "").replace(",", ".").replace(/[^d.-]/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+
   const { error } = await (await createClient())
     .from("leads")
     .update({
@@ -142,6 +159,7 @@ export async function updateLeadInfo(
       email: clean(fields.email),
       origem,
       orcamento: clean(fields.orcamento),
+      valor_fechado: toMoney(fields.valor_fechado),
       necessidade: clean(fields.necessidade),
       prazo: clean(fields.prazo),
     })
@@ -191,6 +209,10 @@ export async function toggleLeadFlag(
 
   const { error } = await supabase.from("leads").update(patch).eq("id", id);
   if (error) return { error: "Não foi possível atualizar." };
+
+  if (flag === "qualificado" && value) {
+    after(() => reportConversion(id, "qualificado"));
+  }
 
   revalidatePath(`/leads/${id}`);
   revalidatePath("/leads");

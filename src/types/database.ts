@@ -31,6 +31,7 @@ export interface Lead {
 
   origem: LeadOrigin;
   orcamento: string | null;
+  valor_fechado: number | null;
   necessidade: string | null;
   prazo: string | null;
   relacao_projeto: string | null;
