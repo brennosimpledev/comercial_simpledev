@@ -16,8 +16,9 @@ const LOGIN_CUSTOMER_ID =
   process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID?.replace(/\D/g, "");
 
 // A API do Google Ads e versionada e versoes antigas sao desligadas.
-// Confira a versao corrente na documentacao e ajuste pela env var.
-const API_VERSION = process.env.GOOGLE_ADS_API_VERSION ?? "v21";
+// Em 24/08/2026 a faixa viva era v22..v26; v21 e anteriores ja respondiam
+// 404 em HTML, o que quebra o parse do JSON. Ajuste pela env var.
+const API_VERSION = process.env.GOOGLE_ADS_API_VERSION ?? "v26";
 
 // Fuso da conta do Google Ads (Configuracoes da conta -> Fuso horario).
 const TZ = process.env.GOOGLE_ADS_TIMEZONE ?? "America/Sao_Paulo";

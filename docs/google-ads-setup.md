@@ -30,11 +30,19 @@ GOOGLE_ADS_CUSTOMER_ID=5369918697
 GOOGLE_ADS_LOGIN_CUSTOMER_ID=8505555105
 GOOGLE_ADS_ACTION_QUALIFICADO=7732596679
 GOOGLE_ADS_ACTION_FECHADO=7732596682
-GOOGLE_ADS_API_VERSION=v21
+GOOGLE_ADS_API_VERSION=v26
 ```
 
-`GOOGLE_ADS_API_VERSION` precisa ser conferida na documentacao: o Google
-desliga versoes antigas periodicamente.
+`GOOGLE_ADS_API_VERSION` precisa ser conferida periodicamente: o Google
+desliga versoes antigas e a URL passa a devolver uma pagina HTML 404, o que
+quebra o parse do JSON com "Unexpected token <". Em 24/08/2026 a faixa viva
+era v22..v26. Para descobrir quais respondem:
+
+```bash
+curl -X POST -H "Content-Type: application/json" -d "{}" https://googleads.googleapis.com/v26/customers/1234567890:uploadClickConversions
+```
+
+JSON com erro 401 = versao viva. HTML = desligada.
 
 ## Nivel de acesso do token
 
