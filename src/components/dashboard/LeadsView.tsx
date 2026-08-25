@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { LeadsChart } from "./LeadsChart";
 import { deleteLead } from "@/app/(app)/leads/actions";
 import {
@@ -56,9 +56,29 @@ export function LeadsView({
 
   const today = new Date();
   const weekAgo = new Date(today.getTime() - 6 * 86400_000);
-  const [from, setFrom] = useState(ymd(weekAgo));
-  const [to, setTo] = useState(ymd(today));
-  const [origem, setOrigem] = useState<"" | LeadOrigin>("");
+
+  // Os filtros vivem na URL para sobreviverem a abrir um lead e voltar.
+  const sp = useSearchParams();
+  const [from, setFrom] = useState(sp.get("de") ?? ymd(weekAgo));
+  const [to, setTo] = useState(sp.get("ate") ?? ymd(today));
+  const [origem, setOrigem] = useState<"" | LeadOrigin>(
+    (sp.get("origem") as LeadOrigin) ?? ""
+  );
+
+  // replaceState em vez de router.replace: a filtragem e toda no cliente,
+  // entao nao ha motivo para bater no servidor a cada tecla.
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (from) p.set("de", from);
+    if (to) p.set("ate", to);
+    if (origem) p.set("origem", origem);
+    const qs = p.toString();
+    window.history.replaceState(
+      null,
+      "",
+      qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+    );
+  }, [from, to, origem]);
 
   const responded = useMemo(() => new Set(respondedIds), [respondedIds]);
 

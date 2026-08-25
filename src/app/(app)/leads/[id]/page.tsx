@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,6 +7,7 @@ import { FollowUpPanel } from "@/components/leads/FollowUpPanel";
 import { NotesEditor } from "@/components/leads/NotesEditor";
 import { LeadInfoEditor } from "@/components/leads/LeadInfoEditor";
 import { MeetingsPanel } from "@/components/leads/MeetingsPanel";
+import { BackLink } from "@/components/leads/BackLink";
 import {
   STAGE_LABELS,
   type FollowUp,
@@ -65,9 +65,9 @@ export default async function LeadDetailPage({
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <Link href="/leads" className="text-sm text-slate-400 hover:text-brand">
+        <BackLink href="/leads" className="text-sm text-slate-400 hover:text-brand">
           ← Voltar
-        </Link>
+        </BackLink>
         <span className="rounded-full bg-brand/15 px-3 py-1 text-sm font-medium text-brand">
           {STAGE_LABELS[lead.estagio]}
         </span>
