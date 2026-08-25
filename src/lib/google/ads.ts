@@ -104,8 +104,17 @@ export async function uploadClickConversion(opts: {
     const data = await res.json();
 
     if (!res.ok) {
-      const msg = data?.error?.message ?? JSON.stringify(data);
-      return { ok: false, error: String(msg).slice(0, 500) };
+      // Guarda status + status simbolico + details: a "message" sozinha as
+      // vezes e generica demais ("Method not found."), e o details costuma
+      // trazer o erro real da Google Ads API.
+      const e = data?.error;
+      const partes = [
+        String(res.status),
+        e?.status ?? "",
+        e?.message ?? JSON.stringify(data),
+        Array.isArray(e?.details) ? JSON.stringify(e.details) : "",
+      ].filter(Boolean);
+      return { ok: false, error: partes.join(" | ").slice(0, 900) };
     }
     // partialFailure: a requisicao volta 200 mesmo com a conversao recusada.
     if (data?.partialFailureError) {
