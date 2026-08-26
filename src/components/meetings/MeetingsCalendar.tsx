@@ -8,6 +8,7 @@ import {
   uploadTranscricao,
   deleteTranscricao,
   rescheduleMeeting,
+  scheduleMeeting,
 } from "@/app/(app)/leads/meetings";
 import { updateLeadNotes } from "@/app/(app)/leads/actions";
 import {
@@ -62,6 +63,31 @@ const MONTHS = [
   "Dezembro",
 ];
 const WDAYS = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+// Cor da tag de origem. Origem desconhecida cai no cinza.
+const ORIGEM_CFG: Record<string, string> = {
+  google_ads: "bg-blue-500/15 text-blue-300",
+  meta_ads: "bg-indigo-500/15 text-indigo-300",
+  indicacao: "bg-emerald-500/15 text-emerald-300",
+  organico: "bg-teal-500/15 text-teal-300",
+  whatsapp: "bg-green-500/15 text-green-300",
+  workana: "bg-amber-500/15 text-amber-300",
+  outro: "bg-slate-500/15 text-slate-300",
+};
+
+function ordinalBR(n: number) {
+  return `${n}ª reunião`;
+}
+
+function primeiroNome(nome: string) {
+  return (nome ?? "").trim().split(/\s+/)[0] || "cliente";
+}
+
+// wa.me exige so digitos, com DDI.
+function waLink(whatsapp: string) {
+  const d = whatsapp.replace(/\D/g, "");
+  return `https://wa.me/${d.startsWith("55") ? d : "55" + d}`;
+}
 
 function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", {
@@ -130,6 +156,10 @@ export function MeetingsCalendar({
   const [showReschedule, setShowReschedule] = useState(false);
   const [rescDate, setRescDate] = useState("");
   const [rescTime, setRescTime] = useState("");
+  const [showNova, setShowNova] = useState(false);
+  const [novaDate, setNovaDate] = useState("");
+  const [novaTime, setNovaTime] = useState("");
+  const [copiado, setCopiado] = useState(false);
 
   const today = dKey(now);
   const grid = useMemo(() => calGrid(vYear, vMonth), [vYear, vMonth]);
@@ -146,6 +176,29 @@ export function MeetingsCalendar({
           new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
       );
     return m;
+  }, [meetings]);
+
+  // Numero da reuniao dentro do historico daquele lead. Canceladas nao
+  // entram na contagem: "2a reuniao" quando a primeira foi cancelada confunde.
+  const ordem = useMemo(() => {
+    const porLead: Record<string, MeetingWithLead[]> = {};
+    for (const m of meetings) {
+      if (m.status === "cancelada") continue;
+      (porLead[m.lead_id] ??= []).push(m);
+    }
+    const mapa: Record<string, number> = {};
+    for (const lista of Object.values(porLead)) {
+      lista
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
+        )
+        .forEach((m, i) => {
+          mapa[m.id] = i + 1;
+        });
+    }
+    return mapa;
   }, [meetings]);
 
   const cnt = {
@@ -193,6 +246,10 @@ export function MeetingsCalendar({
     setShowReschedule(false);
     setRescDate("");
     setRescTime("");
+    setShowNova(false);
+    setNovaDate("");
+    setNovaTime("");
+    setCopiado(false);
   }
 
   function salvar() {
@@ -243,6 +300,33 @@ export function MeetingsCalendar({
     if (!confirm(msgs[st])) return;
     startTransition(async () => {
       const res = await updateMeetingStatus(sel.id, st);
+      if (res?.error) alert(res.error);
+      else {
+        setSel(null);
+        router.refresh();
+      }
+    });
+  }
+
+  async function copiarResumo() {
+    if (!resumo) return;
+    try {
+      await navigator.clipboard.writeText(resumo);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      alert("Não foi possível copiar.");
+    }
+  }
+
+  function novaReuniao() {
+    if (!sel || !novaDate || !novaTime) return;
+    startTransition(async () => {
+      const res = await scheduleMeeting(sel.leads.id, {
+        startLocal: `${novaDate}T${novaTime}`,
+        durationMin: 60,
+        attendeeEmail: sel.leads.email ?? undefined,
+      });
       if (res?.error) alert(res.error);
       else {
         setSel(null);
@@ -424,6 +508,11 @@ export function MeetingsCalendar({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {ordem[sel.id] > 1 && (
+                  <span className="rounded-full bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-300">
+                    {ordinalBR(ordem[sel.id])}
+                  </span>
+                )}
                 <span
                   className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CFG[sel.status]?.bg} ${STATUS_CFG[sel.status]?.text}`}
                 >
@@ -457,12 +546,29 @@ export function MeetingsCalendar({
                   <Row label="Email">{sel.leads.email}</Row>
                 )}
                 {sel.leads.whatsapp && (
-                  <Row label="WhatsApp">{sel.leads.whatsapp}</Row>
+                  <Row label="WhatsApp">
+                    <a
+                      href={waLink(sel.leads.whatsapp)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-emerald-400 hover:underline"
+                      title="Abrir conversa no WhatsApp"
+                    >
+                      {sel.leads.whatsapp}
+                      <span aria-hidden>↗</span>
+                    </a>
+                  </Row>
                 )}
                 {sel.leads.origem && (
                   <Row label="Origem">
-                    {ORIGIN_LABELS[sel.leads.origem as LeadOrigin] ??
-                      sel.leads.origem}
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        ORIGEM_CFG[sel.leads.origem] ?? ORIGEM_CFG.outro
+                      }`}
+                    >
+                      {ORIGIN_LABELS[sel.leads.origem as LeadOrigin] ??
+                        sel.leads.origem}
+                    </span>
                   </Row>
                 )}
               </div>
@@ -484,7 +590,17 @@ export function MeetingsCalendar({
 
             {/* Anotacoes SDR */}
             <div className="mb-4">
-              <label className="sd-label">Anotações SDR</label>
+              <div className="flex items-center justify-between">
+                <label className="sd-label">Anotações SDR</label>
+                <button
+                  type="button"
+                  onClick={copiarResumo}
+                  disabled={!resumo}
+                  className="mb-1 text-xs text-slate-400 hover:text-brand disabled:opacity-40"
+                >
+                  {copiado ? "Copiado ✓" : "Copiar"}
+                </button>
+              </div>
               <textarea
                 value={resumo}
                 onChange={(e) => setResumo(e.target.value)}
@@ -564,12 +680,23 @@ export function MeetingsCalendar({
             {/* Reagendar */}
             <div className="mb-5">
               {!showReschedule ? (
-                <button
-                  onClick={() => setShowReschedule(true)}
-                  className="text-sm text-slate-400 hover:text-brand"
-                >
-                  Reagendar reunião
-                </button>
+                <div className="flex flex-wrap items-center gap-4">
+                  <button
+                    onClick={() => {
+                      setShowReschedule(true);
+                      setShowNova(false);
+                    }}
+                    className="text-sm text-slate-400 hover:text-brand"
+                  >
+                    Reagendar esta reunião
+                  </button>
+                  <button
+                    onClick={() => setShowNova((v) => !v)}
+                    className="text-sm text-slate-400 hover:text-brand"
+                  >
+                    + Nova reunião com {primeiroNome(sel.leads.nome)}
+                  </button>
+                </div>
               ) : (
                 <div className="rounded-lg border border-white/5 bg-navy p-3">
                   <label className="sd-label">Nova data e horário</label>
@@ -616,6 +743,64 @@ export function MeetingsCalendar({
                 </div>
               )}
             </div>
+
+            {/* Nova reuniao com o mesmo lead */}
+            {showNova && !showReschedule && (
+              <div className="mb-5 rounded-lg border border-violet-500/20 bg-navy p-3">
+                <label className="sd-label">
+                  {ordinalBR((ordem[sel.id] ?? 1) + 1)} com{" "}
+                  {primeiroNome(sel.leads.nome)}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={novaDate}
+                    onChange={(e) => setNovaDate(e.target.value)}
+                    className="sd-input flex-1"
+                  />
+                  <select
+                    value={novaTime}
+                    onChange={(e) => setNovaTime(e.target.value)}
+                    className="sd-input w-28"
+                  >
+                    <option value="">Horário</option>
+                    <optgroup label="Manhã">
+                      {genSlots(9, 12).map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Tarde">
+                      {genSlots(14, 18).map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <button
+                    onClick={novaReuniao}
+                    disabled={pending || !novaDate || !novaTime}
+                    className="rounded-lg bg-brand px-3 py-1.5 text-sm font-semibold text-navy hover:bg-brand-dark disabled:opacity-60"
+                  >
+                    {pending ? "Agendando..." : "Agendar"}
+                  </button>
+                  <button
+                    onClick={() => setShowNova(false)}
+                    className="text-sm text-slate-400 hover:text-white"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">
+                  Cria um evento novo no Google Meet e mantém a reunião atual
+                  no histórico.
+                </p>
+              </div>
+            )}
 
             {/* Salvar anotacoes */}
             <div>

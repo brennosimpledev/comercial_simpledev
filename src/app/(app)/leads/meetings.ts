@@ -45,7 +45,7 @@ export async function scheduleMeeting(
 
   const { data: lead } = await supabase
     .from("leads")
-    .select("nome, email, whatsapp")
+    .select("nome, email, whatsapp, estagio")
     .eq("id", leadId)
     .single();
   if (!lead) return { error: "Lead não encontrado." };
@@ -106,10 +106,14 @@ export async function scheduleMeeting(
     status: "agendada",
   });
 
-  await supabase
-    .from("leads")
-    .update({ estagio: "reuniao_marcada" })
-    .eq("id", leadId);
+  // So avanca o estagio; uma 2a/3a reuniao com lead em proposta ou fechado
+  // nao pode puxa-lo de volta para reuniao_marcada.
+  if (lead.estagio === "novo" || lead.estagio === "sdr") {
+    await supabase
+      .from("leads")
+      .update({ estagio: "reuniao_marcada" })
+      .eq("id", leadId);
+  }
 
   if (opts.notifyWhatsapp && lead.whatsapp && result.meetLink) {
     const msg =
