@@ -6,6 +6,7 @@ import { getValidAccessToken, getTeamAccessToken } from "@/lib/google/tokens";
 import { createMeetEvent, deleteEvent, patchEvent } from "@/lib/google/calendar";
 import { sendWhatsAppText } from "@/lib/evolution/client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { findMeetFiles, type DriveFile } from "@/lib/google/drive";
 
 function firstName(nome: string) {
   return (nome ?? "").trim().split(/\s+/)[0] || "";
@@ -358,6 +359,66 @@ export async function rescheduleMeeting(
 
   revalidatePath("/reunioes");
   revalidatePath(`/leads/${mtg.lead_id}`);
+  return { ok: true };
+}
+
+// Procura no Drive a transcricao/gravacao que o Meet gerou para esta reuniao.
+export async function buscarArquivosDoMeet(
+  meetingId: string
+): Promise<{ files?: DriveFile[]; error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." };
+
+  const { data: mtg } = await supabase
+    .from("meetings")
+    .select("starts_at, leads(nome)")
+    .eq("id", meetingId)
+    .single();
+  if (!mtg) return { error: "Reunião não encontrada." };
+
+  const nome = (mtg.leads as unknown as { nome: string } | null)?.nome ?? "";
+
+  const token =
+    (await getValidAccessToken(supabase, user.id)) ??
+    (await getTeamAccessToken());
+  if (!token) return { error: "Nenhuma conta Google conectada." };
+
+  const r = await findMeetFiles(token, {
+    leadNome: nome,
+    startsAt: mtg.starts_at as string,
+  });
+
+  if (!r.ok) {
+    // Escopo novo: quem conectou antes do drive.readonly recebe 403 aqui.
+    if ((r.error ?? "").toLowerCase().includes("insufficient")) {
+      return {
+        error:
+          "Permissão do Drive ausente. Reconecte o Google em /api/google/connect.",
+      };
+    }
+    return { error: r.error ?? "Falha ao consultar o Drive." };
+  }
+  return { files: r.files ?? [] };
+}
+
+// Salva o link de um arquivo do Drive como transcricao da reuniao.
+export async function vincularTranscricao(meetingId: string, url: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." };
+
+  const { error } = await supabase
+    .from("meetings")
+    .update({ transcricao: url })
+    .eq("id", meetingId);
+  if (error) return { error: `Erro ao salvar: ${error.message}` };
+
+  revalidatePath("/reunioes");
   return { ok: true };
 }
 

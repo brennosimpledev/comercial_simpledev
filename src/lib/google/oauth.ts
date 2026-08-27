@@ -1,4 +1,4 @@
-// OAuth 2.0 do Google (Calendar + Ads). SERVER-ONLY.
+// OAuth 2.0 do Google (Calendar + Ads + Drive). SERVER-ONLY.
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -9,6 +9,8 @@ const SCOPES = [
   "email",
   "https://www.googleapis.com/auth/calendar.events",
   "https://www.googleapis.com/auth/adwords",
+  // Somente leitura: usado para achar transcricao/gravacao do Meet no Drive.
+  "https://www.googleapis.com/auth/drive.readonly",
 ].join(" ");
 
 export function googleConfigured(): boolean {

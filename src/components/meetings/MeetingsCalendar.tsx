@@ -9,6 +9,8 @@ import {
   deleteTranscricao,
   rescheduleMeeting,
   scheduleMeeting,
+  buscarArquivosDoMeet,
+  vincularTranscricao,
 } from "@/app/(app)/leads/meetings";
 import { updateLeadNotes } from "@/app/(app)/leads/actions";
 import {
@@ -79,6 +81,13 @@ function ordinalBR(n: number) {
   return `${n}ª reunião`;
 }
 
+type ArquivoDrive = {
+  id: string;
+  name: string;
+  webViewLink: string;
+  tipo: "transcricao" | "gravacao" | "outro";
+};
+
 function primeiroNome(nome: string) {
   return (nome ?? "").trim().split(/\s+/)[0] || "cliente";
 }
@@ -123,8 +132,14 @@ function calGrid(year: number, month: number) {
 
 function fileNameFromUrl(url: string) {
   try {
-    const path = new URL(url).pathname;
-    return decodeURIComponent(path.split("/").pop() || "arquivo");
+    const u = new URL(url);
+    // Link do Drive termina em /edit ou /view; o nome nao esta na URL.
+    if (u.hostname.endsWith("google.com")) {
+      return u.pathname.includes("/document/")
+        ? "Transcrição no Google Docs"
+        : "Arquivo no Google Drive";
+    }
+    return decodeURIComponent(u.pathname.split("/").pop() || "arquivo");
   } catch {
     return "arquivo";
   }
@@ -160,6 +175,8 @@ export function MeetingsCalendar({
   const [novaDate, setNovaDate] = useState("");
   const [novaTime, setNovaTime] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const [buscando, setBuscando] = useState(false);
+  const [achados, setAchados] = useState<ArquivoDrive[] | null>(null);
 
   const today = dKey(now);
   const grid = useMemo(() => calGrid(vYear, vMonth), [vYear, vMonth]);
@@ -250,6 +267,8 @@ export function MeetingsCalendar({
     setNovaDate("");
     setNovaTime("");
     setCopiado(false);
+    setAchados(null);
+    setBuscando(false);
   }
 
   function salvar() {
@@ -303,6 +322,31 @@ export function MeetingsCalendar({
       if (res?.error) alert(res.error);
       else {
         setSel(null);
+        router.refresh();
+      }
+    });
+  }
+
+  function buscarNoDrive() {
+    if (!sel) return;
+    setBuscando(true);
+    setAchados(null);
+    startTransition(async () => {
+      const res = await buscarArquivosDoMeet(sel.id);
+      setBuscando(false);
+      if (res?.error) alert(res.error);
+      else setAchados((res.files as ArquivoDrive[]) ?? []);
+    });
+  }
+
+  function usarArquivo(url: string) {
+    if (!sel) return;
+    startTransition(async () => {
+      const res = await vincularTranscricao(sel.id, url);
+      if (res?.error) alert(res.error);
+      else {
+        setSel({ ...sel, transcricao: url });
+        setAchados(null);
         router.refresh();
       }
     });
@@ -644,6 +688,58 @@ export function MeetingsCalendar({
                     disabled={pending}
                   />
                 </label>
+              )}
+
+              {!sel.transcricao && (
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={buscarNoDrive}
+                    disabled={pending || buscando}
+                    className="text-xs text-slate-400 hover:text-brand disabled:opacity-50"
+                  >
+                    {buscando
+                      ? "Procurando no Drive..."
+                      : "Buscar transcrição do Meet no Google Drive"}
+                  </button>
+
+                  {achados?.length === 0 && (
+                    <p className="mt-1.5 text-xs text-slate-500">
+                      Nada encontrado. A transcrição só existe se alguém a
+                      ativou durante a reunião, e o Google leva alguns minutos
+                      para gerar o arquivo.
+                    </p>
+                  )}
+
+                  {achados && achados.length > 0 && (
+                    <ul className="mt-2 space-y-1">
+                      {achados.map((a) => (
+                        <li
+                          key={a.id}
+                          className="flex items-center gap-2 rounded-lg border border-white/5 bg-navy px-2.5 py-2"
+                        >
+                          <span className="shrink-0 text-xs text-slate-500">
+                            {a.tipo === "transcricao"
+                              ? "📄"
+                              : a.tipo === "gravacao"
+                                ? "🎥"
+                                : "📎"}
+                          </span>
+                          <span className="flex-1 truncate text-xs text-slate-300">
+                            {a.name}
+                          </span>
+                          <button
+                            onClick={() => usarArquivo(a.webViewLink)}
+                            disabled={pending}
+                            className="shrink-0 text-xs text-brand hover:underline disabled:opacity-50"
+                          >
+                            Usar
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </div>
 
