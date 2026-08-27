@@ -41,6 +41,11 @@ const VALOR_FECHADO_PADRAO = Number(
 // coletado, entao fica desligado por padrao e so vai se configurado.
 const CONSENT_GRANTED = process.env.GOOGLE_ADS_CONSENT === "granted";
 
+// Obrigatorio para conversao offline. Valores: WEB, APP, IN_STORE, PHONE,
+// OTHER. OTHER e o mais honesto aqui: o evento nao e a visita ao site nem uma
+// ligacao, e uma qualificacao registrada no CRM depois de uma call.
+const EVENT_SOURCE = process.env.GOOGLE_ADS_EVENT_SOURCE ?? "OTHER";
+
 const ENDPOINT = "https://datamanager.googleapis.com/v1/events:ingest";
 
 // Ao contrario da Google Ads API, o Data Manager nao usa developer token.
@@ -79,6 +84,7 @@ export async function uploadClickConversion(opts: {
     events: [
       {
         adIdentifiers: { gclid: opts.gclid },
+        eventSource: EVENT_SOURCE,
         eventTimestamp: opts.eventTimestamp,
         conversionValue: opts.value,
         currency: opts.currency,
