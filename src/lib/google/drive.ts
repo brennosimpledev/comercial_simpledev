@@ -43,12 +43,16 @@ export async function findMeetFiles(
   const de = new Date(start.getTime() - 24 * 3600_000).toISOString();
   const ate = new Date(start.getTime() + 7 * 24 * 3600_000).toISOString();
 
+  // Sem filtro de mimeType na query: o operador contains do Drive nao faz
+  // substring nesse campo e engolia as gravacoes em video. Filtrar por nome
+  // e janela de tempo ja e restritivo o bastante; o tipo a gente classifica
+  // no cliente. So pastas ficam de fora, com != que e bem suportado.
   const q = [
     `name contains '${escapeQ(nome)}'`,
     `modifiedTime >= '${de}'`,
     `modifiedTime <= '${ate}'`,
     "trashed = false",
-    "(mimeType = 'application/vnd.google-apps.document' or mimeType contains 'video/')",
+    "mimeType != 'application/vnd.google-apps.folder'",
   ].join(" and ");
 
   const params = new URLSearchParams({
@@ -59,7 +63,6 @@ export async function findMeetFiles(
     // Inclui unidades compartilhadas: em Workspace a gravacao costuma cair la.
     supportsAllDrives: "true",
     includeItemsFromAllDrives: "true",
-    corpora: "allDrives",
   });
 
   try {
