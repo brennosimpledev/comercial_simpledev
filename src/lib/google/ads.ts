@@ -78,10 +78,43 @@ export async function uploadClickConversion(opts: {
   };
   if (LOGIN_CUSTOMER_ID) headers["login-customer-id"] = LOGIN_CUSTOMER_ID;
 
-  const url =
-    `https://googleads.googleapis.com/${API_VERSION}` +
-    `/customers/${CUSTOMER_ID}:uploadClickConversions`;
+  // Um 404 "Method not found" nao distingue versao inexistente de metodo
+  // ausente naquela versao - a resolucao do metodo so acontece depois da
+  // autenticacao, entao nao da para descobrir isso por fora sem token.
+  // Tentamos a versao configurada e caimos para as anteriores.
+  const versoes = [API_VERSION, "v25", "v24", "v23", "v22"].filter(
+    (v, i, a) => a.indexOf(v) === i
+  );
 
+  let ultimoErro = "";
+
+  for (const versao of versoes) {
+    const url =
+      `https://googleads.googleapis.com/${versao}` +
+      `/customers/${CUSTOMER_ID}:uploadClickConversions`;
+
+    const r = await tentar(url, headers, opts, versao);
+    if (r.ok) return r;
+    ultimoErro = r.error ?? "";
+    // So vale insistir quando o metodo nao existe naquela versao.
+    if (!ultimoErro.includes("NOT_FOUND")) return r;
+  }
+
+  return { ok: false, error: ultimoErro };
+}
+
+async function tentar(
+  url: string,
+  headers: Record<string, string>,
+  opts: {
+    gclid: string;
+    actionId: string;
+    conversionDateTime: string;
+    value: number;
+    currency: string;
+  },
+  versao: string
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -115,8 +148,8 @@ export async function uploadClickConversion(opts: {
         Array.isArray(e?.details) ? JSON.stringify(e.details) : "",
         // A URL entra no erro porque "Method not found" nao diz nada sobre
         // qual endpoint foi realmente chamado - e e ai que mora o problema.
+        `versao=${versao}`,
         `url=${url}`,
-        LOGIN_CUSTOMER_ID ? `login=${LOGIN_CUSTOMER_ID}` : "sem-login-cid",
       ].filter(Boolean);
       return { ok: false, error: partes.join(" | ").slice(0, 900) };
     }
