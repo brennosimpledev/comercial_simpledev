@@ -1,4 +1,4 @@
-// OAuth 2.0 do Google (Calendar + Ads + Drive). SERVER-ONLY.
+// OAuth 2.0 do Google (Calendar + Drive + Data Manager). SERVER-ONLY.
 
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
@@ -11,6 +11,8 @@ const SCOPES = [
   "https://www.googleapis.com/auth/adwords",
   // Somente leitura: usado para achar transcricao/gravacao do Meet no Drive.
   "https://www.googleapis.com/auth/drive.readonly",
+  // Envio de conversoes offline (substitui a Google Ads API).
+  "https://www.googleapis.com/auth/datamanager",
 ].join(" ");
 
 export function googleConfigured(): boolean {
