@@ -342,8 +342,22 @@ export function MeetingsCalendar({
     startTransition(async () => {
       const res = await buscarArquivosDoMeet(sel.id);
       setBuscando(false);
-      if (res?.error) alert(res.error);
-      else setAchados((res.files as ArquivoDrive[]) ?? []);
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+      setAchados((res.files as ArquivoDrive[]) ?? []);
+      // A action ja vinculou o que faltava; refletimos no estado local.
+      setSel((atual) =>
+        atual
+          ? {
+              ...atual,
+              transcricao: res.transcricao ?? atual.transcricao,
+              gravacao: res.gravacao ?? atual.gravacao,
+            }
+          : atual
+      );
+      router.refresh();
     });
   }
 
@@ -362,7 +376,6 @@ export function MeetingsCalendar({
             ? { ...sel, gravacao: a.webViewLink }
             : { ...sel, transcricao: a.webViewLink }
         );
-        setAchados(null);
         router.refresh();
       }
     });
@@ -740,7 +753,12 @@ export function MeetingsCalendar({
                   )}
 
                   {achados && achados.length > 0 && (
-                    <ul className="mt-2 space-y-1">
+                    <>
+                      <p className="mt-1.5 text-xs text-slate-500">
+                        Encontrados no Drive. Transcrição e gravação já foram
+                        vinculadas; clique em Usar para trocar por outro.
+                      </p>
+                    <ul className="mt-1 space-y-1">
                       {achados.map((a) => (
                         <li
                           key={a.id}
@@ -766,6 +784,7 @@ export function MeetingsCalendar({
                         </li>
                       ))}
                     </ul>
+                    </>
                   )}
                 </div>
               )}

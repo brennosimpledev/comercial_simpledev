@@ -365,7 +365,12 @@ export async function rescheduleMeeting(
 // Procura no Drive a transcricao/gravacao que o Meet gerou para esta reuniao.
 export async function buscarArquivosDoMeet(
   meetingId: string
-): Promise<{ files?: DriveFile[]; error?: string }> {
+): Promise<{
+  files?: DriveFile[];
+  transcricao?: string;
+  gravacao?: string;
+  error?: string;
+}> {
   const supabase = await createClient();
   const {
     data: { user },
@@ -374,7 +379,7 @@ export async function buscarArquivosDoMeet(
 
   const { data: mtg } = await supabase
     .from("meetings")
-    .select("starts_at, leads(nome)")
+    .select("starts_at, transcricao, gravacao, leads(nome)")
     .eq("id", meetingId)
     .single();
   if (!mtg) return { error: "Reunião não encontrada." };
@@ -401,7 +406,26 @@ export async function buscarArquivosDoMeet(
     }
     return { error: r.error ?? "Falha ao consultar o Drive." };
   }
-  return { files: r.files ?? [] };
+  const files = r.files ?? [];
+
+  // Vincula sozinho o que ainda esta vazio. Se o campo ja tem valor, respeita
+  // a escolha anterior em vez de sobrescrever.
+  const patch: { transcricao?: string; gravacao?: string } = {};
+  if (!mtg.transcricao) {
+    const t = files.find((x) => x.tipo === "transcricao");
+    if (t) patch.transcricao = t.webViewLink;
+  }
+  if (!mtg.gravacao) {
+    const g = files.find((x) => x.tipo === "gravacao");
+    if (g) patch.gravacao = g.webViewLink;
+  }
+
+  if (Object.keys(patch).length > 0) {
+    await supabase.from("meetings").update(patch).eq("id", meetingId);
+    revalidatePath("/reunioes");
+  }
+
+  return { files, ...patch };
 }
 
 // Salva o link de um arquivo do Drive como transcricao da reuniao.
