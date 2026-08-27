@@ -113,6 +113,10 @@ export async function uploadClickConversion(opts: {
         e?.status ?? "",
         e?.message ?? JSON.stringify(data),
         Array.isArray(e?.details) ? JSON.stringify(e.details) : "",
+        // A URL entra no erro porque "Method not found" nao diz nada sobre
+        // qual endpoint foi realmente chamado - e e ai que mora o problema.
+        `url=${url}`,
+        LOGIN_CUSTOMER_ID ? `login=${LOGIN_CUSTOMER_ID}` : "sem-login-cid",
       ].filter(Boolean);
       return { ok: false, error: partes.join(" | ").slice(0, 900) };
     }
