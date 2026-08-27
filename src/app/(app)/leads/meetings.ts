@@ -422,6 +422,24 @@ export async function vincularTranscricao(meetingId: string, url: string) {
   return { ok: true };
 }
 
+// Salva o link da gravacao do Meet (video no Drive).
+export async function vincularGravacao(meetingId: string, url: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." };
+
+  const { error } = await supabase
+    .from("meetings")
+    .update({ gravacao: url })
+    .eq("id", meetingId);
+  if (error) return { error: `Erro ao salvar: ${error.message}` };
+
+  revalidatePath("/reunioes");
+  return { ok: true };
+}
+
 export async function cancelMeeting(meetingId: string) {
   return updateMeetingStatus(meetingId, "cancelada");
 }

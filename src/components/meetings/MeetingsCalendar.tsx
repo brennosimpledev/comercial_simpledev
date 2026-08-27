@@ -11,6 +11,7 @@ import {
   scheduleMeeting,
   buscarArquivosDoMeet,
   vincularTranscricao,
+  vincularGravacao,
 } from "@/app/(app)/leads/meetings";
 import { updateLeadNotes } from "@/app/(app)/leads/actions";
 import {
@@ -87,6 +88,13 @@ type ArquivoDrive = {
   webViewLink: string;
   tipo: "transcricao" | "gravacao" | "outro";
 };
+
+// O Drive expoe o player em /file/d/{id}/preview. O webViewLink termina em
+// /view, entao basta trocar o sufixo.
+function drivePreview(url: string): string | null {
+  const m = url.match(/\/file\/d\/([^/]+)/);
+  return m ? `https://drive.google.com/file/d/${m[1]}/preview` : null;
+}
 
 function primeiroNome(nome: string) {
   return (nome ?? "").trim().split(/\s+/)[0] || "cliente";
@@ -339,14 +347,34 @@ export function MeetingsCalendar({
     });
   }
 
-  function usarArquivo(url: string) {
+  // Roteia pelo tipo: video vira gravacao, o resto vira transcricao.
+  function usarArquivo(a: ArquivoDrive) {
     if (!sel) return;
     startTransition(async () => {
-      const res = await vincularTranscricao(sel.id, url);
+      const res =
+        a.tipo === "gravacao"
+          ? await vincularGravacao(sel.id, a.webViewLink)
+          : await vincularTranscricao(sel.id, a.webViewLink);
       if (res?.error) alert(res.error);
       else {
-        setSel({ ...sel, transcricao: url });
+        setSel(
+          a.tipo === "gravacao"
+            ? { ...sel, gravacao: a.webViewLink }
+            : { ...sel, transcricao: a.webViewLink }
+        );
         setAchados(null);
+        router.refresh();
+      }
+    });
+  }
+
+  function removerGravacao() {
+    if (!sel || !confirm("Remover a gravação desta reunião?")) return;
+    startTransition(async () => {
+      const res = await vincularGravacao(sel.id, "");
+      if (res?.error) alert(res.error);
+      else {
+        setSel({ ...sel, gravacao: null });
         router.refresh();
       }
     });
@@ -690,7 +718,7 @@ export function MeetingsCalendar({
                 </label>
               )}
 
-              {!sel.transcricao && (
+              {(!sel.transcricao || !sel.gravacao) && (
                 <div className="mt-2">
                   <button
                     type="button"
@@ -729,7 +757,7 @@ export function MeetingsCalendar({
                             {a.name}
                           </span>
                           <button
-                            onClick={() => usarArquivo(a.webViewLink)}
+                            onClick={() => usarArquivo(a)}
                             disabled={pending}
                             className="shrink-0 text-xs text-brand hover:underline disabled:opacity-50"
                           >
@@ -839,6 +867,47 @@ export function MeetingsCalendar({
                 </div>
               )}
             </div>
+
+            {/* Gravacao da reuniao */}
+            {sel.gravacao && (
+              <div className="mb-5">
+                <div className="flex items-center justify-between">
+                  <label className="sd-label">Gravação</label>
+                  <button
+                    type="button"
+                    onClick={removerGravacao}
+                    disabled={pending}
+                    className="mb-1 text-xs text-red-400 hover:text-red-300 disabled:opacity-50"
+                  >
+                    Remover
+                  </button>
+                </div>
+                {drivePreview(sel.gravacao) ? (
+                  <div className="overflow-hidden rounded-lg border border-white/5 bg-black">
+                    <iframe
+                      src={drivePreview(sel.gravacao)!}
+                      allow="autoplay; fullscreen"
+                      allowFullScreen
+                      className="aspect-video w-full"
+                      title="Gravação da reunião"
+                    />
+                  </div>
+                ) : (
+                  <a
+                    href={sel.gravacao}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-lg border border-white/5 bg-navy px-3 py-2.5 text-sm text-brand hover:underline"
+                  >
+                    Abrir gravação no Drive
+                  </a>
+                )}
+                <p className="mt-1.5 text-xs text-slate-500">
+                  O player usa o Drive: quem assiste precisa estar logado numa
+                  conta Google com acesso ao arquivo.
+                </p>
+              </div>
+            )}
 
             {/* Nova reuniao com o mesmo lead */}
             {showNova && !showReschedule && (

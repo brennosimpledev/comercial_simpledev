@@ -140,6 +140,7 @@ export interface Meeting {
   status: MeetingStatus;
   resumo: string | null;
   transcricao: string | null;
+  gravacao: string | null;
 }
 
 export type FollowUpStatus = "pendente" | "enviado" | "cancelado" | "pulado";
