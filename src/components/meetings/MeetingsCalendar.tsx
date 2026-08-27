@@ -21,33 +21,39 @@ import {
   type MeetingWithLead,
 } from "@/types/database";
 
+// pill = 1a reuniao. pillFollow = 2a em diante, tom mais fechado da mesma
+// cor: mantem a leitura do status e ainda destaca que e follow-up.
 const STATUS_CFG: Record<
   MeetingStatus,
-  { label: string; bg: string; text: string; pill: string }
+  { label: string; bg: string; text: string; pill: string; pillFollow: string }
 > = {
   agendada: {
     label: "Agendada",
     bg: "bg-brand/15",
     text: "text-brand",
     pill: "bg-brand",
+    pillFollow: "bg-blue-800",
   },
   realizada: {
     label: "Realizada",
     bg: "bg-emerald-500/15",
     text: "text-emerald-400",
     pill: "bg-emerald-500",
+    pillFollow: "bg-emerald-800",
   },
   furada: {
     label: "Furada",
     bg: "bg-amber-500/15",
     text: "text-amber-400",
     pill: "bg-amber-500",
+    pillFollow: "bg-amber-700",
   },
   cancelada: {
     label: "Cancelada",
     bg: "bg-red-500/15",
     text: "text-red-400",
     pill: "bg-red-500/60",
+    pillFollow: "bg-red-900/70",
   },
 };
 
@@ -531,12 +537,26 @@ export function MeetingsCalendar({
                   <div className="space-y-0.5">
                     {dm.map((m) => {
                       const sc = STATUS_CFG[m.status] ?? STATUS_CFG.agendada;
+                      const n = ordem[m.id] ?? 1;
+                      const follow = n > 1;
                       return (
                         <button
                           key={m.id}
                           onClick={() => openMeeting(m)}
-                          className={`w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium text-white transition hover:brightness-125 ${sc.pill}`}
+                          title={
+                            follow
+                              ? `${ordinalBR(n)} com ${m.leads.nome}`
+                              : m.leads.nome
+                          }
+                          className={`w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium text-white transition hover:brightness-125 ${
+                            follow ? sc.pillFollow : sc.pill
+                          }`}
                         >
+                          {follow && (
+                            <span className="mr-1 font-bold opacity-90">
+                              {n}ª
+                            </span>
+                          )}
                           {fmtTime(m.starts_at)} {m.leads.nome.split(" ")[0]}
                         </button>
                       );
@@ -564,6 +584,10 @@ export function MeetingsCalendar({
             {STATUS_CFG[s].label}
           </div>
         ))}
+        <div className="flex items-center gap-1.5 text-xs text-slate-400">
+          <span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-800" />
+          Tom escuro = 2ª reunião em diante
+        </div>
       </div>
 
       {/* Modal detalhe */}
