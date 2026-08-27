@@ -163,6 +163,10 @@ export async function reportConversion(
         : VALOR_QUALIFICADO;
 
     // O insert e a trava de idempotencia: se ja existe, o unique barra.
+    // Fechamento sem valor fica em espera em vez de subir zerado: a unique
+    // impede corrigir depois, entao um zero enviado agora seria permanente.
+    const semValor = tipo === "fechado" && !(valor > 0);
+
     const { data: row, error: insErr } = await admin
       .from("ads_conversions")
       .insert({
@@ -171,13 +175,18 @@ export async function reportConversion(
         gclid: lead.gclid,
         valor,
         conversion_at: agora.toISOString(),
-        status: lead.gclid ? "pendente" : "sem_gclid",
+        status: !lead.gclid
+          ? "sem_gclid"
+          : semValor
+            ? "aguardando_valor"
+            : "pendente",
       })
       .select("id")
       .single();
 
     if (insErr || !row) return; // ja enviado antes
     if (!lead.gclid) return; // lead nao veio de clique do Google Ads
+    if (semValor) return; // sobe quando alguem preencher o valor do contrato
 
     const actionId = ACTION_IDS[tipo];
     if (!actionId) {
@@ -211,5 +220,59 @@ export async function reportConversion(
     if (!r.ok) console.error("[ads] upload falhou:", r.error);
   } catch (e) {
     console.error("[ads] reportConversion:", e);
+  }
+}
+
+// Envia o fechamento que ficou parado por falta de valor. Chamada quando
+// alguem preenche valor_fechado num lead ja marcado como fechado.
+export async function enviarFechamentoPendente(leadId: string): Promise<void> {
+  try {
+    if (!adsConfigured()) return;
+
+    const admin = createAdminClient();
+
+    const { data: row } = await admin
+      .from("ads_conversions")
+      .select("id, gclid")
+      .eq("lead_id", leadId)
+      .eq("tipo", "fechado")
+      .eq("status", "aguardando_valor")
+      .maybeSingle();
+    if (!row?.gclid) return;
+
+    const { data: lead } = await admin
+      .from("leads")
+      .select("valor_fechado")
+      .eq("id", leadId)
+      .single();
+
+    const valor = Number(lead?.valor_fechado ?? 0);
+    if (!(valor > 0)) return; // ainda sem valor: segue esperando
+
+    const actionId = ACTION_IDS.fechado;
+    if (!actionId) return;
+
+    const agora = new Date();
+    const r = await uploadClickConversion({
+      gclid: row.gclid,
+      actionId,
+      eventTimestamp: agora.toISOString(),
+      value: valor,
+      currency: "BRL",
+      transactionId: row.id,
+    });
+
+    await admin
+      .from("ads_conversions")
+      .update(
+        r.ok
+          ? { status: "enviado", valor, uploaded_at: agora.toISOString() }
+          : { status: "erro", valor, erro: r.error }
+      )
+      .eq("id", row.id);
+
+    if (!r.ok) console.error("[ads] fechamento pendente falhou:", r.error);
+  } catch (e) {
+    console.error("[ads] enviarFechamentoPendente:", e);
   }
 }
