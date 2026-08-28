@@ -1,4 +1,28 @@
-# Google Ads — conversoes offline
+# Conversoes offline — Google Ads e Meta
+
+O CRM devolve dois estagios do funil para as plataformas: **qualificado**
+(quando o SDR liga a flag) e **fechado** (quando o lead vai para esse estagio).
+Sem isso, as plataformas otimizam para formulario preenchido, que e o que nao
+falta; com isso, passam a mirar em quem vira negocio.
+
+Orquestracao em `src/lib/conversions/report.ts`, que decide o canal pelo
+identificador do lead: `gclid` vai para o Google, `meta_lead_id` vai para a
+Meta. Cada canal so implementa o envio.
+
+Acompanhamento dos dois de uma vez:
+
+```sql
+select canal, tipo, status, count(*)
+from ads_conversions group by 1,2,3 order by 1,2;
+```
+
+Status possiveis: `enviado`, `erro`, `pendente`, `aguardando_valor`
+(fechamento esperando o valor do contrato), `sem_gclid` / `sem_lead_id`
+(o lead nao veio daquele canal — nao e falha).
+
+---
+
+# Google Ads
 
 O CRM envia conversao para o Google Ads quando o SDR marca um lead como
 qualificado ou o lead vai para o estagio fechado. Codigo em
@@ -96,3 +120,81 @@ lado deles.
 select tipo, status, erro, uploaded_at
 from ads_conversions order by created_at desc limit 10;
 ```
+
+
+---
+
+# Meta — Conversions API para CRM
+
+Codigo em `src/lib/meta/conversions.ts`.
+
+## Identificador
+
+O `leadgen_id` do Lead Ads, guardado em `leads.meta_lead_id`. So funciona
+para leads de formulario instantaneo — nao ha equivalente para trafego de site.
+
+## Conjunto de dados
+
+| O que | Valor |
+|---|---|
+| CRM Pixel (dataset) | `36869866015945984` (crm_SD) |
+| Endpoint | `POST https://graph.facebook.com/v21.0/{dataset}/events` |
+
+Precisa ser um dataset do tipo **CRM**, nao pixel de site: evento de CRM
+mandado para pixel de site nao casa com o `lead_id`.
+
+## Env vars
+
+```
+META_CRM_PIXEL_ID=36869866015945984
+META_CRM_ACCESS_TOKEN=<Configuracoes do dataset -> Gerar token de acesso>
+META_EVENT_QUALIFICADO=Lead Qualificado
+META_EVENT_FECHADO=Venda Fechada
+```
+
+Os nomes de evento sao **livres por definicao da Meta** — ela espera os
+estagios do seu CRM. Mudar aqui sem mudar no Gerenciador de Eventos faz os
+eventos chegarem sem casar com nada.
+
+## Armadilhas ja encontradas
+
+**O `debug_token` mostra so `read_ads_dataset_quality`** e mesmo assim o
+token posta eventos. A permissao vem do usuario de sistema estar atribuido ao
+dataset, nao de um escopo OAuth. Nao conclua pelo escopo que o token esta
+errado — teste postando.
+
+**`value` e `currency` sao aceitos** em `custom_data`. A documentacao de
+CRM nao confirma, mas o teste voltou com `messages: []`, sem aviso. Entao o
+fechamento carrega o valor real do contrato.
+
+**`action_source` tem que ser `system_generated`.** Evento de sistema
+dispensa user agent e URL, exigidos em evento de navegacao.
+
+**`event_time` em Unix segundos**, e precisa ser posterior a geracao do lead.
+
+## Testar sem sujar producao
+
+Na aba **Eventos de teste** do dataset, escolha o canal **CRM**. A Meta oferece
+um *lead de verificacao* com dados dummy — dispare contra o id dele. Resposta
+esperada:
+
+```json
+{"events_received":1,"messages":[]}
+```
+
+`messages` vazio quer dizer nenhum campo recusado.
+
+---
+
+# O que falta para virar otimizacao
+
+Enviar nao basta: o dado so muda o leilao quando a campanha usa o objetivo
+certo.
+
+- **Google Ads:** adicionar "Lead Qualificado - CRM" como meta da campanha.
+  Ate la as acoes coletam dado sem influenciar lance.
+- **Meta:** usar a meta de performance **Conversion Leads**, que exige
+  formulario instantaneo.
+
+Nos dois casos, espere 4-6 semanas de historico antes de ligar. Ligar cedo faz
+o algoritmo recalibrar sobre poucos eventos e piorar antes de melhorar.
