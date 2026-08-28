@@ -15,7 +15,10 @@ import {
 import type { MediaKind } from "@/lib/whatsapp-message";
 import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 import { after } from "next/server";
-import { reportConversion, enviarFechamentoPendente } from "@/lib/google/ads";
+import {
+  reportConversion,
+  enviarFechamentoPendente,
+} from "@/lib/conversions/report";
 import type { LeadStage, LeadOrigin } from "@/types/database";
 
 const VALID_STAGES: LeadStage[] = [

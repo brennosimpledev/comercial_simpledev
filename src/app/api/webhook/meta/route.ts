@@ -157,6 +157,8 @@ export async function POST(request: NextRequest) {
           email,
           whatsapp,
           origem: "meta_ads",
+          // Coluna propria: e o identificador que devolve a conversao a Meta.
+          meta_lead_id: leadgenId,
           necessidade: extras || null,
           estagio: "novo",
           status: "ativo",
