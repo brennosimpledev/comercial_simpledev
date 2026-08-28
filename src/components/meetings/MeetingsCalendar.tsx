@@ -144,6 +144,16 @@ function calGrid(year: number, month: number) {
   return days;
 }
 
+// Link de download direto. Google Docs nao serve o arquivo pela URL de
+// edicao - precisa da rota de export. Arquivo nosso no Storage ja e direto.
+function downloadUrl(url: string): string {
+  const doc = url.match(/docs.google.com/document/d/([^/]+)/);
+  if (doc) return `https://docs.google.com/document/d/${doc[1]}/export?format=pdf`;
+  const drv = url.match(/drive.google.com/file/d/([^/]+)/);
+  if (drv) return `https://drive.google.com/uc?export=download&id=${drv[1]}`;
+  return url;
+}
+
 function fileNameFromUrl(url: string) {
   try {
     const u = new URL(url);
@@ -731,6 +741,15 @@ export function MeetingsCalendar({
                     className="flex-1 truncate text-sm text-brand hover:underline"
                   >
                     {fileNameFromUrl(sel.transcricao)}
+                  </a>
+                  <a
+                    href={downloadUrl(sel.transcricao)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-xs text-slate-300 hover:text-brand"
+                    title="Baixar em PDF"
+                  >
+                    Baixar
                   </a>
                   <button
                     onClick={removeFile}
