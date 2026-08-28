@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toggleLeadFlag } from "@/app/(app)/leads/actions";
 import type { Lead } from "@/types/database";
 
-type Flag = "qualificado" | "sem_resposta" | "desqualificado";
+type Flag = "qualificado" | "sem_resposta" | "desqualificado" | "ja_cliente";
 
 function Toggle({
   label,
@@ -18,12 +18,13 @@ function Toggle({
   value: boolean;
   onChange: (v: boolean) => void;
   disabled?: boolean;
-  color?: "emerald" | "red" | "amber";
+  color?: "emerald" | "red" | "amber" | "violet";
 }) {
   const on = {
     emerald: "bg-emerald-500",
     red: "bg-red-500",
     amber: "bg-amber-500",
+    violet: "bg-violet-500",
   }[color];
   return (
     <div className="flex items-center justify-between">
@@ -75,6 +76,13 @@ export function LeadFlags({ lead }: { lead: Lead }) {
         onChange={(v) => set("sem_resposta", v)}
         disabled={pending}
         color="amber"
+      />
+      <Toggle
+        label="Já é cliente"
+        value={lead.ja_cliente}
+        onChange={(v) => set("ja_cliente", v)}
+        disabled={pending}
+        color="violet"
       />
       <Toggle
         label="Desqualificado"

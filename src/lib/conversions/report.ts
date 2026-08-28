@@ -28,6 +28,7 @@ interface Lead {
   gclid: string | null;
   meta_lead_id: string | null;
   valor_fechado: number | null;
+  ja_cliente: boolean;
 }
 
 function valorDe(lead: Lead, tipo: ConversionType) {
@@ -108,11 +109,16 @@ export async function reportConversion(
     const admin = createAdminClient();
     const { data } = await admin
       .from("leads")
-      .select("id, gclid, meta_lead_id, valor_fechado")
+      .select("id, gclid, meta_lead_id, valor_fechado, ja_cliente")
       .eq("id", leadId)
       .single();
     if (!data) return;
     const lead = data as Lead;
+
+    // Cliente existente que voltou pelo numero do SDR nao e aquisicao.
+    // Enviar como conversao ensinaria as plataformas a buscar mais gente que
+    // ja e cliente - o oposto do que a integracao existe para fazer.
+    if (lead.ja_cliente) return;
 
     const tarefas: Promise<void>[] = [];
 
@@ -176,9 +182,11 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
 
     const { data: lead } = await admin
       .from("leads")
-      .select("id, gclid, meta_lead_id, valor_fechado")
+      .select("id, gclid, meta_lead_id, valor_fechado, ja_cliente")
       .eq("id", leadId)
       .single();
+
+    if ((lead as Lead | null)?.ja_cliente) return;
 
     const valor = Number((lead as Lead | null)?.valor_fechado ?? 0);
     if (!(valor > 0)) return; // ainda sem valor: segue esperando

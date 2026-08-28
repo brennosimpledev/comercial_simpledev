@@ -197,6 +197,7 @@ type LeadFlag =
   | "qualificado"
   | "sem_resposta"
   | "desqualificado"
+  | "ja_cliente"
   | "bot_pausado";
 
 export async function toggleLeadFlag(

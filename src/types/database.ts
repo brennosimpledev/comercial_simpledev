@@ -44,6 +44,7 @@ export interface Lead {
   qualificado: boolean;
   sem_resposta: boolean;
   desqualificado: boolean;
+  ja_cliente: boolean;
   bot_pausado: boolean;
   whatsapp_digits: string | null;
 

@@ -93,22 +93,31 @@ export function LeadsView({
     });
   }, [leads, from, to, origem]);
 
+  // Cliente existente que escreve para o numero do SDR (que tambem atende
+  // cobranca) entra como lead. Fica na lista, mas fora das metricas: ele nao
+  // e aquisicao e distorceria taxa de qualificacao e custo por lead.
+  const funil = useMemo(
+    () => filtered.filter((l) => !l.ja_cliente),
+    [filtered]
+  );
+
   const kpis = useMemo(() => {
     return {
-      leads: filtered.length,
-      sdr: filtered.filter((l) => l.estagio === "sdr").length,
-      respondido: filtered.filter((l) => responded.has(l.id)).length,
-      qualificados: filtered.filter((l) => l.qualificado).length,
-      reunioes: filtered.filter((l) => l.estagio === "reuniao_marcada").length,
+      leads: funil.length,
+      sdr: funil.filter((l) => l.estagio === "sdr").length,
+      respondido: funil.filter((l) => responded.has(l.id)).length,
+      qualificados: funil.filter((l) => l.qualificado).length,
+      reunioes: funil.filter((l) => l.estagio === "reuniao_marcada").length,
+      clientes: filtered.length - funil.length,
     };
-  }, [filtered, responded]);
+  }, [filtered, funil, responded]);
 
   const chartPoints = useMemo(() => {
     const start = new Date(from + "T00:00:00Z");
     const end = new Date(to + "T00:00:00Z");
     const days: { label: string; value: number }[] = [];
     const counts = new Map<string, number>();
-    for (const l of filtered) {
+    for (const l of funil) {
       const key = ymd(new Date(l.created_at));
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
@@ -124,7 +133,7 @@ export function LeadsView({
       });
     }
     return days;
-  }, [filtered, from, to]);
+  }, [funil, from, to]);
 
   const sorted = useMemo(
     () =>
@@ -164,6 +173,16 @@ export function LeadsView({
         <Kpi label="Qualificados" value={kpis.qualificados} />
         <Kpi label="Reuniões" value={kpis.reunioes} />
       </div>
+
+      {kpis.clientes > 0 && (
+        <div className="mb-4 text-xs text-slate-500">
+          {kpis.clientes} lead{kpis.clientes > 1 ? "s" : ""} de quem já é
+          cliente fora das métricas — aparecem na lista com a etiqueta{" "}
+          <span className="rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-300">
+            cliente
+          </span>
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center justify-end gap-2">
         <select
@@ -213,6 +232,11 @@ export function LeadsView({
               <Link href={`/leads/${lead.id}`} className="hover:text-brand">
                 {lead.nome}
               </Link>
+              {lead.ja_cliente && (
+                <span className="ml-1.5 rounded-full bg-violet-500/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-300">
+                  cliente
+                </span>
+              )}
             </div>
             <div className="w-36 shrink-0 text-slate-300">
               {lead.whatsapp ?? "—"}
