@@ -7,11 +7,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { enviarConversaoGoogle, googleConfigurado } from "@/lib/google/ads";
-import {
-  enviarEventoMeta,
-  metaConfigured,
-  META_EVENT_NAMES,
-} from "@/lib/meta/conversions";
+import { enviarEventoMeta, metaConfigured } from "@/lib/meta/conversions";
 
 export type ConversionType = "qualificado" | "fechado";
 type Canal = "google" | "meta";
@@ -27,6 +23,7 @@ interface Lead {
   id: string;
   gclid: string | null;
   meta_lead_id: string | null;
+  ctwa_clid: string | null;
   valor_fechado: number | null;
   ja_cliente: boolean;
 }
@@ -109,7 +106,7 @@ export async function reportConversion(
     const admin = createAdminClient();
     const { data } = await admin
       .from("leads")
-      .select("id, gclid, meta_lead_id, valor_fechado, ja_cliente")
+      .select("id, gclid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
       .eq("id", leadId)
       .single();
     if (!data) return;
@@ -151,12 +148,15 @@ export async function reportConversion(
           lead,
           tipo,
           canal: "meta",
-          identificador: lead.meta_lead_id,
+          // Formulario instantaneo tem lead_id; Click-to-WhatsApp tem
+          // ctwa_clid. Qualquer um dos dois serve para atribuir.
+          identificador: lead.meta_lead_id ?? lead.ctwa_clid,
           statusSemIdentificador: "sem_lead_id",
           enviar: (rowId, valor, quando) =>
             enviarEventoMeta({
-              leadId: lead.meta_lead_id!,
-              eventName: META_EVENT_NAMES[tipo],
+              tipo,
+              leadId: lead.meta_lead_id,
+              ctwaClid: lead.ctwa_clid,
               eventTime: quando,
               value: valor,
               currency: "BRL",
@@ -182,7 +182,7 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
 
     const { data: lead } = await admin
       .from("leads")
-      .select("id, gclid, meta_lead_id, valor_fechado, ja_cliente")
+      .select("id, gclid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
       .eq("id", leadId)
       .single();
 
@@ -193,7 +193,7 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
 
     const { data: rows } = await admin
       .from("ads_conversions")
-      .select("id, canal, gclid")
+      .select("id, canal, gclid, lead_id")
       .eq("lead_id", leadId)
       .eq("tipo", "fechado")
       .eq("status", "aguardando_valor");
@@ -203,8 +203,9 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
       const r =
         row.canal === "meta"
           ? await enviarEventoMeta({
-              leadId: row.gclid as string,
-              eventName: META_EVENT_NAMES.fechado,
+              tipo: "fechado",
+              leadId: (lead as Lead | null)?.meta_lead_id,
+              ctwaClid: (lead as Lead | null)?.ctwa_clid,
               eventTime: agora,
               value: valor,
               currency: "BRL",

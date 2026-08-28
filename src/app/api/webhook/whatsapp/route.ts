@@ -4,6 +4,32 @@ import { brCanonical, last8 } from "@/lib/phone";
 import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 
 export const runtime = "nodejs";
+
+/**
+ * Dados do anuncio Click-to-WhatsApp, quando a conversa comecou por um.
+ * Busca recursiva em vez de caminho fixo: o objeto aninha diferente conforme
+ * o tipo da mensagem (texto, imagem, video).
+ */
+function acharAnuncio(
+  no: unknown,
+  nivel = 0
+): { ctwaClid?: string; sourceId?: string; sourceApp?: string } | null {
+  if (!no || typeof no !== "object" || nivel > 8) return null;
+  const obj = no as Record<string, unknown>;
+  if (obj.externalAdReply && typeof obj.externalAdReply === "object") {
+    const a = obj.externalAdReply as Record<string, unknown>;
+    return {
+      ctwaClid: typeof a.ctwaClid === "string" ? a.ctwaClid : undefined,
+      sourceId: typeof a.sourceId === "string" ? a.sourceId : undefined,
+      sourceApp: typeof a.sourceApp === "string" ? a.sourceApp : undefined,
+    };
+  }
+  for (const v of Object.values(obj)) {
+    const achado = acharAnuncio(v, nivel + 1);
+    if (achado) return achado;
+  }
+  return null;
+}
 export const dynamic = "force-dynamic";
 
 // Recebe eventos da Evolution API (mensagens de WhatsApp).
@@ -103,12 +129,21 @@ export async function POST(request: NextRequest) {
     if (!leadId) {
       // Nao cria lead para mensagens que NOS enviamos a um numero desconhecido.
       if (fromMe) continue;
+      // Se a conversa veio de um anuncio, o lead nao e "whatsapp": e do
+      // canal que pagou pelo clique, e o ctwa_clid permite devolver conversao.
+      const anuncio = acharAnuncio(data);
+      const deAnuncio = Boolean(anuncio?.ctwaClid);
+
       const { data: created } = await supabase
         .from("leads")
         .insert({
           nome: pushName || `WhatsApp ${digits.slice(-4)}`,
           whatsapp: digits,
-          origem: "whatsapp",
+          origem: deAnuncio ? "meta_ads" : "whatsapp",
+          ctwa_clid: anuncio?.ctwaClid ?? null,
+          meta_ad_id: anuncio?.sourceId ?? null,
+          utm_source: deAnuncio ? anuncio?.sourceApp ?? "meta" : null,
+          utm_medium: deAnuncio ? "paid" : null,
           estagio: "novo",
           status: "ativo",
         })

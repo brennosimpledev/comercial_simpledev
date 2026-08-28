@@ -55,6 +55,8 @@ export interface Lead {
   utm_content: string | null;
   gclid: string | null;
   meta_lead_id: string | null;
+  ctwa_clid: string | null;
+  meta_ad_id: string | null;
   referral_source: string | null;
 
   dispositivo: string | null;
