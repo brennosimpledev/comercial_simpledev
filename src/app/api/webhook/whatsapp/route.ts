@@ -6,6 +6,24 @@ import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 export const runtime = "nodejs";
 
 /**
+ * Reconhece o repasse de um formulario instantaneo da Meta.
+ *
+ * A automacao que recebe o lead do formulario manda a mensagem pelo WhatsApp,
+ * e ela nao carrega metadado de anuncio - so o conteudo. Sem isso o lead
+ * entraria como 'whatsapp' e inflaria o organico.
+ *
+ * Casa pelos nomes de campo do formulario, nao pela saudacao: a saudacao e
+ * texto da automacao e pode mudar sem aviso; os nomes de campo vem da Meta.
+ * E heuristica - se a automacao mudar os campos, para de detectar.
+ */
+function pareceFormularioMeta(texto: string | null): boolean {
+  if (!texto) return false;
+  const t = texto.toLowerCase();
+  const marcas = ["work_email:", "full_name:", "phone_number:"];
+  return marcas.filter((m) => t.includes(m)).length >= 2;
+}
+
+/**
  * Dados do anuncio Click-to-WhatsApp, quando a conversa comecou por um.
  * Busca recursiva em vez de caminho fixo: o objeto aninha diferente conforme
  * o tipo da mensagem (texto, imagem, video).
@@ -133,17 +151,21 @@ export async function POST(request: NextRequest) {
       // canal que pagou pelo clique, e o ctwa_clid permite devolver conversao.
       const anuncio = acharAnuncio(data);
       const deAnuncio = Boolean(anuncio?.ctwaClid);
+      // Sem metadado de anuncio, mas com cara de formulario repassado: a
+      // origem e Meta do mesmo jeito, so nao da para atribuir o clique.
+      const deFormulario = !deAnuncio && pareceFormularioMeta(text);
+      const daMeta = deAnuncio || deFormulario;
 
       const { data: created } = await supabase
         .from("leads")
         .insert({
           nome: pushName || `WhatsApp ${digits.slice(-4)}`,
           whatsapp: digits,
-          origem: deAnuncio ? "meta_ads" : "whatsapp",
+          origem: daMeta ? "meta_ads" : "whatsapp",
           ctwa_clid: anuncio?.ctwaClid ?? null,
           meta_ad_id: anuncio?.sourceId ?? null,
-          utm_source: deAnuncio ? anuncio?.sourceApp ?? "meta" : null,
-          utm_medium: deAnuncio ? "paid" : null,
+          utm_source: daMeta ? anuncio?.sourceApp ?? "meta" : null,
+          utm_medium: daMeta ? "paid" : null,
           estagio: "novo",
           status: "ativo",
         })
