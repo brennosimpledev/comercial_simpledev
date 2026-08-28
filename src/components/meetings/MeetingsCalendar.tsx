@@ -144,13 +144,25 @@ function calGrid(year: number, month: number) {
   return days;
 }
 
+// Extrai o id que vem logo depois de um marcador de caminho do Drive.
+function idApos(url: string, marcador: string): string | null {
+  const i = url.indexOf(marcador);
+  if (i === -1) return null;
+  const id = url.slice(i + marcador.length).split("/")[0].split("?")[0];
+  return id || null;
+}
+
 // Link de download direto. Google Docs nao serve o arquivo pela URL de
 // edicao - precisa da rota de export. Arquivo nosso no Storage ja e direto.
 function downloadUrl(url: string): string {
-  const doc = url.match(/docs.google.com/document/d/([^/]+)/);
-  if (doc) return `https://docs.google.com/document/d/${doc[1]}/export?format=pdf`;
-  const drv = url.match(/drive.google.com/file/d/([^/]+)/);
-  if (drv) return `https://drive.google.com/uc?export=download&id=${drv[1]}`;
+  const doc = idApos(url, "/document/d/");
+  if (doc) {
+    return `https://docs.google.com/document/d/${doc}/export?format=pdf`;
+  }
+  const arquivo = idApos(url, "/file/d/");
+  if (arquivo) {
+    return `https://drive.google.com/uc?export=download&id=${arquivo}`;
+  }
   return url;
 }
 
