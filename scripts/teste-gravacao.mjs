@@ -13,6 +13,7 @@ const arquivos = {
   whatsapp: fs.readFileSync(`${CRM}/src/app/api/webhook/whatsapp/route.ts`, "utf8"),
   mapper: fs.readFileSync(`${CRM}/src/lib/mappers/webhook-lead.ts`, "utf8"),
   meta: fs.readFileSync(`${CRM}/src/app/api/webhook/meta/route.ts`, "utf8"),
+  lp: fs.readFileSync(`${CRM}/src/app/api/webhook/lead/route.ts`, "utf8"),
   report: fs.readFileSync(`${CRM}/src/lib/conversions/report.ts`, "utf8"),
   ads: fs.readFileSync(`${CRM}/src/lib/google/ads.ts`, "utf8"),
 };
@@ -40,6 +41,11 @@ const checagens = [
   ["meta", "brCanonical(c.whatsapp) === canon", "webhook da Meta casa por telefone"],
   ["meta", "meta_lead_id: leadgenId,", "preenche o leadgen_id no lead existente"],
   ["meta", `.is("meta_lead_id", null)`, "nao sobrescreve identificador existente"],
+
+  // ---- webhook da LP: replay nao pode duplicar ----
+  ["lp", "brCanonical(c.whatsapp) === canon", "webhook da LP casa por telefone"],
+  ["lp", `acao: "atualizado"`, "atualiza em vez de inserir quando ja existe"],
+  ["lp", "<test lead:", "ignora lead de teste da Meta"],
 
   // ---- envio ao Google ----
   ["ads", "adIdentifiers: { [opts.idTipo]: opts.identificador }", "adIdentifiers usa o tipo certo"],
