@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { brCanonical, last8 } from "@/lib/phone";
 import { scheduleFollowUpsForLead } from "@/lib/followups/schedule";
 
 export const runtime = "nodejs";
@@ -149,6 +150,55 @@ export async function POST(request: NextRequest) {
         .filter(([k]) => !known.has(k))
         .map(([k, v]) => `${k}: ${v}`)
         .join(" | ");
+
+      // O lead pode ja existir: a automacao que repassa o formulario pelo
+      // WhatsApp costuma chegar antes deste webhook, e nesse caminho nao ha
+      // leadgen_id. Sem procurar antes, este insert criava um SEGUNDO lead
+      // com o identificador enquanto o SDR trabalhava e qualificava o
+      // primeiro, que ficava sem. Era a causa de 15 das 22 conversoes da
+      // Meta nunca terem sido devolvidas.
+      const digitos = (whatsapp ?? "").replace(/[^0-9]/g, "");
+      let existente: string | undefined;
+
+      if (digitos.length >= 8) {
+        const canon = brCanonical(digitos);
+        const { data: candidatos } = await supabase
+          .from("leads")
+          .select("id, whatsapp")
+          .like("whatsapp_digits", `%${last8(digitos)}`)
+          .limit(10);
+        existente = (candidatos ?? []).find(
+          (c) => brCanonical(c.whatsapp) === canon
+        )?.id;
+      }
+
+      if (existente) {
+        // Completa o que falta em vez de duplicar. Nao mexe em nome, estagio
+        // nem anotacoes: o SDR pode ja ter trabalhado este lead.
+        const { error: upErr } = await supabase
+          .from("leads")
+          .update({
+            meta_lead_id: leadgenId,
+            origem: "meta_ads",
+            utm_source: "meta",
+            utm_medium: "paid",
+            utm_campaign: lead?.campaign_name ?? null,
+            utm_content: lead?.ad_name ?? null,
+            form_id: (value.form_id as string) ?? null,
+          })
+          .eq("id", existente)
+          // Nao sobrescreve um identificador que ja esteja la.
+          .is("meta_lead_id", null);
+
+        if (upErr) {
+          console.error("[webhook/meta] update error:", upErr);
+          skipped.push(`db:${upErr.code ?? ""}:${upErr.message}`);
+          continue;
+        }
+
+        processed++;
+        continue;
+      }
 
       const { data: inserted, error } = await supabase
         .from("leads")

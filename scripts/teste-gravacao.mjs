@@ -12,6 +12,7 @@ const CRM = "C:/Users/Brenno/Desktop/projetos/comercial_simpledev";
 const arquivos = {
   whatsapp: fs.readFileSync(`${CRM}/src/app/api/webhook/whatsapp/route.ts`, "utf8"),
   mapper: fs.readFileSync(`${CRM}/src/lib/mappers/webhook-lead.ts`, "utf8"),
+  meta: fs.readFileSync(`${CRM}/src/app/api/webhook/meta/route.ts`, "utf8"),
   report: fs.readFileSync(`${CRM}/src/lib/conversions/report.ts`, "utf8"),
   ads: fs.readFileSync(`${CRM}/src/lib/google/ads.ts`, "utf8"),
 };
@@ -34,6 +35,11 @@ const checagens = [
   ["report", 'if (lead.gbraid) return { valor: lead.gbraid, tipo: "gbraid" }', "escolhe gbraid"],
   ["report", 'if (lead.wbraid) return { valor: lead.wbraid, tipo: "wbraid" }', "escolhe wbraid"],
   ["report", "id_tipo: args.idTipo", "registra qual identificador foi usado"],
+
+  // ---- webhook da Meta: nao pode duplicar lead ----
+  ["meta", "brCanonical(c.whatsapp) === canon", "webhook da Meta casa por telefone"],
+  ["meta", "meta_lead_id: leadgenId,", "preenche o leadgen_id no lead existente"],
+  ["meta", `.is("meta_lead_id", null)`, "nao sobrescreve identificador existente"],
 
   // ---- envio ao Google ----
   ["ads", "adIdentifiers: { [opts.idTipo]: opts.identificador }", "adIdentifiers usa o tipo certo"],
