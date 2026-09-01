@@ -17,6 +17,6 @@ export const config = {
      *   do cron de follow-ups, que chega sem cookie de sessao.
      * - arquivos estaticos comuns
      */
-    "/((?!_next/static|_next/image|favicon.ico|api/webhook|api/cron|api/google/ads-status|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/webhook|api/cron|api/google/ads-status|api/conversions|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
