@@ -16,6 +16,13 @@ const PIXEL_ID = process.env.META_CRM_PIXEL_ID;
 const TOKEN = process.env.META_CRM_ACCESS_TOKEN;
 const VERSION = process.env.META_GRAPH_VERSION ?? "v21.0";
 
+// Eventos business_messaging (Click-to-WhatsApp) exigem identificar a conta
+// que recebe a conversa. Sem um destes dois a Meta responde 400:
+// "nao tem um parametro page_id ou whatsapp_business_account_id".
+// O caminho de formulario (system_generated) nao precisa.
+const PAGE_ID = process.env.META_PAGE_ID;
+const WABA_ID = process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID;
+
 export type ConversionType = "qualificado" | "fechado";
 
 // Caminho CRM: nomes livres, entao configuraveis. Precisam bater com o que
@@ -70,10 +77,23 @@ export async function enviarEventoMeta(opts: {
     evento.action_source = "system_generated";
     evento.user_data = { lead_id: opts.leadId };
   } else {
+    if (!WABA_ID && !PAGE_ID) {
+      return {
+        ok: false,
+        error:
+          "Click-to-WhatsApp exige META_WHATSAPP_BUSINESS_ACCOUNT_ID ou META_PAGE_ID.",
+      };
+    }
+
     evento.action_source = "business_messaging";
     evento.messaging_channel = "whatsapp";
     // ctwa_clid nao e hasheado, diferente dos demais identificadores.
-    evento.user_data = { ctwa_clid: opts.ctwaClid };
+    evento.user_data = {
+      ctwa_clid: opts.ctwaClid,
+      ...(WABA_ID
+        ? { whatsapp_business_account_id: WABA_ID }
+        : { page_id: PAGE_ID }),
+    };
   }
 
   if (typeof opts.value === "number" && opts.value > 0) {

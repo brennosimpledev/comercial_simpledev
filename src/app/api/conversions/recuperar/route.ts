@@ -163,7 +163,12 @@ export async function GET(request: NextRequest) {
       lead: lead.id,
       canal,
       tipo,
-      identificador: canal === "google" ? idGoogle!.tipo : "meta_lead_id",
+      identificador:
+        canal === "google"
+          ? idGoogle!.tipo
+          : lead.meta_lead_id
+            ? "meta_lead_id"
+            : "ctwa_clid",
     };
 
     if (!enviar) {
