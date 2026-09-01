@@ -6,7 +6,11 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { enviarConversaoGoogle, googleConfigurado } from "@/lib/google/ads";
+import {
+  enviarConversaoGoogle,
+  googleConfigurado,
+  type TipoIdentificador,
+} from "@/lib/google/ads";
 import { enviarEventoMeta, metaConfigured } from "@/lib/meta/conversions";
 
 export type ConversionType = "qualificado" | "fechado";
@@ -22,10 +26,24 @@ const VALOR_FECHADO_PADRAO = Number(
 interface Lead {
   id: string;
   gclid: string | null;
+  gbraid: string | null;
+  wbraid: string | null;
   meta_lead_id: string | null;
   ctwa_clid: string | null;
   valor_fechado: number | null;
   ja_cliente: boolean;
+}
+
+// Trafego de iOS chega com gbraid ou wbraid no lugar do gclid. Qualquer
+// um dos tres atribui o clique; o Data Manager so precisa saber em qual
+// campo do adIdentifiers colocar.
+function identificadorGoogle(
+  lead: Lead
+): { valor: string; tipo: TipoIdentificador } | null {
+  if (lead.gclid) return { valor: lead.gclid, tipo: "gclid" };
+  if (lead.gbraid) return { valor: lead.gbraid, tipo: "gbraid" };
+  if (lead.wbraid) return { valor: lead.wbraid, tipo: "wbraid" };
+  return null;
 }
 
 function valorDe(lead: Lead, tipo: ConversionType) {
@@ -47,6 +65,7 @@ async function registrarEEnviar(args: {
   tipo: ConversionType;
   canal: Canal;
   identificador: string | null;
+  idTipo?: string | null;
   statusSemIdentificador: string;
   enviar: (rowId: string, valor: number, quando: Date) => Promise<{
     ok: boolean;
@@ -70,6 +89,7 @@ async function registrarEEnviar(args: {
       tipo,
       canal,
       gclid: identificador,
+      id_tipo: args.idTipo ?? null,
       valor,
       conversion_at: agora.toISOString(),
       status: !identificador
@@ -111,7 +131,9 @@ export async function reportConversion(
     const admin = createAdminClient();
     const { data } = await admin
       .from("leads")
-      .select("id, gclid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
+      .select(
+        "id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente"
+      )
       .eq("id", leadId)
       .single();
     if (!data) return;
@@ -124,6 +146,8 @@ export async function reportConversion(
 
     const tarefas: Promise<void>[] = [];
 
+    const idGoogle = identificadorGoogle(lead);
+
     if (googleConfigurado()) {
       tarefas.push(
         registrarEEnviar({
@@ -131,11 +155,13 @@ export async function reportConversion(
           lead,
           tipo,
           canal: "google",
-          identificador: lead.gclid,
+          identificador: idGoogle?.valor ?? null,
+          idTipo: idGoogle?.tipo ?? null,
           statusSemIdentificador: "sem_gclid",
           enviar: (rowId, valor, quando) =>
             enviarConversaoGoogle({
-              gclid: lead.gclid!,
+              identificador: idGoogle!.valor,
+              idTipo: idGoogle!.tipo,
               tipo,
               eventTimestamp: quando.toISOString(),
               value: valor,
@@ -187,7 +213,9 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
 
     const { data: lead } = await admin
       .from("leads")
-      .select("id, gclid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
+      .select(
+        "id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente"
+      )
       .eq("id", leadId)
       .single();
 
@@ -198,7 +226,7 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
 
     const { data: rows } = await admin
       .from("ads_conversions")
-      .select("id, canal, gclid, lead_id")
+      .select("id, canal, gclid, id_tipo, lead_id")
       .eq("lead_id", leadId)
       .eq("tipo", "fechado")
       .eq("status", "aguardando_valor");
@@ -219,7 +247,8 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
               eventId: row.id as string,
             })
           : await enviarConversaoGoogle({
-              gclid: row.gclid as string,
+              identificador: row.gclid as string,
+              idTipo: (row.id_tipo as TipoIdentificador) ?? "gclid",
               tipo: "fechado",
               eventTimestamp: agora.toISOString(),
               value: valor,

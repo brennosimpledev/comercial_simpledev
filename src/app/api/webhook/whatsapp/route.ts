@@ -15,11 +15,37 @@ export const runtime = "nodejs";
 function acharRastreioDaLp(texto: string | null): {
   daLp: boolean;
   gclid?: string;
+  gbraid?: string;
+  wbraid?: string;
 } {
   if (!texto) return { daLp: false };
-  const daLp = /^\s*origem:\s*site\s*$/im.test(texto);
-  const m = texto.match(/^\s*gclid:\s*(\S+)\s*$/im);
-  return { daLp, gclid: m?.[1] };
+
+  // Sem regex de proposito: sao linhas 'chave: valor' escritas pela
+  // propria LP, e regex com barra invertida ja quebrou o build deste
+  // projeto antes.
+  const achado: Record<string, string> = {};
+  let daLp = false;
+
+  for (const bruta of texto.split('\n')) {
+    const linha = bruta.trim();
+    const sep = linha.indexOf(':');
+    if (sep < 1) continue;
+    const chave = linha.slice(0, sep).trim().toLowerCase();
+    const valor = linha.slice(sep + 1).trim();
+
+    if (chave === 'origem' && valor.toLowerCase() === 'site') daLp = true;
+    // iOS 14.5+ manda gbraid ou wbraid no lugar do gclid.
+    if (valor && (chave === 'gclid' || chave === 'gbraid' || chave === 'wbraid')) {
+      achado[chave] = valor;
+    }
+  }
+
+  return {
+    daLp,
+    gclid: achado.gclid,
+    gbraid: achado.gbraid,
+    wbraid: achado.wbraid,
+  };
 }
 
 /**

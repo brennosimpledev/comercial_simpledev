@@ -39,8 +39,11 @@ export function googleConfigurado(): boolean {
   return Boolean(CUSTOMER_ID);
 }
 
+export type TipoIdentificador = "gclid" | "gbraid" | "wbraid";
+
 export async function enviarConversaoGoogle(opts: {
-  gclid: string;
+  identificador: string;
+  idTipo: TipoIdentificador;
   tipo: "qualificado" | "fechado";
   eventTimestamp: string; // RFC 3339 em UTC
   value: number;
@@ -74,7 +77,7 @@ export async function enviarConversaoGoogle(opts: {
     destinations: [destino],
     events: [
       {
-        adIdentifiers: { gclid: opts.gclid },
+        adIdentifiers: { [opts.idTipo]: opts.identificador },
         eventSource: EVENT_SOURCE,
         eventTimestamp: opts.eventTimestamp,
         conversionValue: opts.value,

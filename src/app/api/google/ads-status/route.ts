@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   if (reenviar) {
     const { data: row } = await admin
       .from("ads_conversions")
-      .select("id, tipo, gclid, valor, conversion_at, canal")
+      .select("id, tipo, gclid, id_tipo, valor, conversion_at, canal")
       .eq("id", reenviar)
       .single();
 
@@ -55,7 +55,8 @@ export async function GET(request: NextRequest) {
     }
 
     const r = await enviarConversaoGoogle({
-      gclid: row.gclid as string,
+      identificador: row.gclid as string,
+      idTipo: (row.id_tipo as "gclid" | "gbraid" | "wbraid") ?? "gclid",
       tipo: row.tipo as "qualificado" | "fechado",
       eventTimestamp: new Date(row.conversion_at as string).toISOString(),
       value: Number(row.valor ?? 0),

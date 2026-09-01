@@ -25,6 +25,9 @@ export interface LpWebhookPayload {
   utm_term?: string;
   utm_content?: string;
   gclid?: string;
+  // iOS 14.5+ manda um destes dois no lugar do gclid.
+  gbraid?: string;
+  wbraid?: string;
   Id_da_pagina?: string | number;
   [key: string]: unknown;
 }
@@ -56,7 +59,8 @@ function explicitOrigin(payload: LpWebhookPayload): LeadOrigin | null {
 
 // Deriva a origem do lead a partir de gclid / utm_source.
 export function deriveOrigin(payload: LpWebhookPayload): LeadOrigin {
-  if (clean(payload.gclid)) return "google_ads";
+  if (clean(payload.gclid) || clean(payload.gbraid) || clean(payload.wbraid))
+    return "google_ads";
 
   const src = (clean(payload.utm_source) ?? "").toLowerCase();
   if (!src) return "organico";
@@ -106,6 +110,8 @@ export function mapWebhookToLead(payload: LpWebhookPayload) {
     utm_term: clean(payload.utm_term),
     utm_content: clean(payload.utm_content),
     gclid: clean(payload.gclid),
+    gbraid: clean(payload.gbraid),
+    wbraid: clean(payload.wbraid),
     referral_source: clean(payload.Referral_Source),
 
     dispositivo: clean(payload.Dispositivo),
