@@ -6,6 +6,7 @@ import {
   type TipoIdentificador,
 } from "@/lib/google/ads";
 import { enviarEventoMeta, metaConfigured } from "@/lib/meta/conversions";
+import { brCanonical } from "@/lib/phone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,8 @@ export const dynamic = "force-dynamic";
 // existente em vez de criar outra.
 //
 //   GET ?secret=...            lista o que da para recuperar (nao envia)
+//   GET ?secret=...&casar=1        lista o meta_lead_id que viria de gemeos
+//   GET ?secret=...&casar=aplicar  escreve esses meta_lead_id
 //   GET ?secret=...&enviar=1   envia e atualiza as linhas
 //
 // O event_id / transactionId continua sendo o id da linha, entao as duas
@@ -60,7 +63,57 @@ export async function GET(request: NextRequest) {
   }
 
   const enviar = request.nextUrl.searchParams.get("enviar") === "1";
+  // casar=1 lista o que seria copiado; casar=aplicar escreve.
+  const modoCasar = request.nextUrl.searchParams.get("casar");
+  const casar = modoCasar === "1" || modoCasar === "aplicar";
+  const aplicarCasamento = modoCasar === "aplicar";
   const admin = createAdminClient();
+
+  // Fase de casamento: a duplicacao antiga deixou pares do mesmo telefone
+  // em que so um lado tem o meta_lead_id. Copia para o lado que nao tem.
+  //
+  // Usa brCanonical, o mesmo criterio dos webhooks: comparar so os ultimos
+  // 8 digitos casaria numeros de DDDs diferentes.
+  const casamentos: Array<Record<string, unknown>> = [];
+
+  if (casar) {
+    const { data: todos } = await admin
+      .from("leads")
+      .select("id, nome, whatsapp, meta_lead_id, estagio")
+      .not("whatsapp", "is", null);
+
+    const comId = new Map<string, string>();
+    for (const l of todos ?? []) {
+      if (!l.meta_lead_id) continue;
+      const c = brCanonical(l.whatsapp as string | null);
+      // Descarta numeros invalidos ou de teste.
+      if (c.length < 10) continue;
+      if (!comId.has(c)) comId.set(c, l.meta_lead_id as string);
+    }
+
+    for (const l of todos ?? []) {
+      if (l.meta_lead_id) continue;
+      const c = brCanonical(l.whatsapp as string | null);
+      const achado = c.length >= 10 ? comId.get(c) : undefined;
+      if (!achado) continue;
+
+      casamentos.push({
+        lead: l.id,
+        nome: l.nome,
+        estagio: l.estagio,
+        meta_lead_id: achado,
+      });
+
+      if (!aplicarCasamento) continue;
+
+      await admin
+        .from("leads")
+        .update({ meta_lead_id: achado })
+        .eq("id", l.id)
+        // Nunca sobrescreve: so preenche o que esta vazio.
+        .is("meta_lead_id", null);
+    }
+  }
 
   const { data: linhas } = await admin
     .from("ads_conversions")
@@ -70,7 +123,12 @@ export async function GET(request: NextRequest) {
     .limit(200);
 
   if (!linhas?.length) {
-    return NextResponse.json({ recuperaveis: 0, resultados: [] });
+    return NextResponse.json({
+      casamento_aplicado: aplicarCasamento,
+      casados: casamentos.length,
+      recuperaveis: 0,
+      resultados: [],
+    });
   }
 
   const ids = [...new Set(linhas.map((l) => l.lead_id as string))];
@@ -159,6 +217,9 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     modo: enviar ? "envio" : "simulacao",
+    casamento_aplicado: aplicarCasamento,
+    casados: casamentos.length,
+    casamentos: casar ? casamentos : undefined,
     google_configurado: googleConfigurado(),
     meta_configurada: metaConfigured(),
     recuperaveis: resultados.length,
