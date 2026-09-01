@@ -51,6 +51,7 @@ async function registrarEEnviar(args: {
   enviar: (rowId: string, valor: number, quando: Date) => Promise<{
     ok: boolean;
     error?: string;
+    requestId?: string;
   }>;
 }): Promise<void> {
   const { admin, lead, tipo, canal, identificador } = args;
@@ -89,7 +90,11 @@ async function registrarEEnviar(args: {
     .from("ads_conversions")
     .update(
       r.ok
-        ? { status: "enviado", uploaded_at: new Date().toISOString() }
+        ? {
+            status: "enviado",
+            uploaded_at: new Date().toISOString(),
+            request_id: r.requestId ?? null,
+          }
         : { status: "erro", erro: r.error }
     )
     .eq("id", row.id);
@@ -200,7 +205,9 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
 
     for (const row of rows ?? []) {
       const agora = new Date();
-      const r =
+      // Anotado porque so o Google devolve requestId; a uniao dos dois
+      // retornos esconderia o campo.
+      const r: { ok: boolean; error?: string; requestId?: string } =
         row.canal === "meta"
           ? await enviarEventoMeta({
               tipo: "fechado",
@@ -224,7 +231,12 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
         .from("ads_conversions")
         .update(
           r.ok
-            ? { status: "enviado", valor, uploaded_at: agora.toISOString() }
+            ? {
+                status: "enviado",
+                valor,
+                uploaded_at: agora.toISOString(),
+                request_id: r.requestId ?? null,
+              }
             : { status: "erro", valor, erro: r.error }
         )
         .eq("id", row.id);

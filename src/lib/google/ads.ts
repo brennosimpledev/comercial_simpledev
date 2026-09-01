@@ -46,7 +46,7 @@ export async function enviarConversaoGoogle(opts: {
   value: number;
   currency: string;
   transactionId: string;
-}): Promise<{ ok: boolean; error?: string }> {
+}): Promise<{ ok: boolean; error?: string; requestId?: string }> {
   if (!googleConfigurado()) {
     return { ok: false, error: "Google Ads não configurado." };
   }
@@ -123,7 +123,77 @@ export async function enviarConversaoGoogle(opts: {
       };
     }
 
-    return { ok: true };
+    // Guardar o requestId e o que torna o erro de processamento
+    // diagnosticavel depois - ver consultarStatusGoogle.
+    return { ok: true, requestId: data?.requestId };
+  } catch (e) {
+    return { ok: false, error: String(e).slice(0, 500) };
+  }
+}
+
+/**
+ * Resultado do processamento de um envio, que so existe depois da resposta.
+ *
+ * O ingest responde 200 quando aceita a requisicao; o casamento com os
+ * cliques roda depois e pode rejeitar tudo. Sem esta consulta, um envio
+ * 100% descartado aparece como sucesso do nosso lado.
+ *
+ * Disponivel ~30 min apos o envio. Antes disso volta PROCESSING.
+ */
+export async function consultarStatusGoogle(
+  requestId: string
+): Promise<{ ok: boolean; resumo?: string; pendente?: boolean; error?: string }> {
+  const token = await getTeamAccessToken();
+  if (!token) return { ok: false, error: "Nenhuma conta Google conectada." };
+
+  const url =
+    "https://datamanager.googleapis.com/v1/requestStatus:retrieve" +
+    "?requestId=" +
+    encodeURIComponent(requestId);
+
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      const e = data?.error;
+      return {
+        ok: false,
+        error: [res.status, e?.status, e?.message].filter(Boolean).join(" | "),
+      };
+    }
+
+    const destinos = data?.requestStatusPerDestination ?? [];
+    if (destinos.length === 0) return { ok: true, pendente: true };
+
+    const partes: string[] = [];
+    let pendente = false;
+
+    for (const d of destinos) {
+      const st = d?.requestStatus ?? "DESCONHECIDO";
+      if (st === "PROCESSING") pendente = true;
+
+      const motivos = (d?.errorInfo?.errorCounts ?? [])
+        .map((c: { reason?: string; recordCount?: string }) =>
+          `${c.reason ?? "?"} x${c.recordCount ?? "?"}`
+        )
+        .join(", ");
+      const avisos = (d?.warningInfo?.warningCounts ?? [])
+        .map((c: { reason?: string; recordCount?: string }) =>
+          `${c.reason ?? "?"} x${c.recordCount ?? "?"}`
+        )
+        .join(", ");
+
+      partes.push(
+        [st, motivos && `erros: ${motivos}`, avisos && `avisos: ${avisos}`]
+          .filter(Boolean)
+          .join(" | ")
+      );
+    }
+
+    return { ok: true, resumo: partes.join(" // ").slice(0, 900), pendente };
   } catch (e) {
     return { ok: false, error: String(e).slice(0, 500) };
   }
