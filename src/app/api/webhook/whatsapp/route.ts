@@ -6,6 +6,23 @@ import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 export const runtime = "nodejs";
 
 /**
+ * Rastreio que a landing page injeta no texto do WhatsApp.
+ *
+ * O WhatsApp nao carrega o gclid sozinho - nao existe equivalente do
+ * ctwaClid para o Google. A LP resolve escrevendo os campos na propria
+ * mensagem; aqui a gente le de volta.
+ */
+function acharRastreioDaLp(texto: string | null): {
+  daLp: boolean;
+  gclid?: string;
+} {
+  if (!texto) return { daLp: false };
+  const daLp = /^\s*origem:\s*site\s*$/im.test(texto);
+  const m = texto.match(/^\s*gclid:\s*(\S+)\s*$/im);
+  return { daLp, gclid: m?.[1] };
+}
+
+/**
  * Reconhece o repasse de um formulario instantaneo da Meta.
  *
  * A automacao que recebe o lead do formulario manda a mensagem pelo WhatsApp,
@@ -18,6 +35,9 @@ export const runtime = "nodejs";
  */
 function pareceFormularioMeta(texto: string | null): boolean {
   if (!texto) return false;
+  // A LP monta uma mensagem quase igual a do formulario da Meta. Sem esta
+  // exclusao, lead do Google entraria como meta_ads.
+  if (acharRastreioDaLp(texto).daLp) return false;
   const t = texto.toLowerCase();
   const marcas = ["work_email:", "full_name:", "phone_number:"];
   return marcas.filter((m) => t.includes(m)).length >= 2;
@@ -149,6 +169,7 @@ export async function POST(request: NextRequest) {
       if (fromMe) continue;
       // Se a conversa veio de um anuncio, o lead nao e "whatsapp": e do
       // canal que pagou pelo clique, e o ctwa_clid permite devolver conversao.
+      const rastreio = acharRastreioDaLp(text);
       const anuncio = acharAnuncio(data);
       const deAnuncio = Boolean(anuncio?.ctwaClid);
       // Sem metadado de anuncio, mas com cara de formulario repassado: a
@@ -161,11 +182,24 @@ export async function POST(request: NextRequest) {
         .insert({
           nome: pushName || `WhatsApp ${digits.slice(-4)}`,
           whatsapp: digits,
-          origem: daMeta ? "meta_ads" : "whatsapp",
+          // gclid na mensagem prova Google Ads e tem prioridade sobre o
+          // resto: e o unico sinal deterministico deste caminho.
+          origem: rastreio.gclid
+            ? "google_ads"
+            : daMeta
+              ? "meta_ads"
+              : rastreio.daLp
+                ? "organico"
+                : "whatsapp",
+          gclid: rastreio.gclid ?? null,
           ctwa_clid: anuncio?.ctwaClid ?? null,
           meta_ad_id: anuncio?.sourceId ?? null,
-          utm_source: daMeta ? anuncio?.sourceApp ?? "meta" : null,
-          utm_medium: daMeta ? "paid" : null,
+          utm_source: rastreio.gclid
+            ? "google"
+            : daMeta
+              ? anuncio?.sourceApp ?? "meta"
+              : null,
+          utm_medium: rastreio.gclid || daMeta ? "paid" : null,
           estagio: "novo",
           status: "ativo",
         })
