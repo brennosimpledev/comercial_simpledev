@@ -98,6 +98,24 @@ developer token.**
 `eventSource` é obrigatório para conversão offline e **não aparece no exemplo
 oficial**. Sem ele: `REQUIRED_FIELD_MISSING`.
 
+### 200 no Google não quer dizer conversão registrada
+
+O `events:ingest` responde **200 só confirmando que aceitou a requisição**. O
+casamento com os cliques roda depois, de forma assíncrona, e pode rejeitar
+todos os registros. Em set/2026 o CRM marcava `enviado` nas 4 conversões
+enquanto o console da Data Manager API mostrava **0% de sucesso**.
+
+Por isso guardamos o `requestId` da resposta em `ads_conversions.request_id`
+e conferimos o resultado real em `requestStatus:retrieve`, que devolve o
+motivo por registro (`INVALID_CONVERSION_ACTION_TYPE`, `PERMISSION_DENIED`,
+`TERMS_AND_CONDITIONS_NOT_SIGNED`, etc). Disponível ~30 min após o envio;
+antes disso volta `PROCESSING`.
+
+Rota: `GET /api/google/ads-status?secret=<CRON_SECRET>`. Com
+`&reenviar=<id da linha>` reenvia uma conversão para capturar o requestId —
+seguro porque o `transactionId` continua sendo o id da linha, então o próprio
+Google deduplica.
+
 ### Meta — dois caminhos com regras opostas
 
 | Caminho | `action_source` | Identificador | Nomes de evento |
@@ -171,6 +189,20 @@ projeto errado três vezes.
 
 Escopos OAuth em uso: `calendar.events`, `drive.readonly`, `datamanager`.
 Adicionar escopo exige **reconectar** em `/api/google/connect`.
+
+---
+
+## O middleware engolia as rotas de serviço
+
+O matcher do `middleware.ts` só excluía `api/webhook`. Qualquer requisição
+sem cookie de sessão para `api/cron` levava **307 para /login** — ou seja, o
+cron de follow-ups da Vercel, que chega sem sessão por definição, **nunca
+executou** desde que foi criado.
+
+Corrigido em set/2026 excluindo também `api/cron` e `api/google/ads-status`.
+**Toda rota nova que se autentica por segredo próprio precisa entrar nessa
+lista**, senão falha em silêncio: a rota não roda e o chamador recebe um
+redirect, não um erro.
 
 ---
 
