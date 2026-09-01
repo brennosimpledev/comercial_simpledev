@@ -118,7 +118,10 @@ export async function GET(request: NextRequest) {
   const { data: linhas } = await admin
     .from("ads_conversions")
     .select("id, lead_id, tipo, canal, valor, status")
-    .in("status", ["sem_gclid", "sem_lead_id"])
+    // "erro" entra junto: uma tentativa que falhou por configuracao
+    // (falta de page_id, por exemplo) volta a ser recuperavel depois do
+    // conserto. Sem isso a linha ficaria presa no primeiro erro.
+    .in("status", ["sem_gclid", "sem_lead_id", "erro"])
     .order("created_at", { ascending: true })
     .limit(200);
 
