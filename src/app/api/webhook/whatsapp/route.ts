@@ -17,6 +17,7 @@ function acharRastreioDaLp(texto: string | null): {
   gclid?: string;
   gbraid?: string;
   wbraid?: string;
+  leadgenId?: string;
 } {
   if (!texto) return { daLp: false };
 
@@ -35,7 +36,13 @@ function acharRastreioDaLp(texto: string | null): {
 
     if (chave === 'origem' && valor.toLowerCase() === 'site') daLp = true;
     // iOS 14.5+ manda gbraid ou wbraid no lugar do gclid.
-    if (valor && (chave === 'gclid' || chave === 'gbraid' || chave === 'wbraid')) {
+    if (
+      valor &&
+      (chave === 'gclid' ||
+        chave === 'gbraid' ||
+        chave === 'wbraid' ||
+        chave === 'leadgen_id')
+    ) {
       achado[chave] = valor;
     }
   }
@@ -45,6 +52,7 @@ function acharRastreioDaLp(texto: string | null): {
     gclid: achado.gclid,
     gbraid: achado.gbraid,
     wbraid: achado.wbraid,
+    leadgenId: achado.leadgen_id,
   };
 }
 
@@ -196,11 +204,16 @@ export async function POST(request: NextRequest) {
       // Se a conversa veio de um anuncio, o lead nao e "whatsapp": e do
       // canal que pagou pelo clique, e o ctwa_clid permite devolver conversao.
       const rastreio = acharRastreioDaLp(text);
+      // Qualquer um dos tres identificadores prova Google Ads.
+      const doGoogle = Boolean(
+        rastreio.gclid || rastreio.gbraid || rastreio.wbraid
+      );
       const anuncio = acharAnuncio(data);
       const deAnuncio = Boolean(anuncio?.ctwaClid);
       // Sem metadado de anuncio, mas com cara de formulario repassado: a
       // origem e Meta do mesmo jeito, so nao da para atribuir o clique.
-      const deFormulario = !deAnuncio && pareceFormularioMeta(text);
+      const deFormulario =
+        !deAnuncio && (Boolean(rastreio.leadgenId) || pareceFormularioMeta(text));
       const daMeta = deAnuncio || deFormulario;
 
       const { data: created } = await supabase
@@ -210,7 +223,7 @@ export async function POST(request: NextRequest) {
           whatsapp: digits,
           // gclid na mensagem prova Google Ads e tem prioridade sobre o
           // resto: e o unico sinal deterministico deste caminho.
-          origem: rastreio.gclid
+          origem: doGoogle
             ? "google_ads"
             : daMeta
               ? "meta_ads"
@@ -218,14 +231,20 @@ export async function POST(request: NextRequest) {
                 ? "organico"
                 : "whatsapp",
           gclid: rastreio.gclid ?? null,
+          gbraid: rastreio.gbraid ?? null,
+          wbraid: rastreio.wbraid ?? null,
           ctwa_clid: anuncio?.ctwaClid ?? null,
           meta_ad_id: anuncio?.sourceId ?? null,
-          utm_source: rastreio.gclid
+          // Quando a automacao repassa o formulario instantaneo incluindo
+          // o leadgen_id, o lead deixa de ser so classificado e passa a ser
+          // atribuivel: da para devolver a conversao para a Meta.
+          meta_lead_id: rastreio.leadgenId ?? null,
+          utm_source: doGoogle
             ? "google"
             : daMeta
               ? anuncio?.sourceApp ?? "meta"
               : null,
-          utm_medium: rastreio.gclid || daMeta ? "paid" : null,
+          utm_medium: doGoogle || daMeta ? "paid" : null,
           estagio: "novo",
           status: "ativo",
         })
