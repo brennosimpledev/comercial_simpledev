@@ -204,6 +204,91 @@ export async function reportConversion(
 }
 
 /**
+ * Reenvia as conversoes de um lead que ficaram sem identificador na epoca.
+ *
+ * Chamada quando alguem cadastra o identificador na mao pela tela de leads.
+ * Atualiza a linha existente em vez de inserir: a unique (lead_id, tipo,
+ * canal) faria o insert falhar e nada seria enviado.
+ */
+export async function reenviarPendentes(leadId: string): Promise<void> {
+  try {
+    const admin = createAdminClient();
+
+    const { data } = await admin
+      .from("leads")
+      .select(
+        "id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente"
+      )
+      .eq("id", leadId)
+      .single();
+    if (!data) return;
+
+    const lead = data as Lead;
+    if (lead.ja_cliente) return;
+
+    const { data: linhas } = await admin
+      .from("ads_conversions")
+      .select("id, tipo, canal, valor, status")
+      .eq("lead_id", leadId)
+      .in("status", ["sem_gclid", "sem_lead_id", "erro"]);
+
+    const idGoogle = identificadorGoogle(lead);
+    const idMeta = lead.meta_lead_id ?? lead.ctwa_clid;
+
+    for (const linha of linhas ?? []) {
+      const canal = linha.canal as Canal;
+      const tipo = linha.tipo as ConversionType;
+
+      if (canal === "google" && !idGoogle) continue;
+      if (canal === "meta" && !idMeta) continue;
+
+      const agora = new Date();
+      const valor = Number(linha.valor ?? 0);
+
+      const r =
+        canal === "meta"
+          ? await enviarEventoMeta({
+              tipo,
+              leadId: lead.meta_lead_id,
+              ctwaClid: lead.ctwa_clid,
+              eventTime: agora,
+              value: valor,
+              currency: "BRL",
+              eventId: linha.id as string,
+            })
+          : await enviarConversaoGoogle({
+              identificador: idGoogle!.valor,
+              idTipo: idGoogle!.tipo,
+              tipo,
+              eventTimestamp: agora.toISOString(),
+              value: valor,
+              currency: "BRL",
+              transactionId: linha.id as string,
+            });
+
+      await admin
+        .from("ads_conversions")
+        .update(
+          r.ok
+            ? {
+                status: "enviado",
+                gclid: canal === "google" ? idGoogle!.valor : idMeta,
+                id_tipo: canal === "google" ? idGoogle!.tipo : null,
+                uploaded_at: agora.toISOString(),
+                erro: null,
+              }
+            : { status: "erro", erro: r.error }
+        )
+        .eq("id", linha.id);
+
+      if (!r.ok) console.error(`[conv:${canal}] reenvio falhou:`, r.error);
+    }
+  } catch (e) {
+    console.error("[conv] reenviarPendentes:", e);
+  }
+}
+
+/**
  * Envia os fechamentos que ficaram parados por falta de valor. Chamada quando
  * alguem preenche valor_fechado num lead ja marcado como fechado.
  */

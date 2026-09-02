@@ -18,6 +18,7 @@ import { after } from "next/server";
 import {
   reportConversion,
   enviarFechamentoPendente,
+  reenviarPendentes,
 } from "@/lib/conversions/report";
 import type { LeadStage, LeadOrigin } from "@/types/database";
 
@@ -225,6 +226,47 @@ export async function toggleLeadFlag(
 
   revalidatePath(`/leads/${id}`);
   revalidatePath("/leads");
+  return { ok: true };
+}
+
+// Campos de rastreio que dao para cadastrar na mao pela tela de leads.
+// Servem para quando o lead chega sem identificador e a pessoa pega o id
+// na exportacao do formulario da plataforma.
+const CAMPOS_RASTREIO = [
+  "gclid",
+  "gbraid",
+  "wbraid",
+  "meta_lead_id",
+  "ctwa_clid",
+] as const;
+
+export type CampoRastreio = (typeof CAMPOS_RASTREIO)[number];
+
+export async function updateLeadTracking(
+  id: string,
+  campo: CampoRastreio,
+  valor: string
+) {
+  if (!CAMPOS_RASTREIO.includes(campo)) {
+    return { error: "Campo de rastreio inválido." };
+  }
+
+  const limpo = valor.trim();
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("leads")
+    .update({ [campo]: limpo.length ? limpo : null })
+    .eq("id", id);
+
+  if (error) return { error: "Não foi possível salvar o identificador." };
+
+  // Cadastrar o identificador destrava a conversao que ficou parada por
+  // falta dele. Requalificar pela interface nao faria isso: a unique
+  // (lead_id, tipo, canal) impede o insert e o envio e descartado.
+  if (limpo.length) after(() => reenviarPendentes(id));
+
+  revalidatePath("/leads");
+  revalidatePath(`/leads/${id}`);
   return { ok: true };
 }
 

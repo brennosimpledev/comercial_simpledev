@@ -54,6 +54,9 @@ export interface Lead {
   utm_term: string | null;
   utm_content: string | null;
   gclid: string | null;
+  // Identificadores de clique do iOS, que substituem o gclid desde o 14.5.
+  gbraid: string | null;
+  wbraid: string | null;
   meta_lead_id: string | null;
   ctwa_clid: string | null;
   meta_ad_id: string | null;

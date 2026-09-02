@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LeadsChart } from "./LeadsChart";
+import { TrackingCell } from "./TrackingCell";
 import { deleteLead } from "@/app/(app)/leads/actions";
 import {
   ORIGIN_LABELS,
@@ -235,6 +236,9 @@ export function LeadsView({
             </div>
             <div className="w-8 shrink-0 text-center text-base">
               <StatusIcon lead={lead} />
+            </div>
+            <div className="w-8 shrink-0 text-center">
+              <TrackingCell lead={lead} />
             </div>
             <div className="flex w-16 shrink-0 items-center justify-end gap-2">
               <Link
