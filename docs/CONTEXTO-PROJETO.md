@@ -98,23 +98,37 @@ developer token.**
 `eventSource` é obrigatório para conversão offline e **não aparece no exemplo
 oficial**. Sem ele: `REQUIRED_FIELD_MISSING`.
 
-### 200 no Google não quer dizer conversão registrada
+### Onde conferir se a conversão do Google entrou
 
-O `events:ingest` responde **200 só confirmando que aceitou a requisição**. O
-casamento com os cliques roda depois, de forma assíncrona, e pode rejeitar
-todos os registros. Em set/2026 o CRM marcava `enviado` nas 4 conversões
-enquanto o console da Data Manager API mostrava **0% de sucesso**.
+Três indicadores diferentes, e **só um deles é o veredito**:
 
-Por isso guardamos o `requestId` da resposta em `ads_conversions.request_id`
-e conferimos o resultado real em `requestStatus:retrieve`, que devolve o
-motivo por registro (`INVALID_CONVERSION_ACTION_TYPE`, `PERMISSION_DENIED`,
-`TERMS_AND_CONDITIONS_NOT_SIGNED`, etc). Disponível ~30 min após o envio;
-antes disso volta `PROCESSING`.
+| Indicador | O que significa |
+|---|---|
+| `200` do `events:ingest` | a requisição foi aceita. **Não** diz que a conversão entrou |
+| `requestStatus:retrieve` | status de processamento. Respondeu `SUCCESS` para um envio que o painel marcou como erro |
+| Painel "Taxa de sucesso" da Data Manager API | **não reflete o registro da conversão.** Mostrou 0% em 5 envios enquanto 4 conversões estavam registradas |
+| **Google Ads → Metas → Resumo → coluna "Todas as conv."** | **este é o veredito** |
 
-Rota: `GET /api/google/ads-status?secret=<CRON_SECRET>`. Com
-`&reenviar=<id da linha>` reenvia uma conversão para capturar o requestId —
-seguro porque o `transactionId` continua sendo o id da linha, então o próprio
-Google deduplica.
+Em 01/09/2026 essa confusão custou uma noite inteira de diagnóstico: o
+painel mostrava 0% de sucesso, e a ação "Lead Qualificado - CRM" tinha 4
+conversões e R$ 800 registrados — exatamente 4 × o
+`GOOGLE_ADS_VALOR_QUALIFICADO`. Não havia problema nenhum para resolver.
+
+**Antes de investigar falha de conversão no Google, abra a tela de ações de
+conversão e olhe a contagem.** Se ela subiu, funcionou.
+
+O `requestId` da resposta é gravado em `ads_conversions.request_id` e a
+rota `GET /api/google/ads-status?secret=<CRON_SECRET>` consulta o
+processamento — útil para erro de transporte, inútil para confirmar
+registro.
+
+### Reenviar com o mesmo transactionId vira "Ajustar", não "Adicionar"
+
+O `transactionId` é o id da nossa linha, o que dá deduplicação. O efeito
+colateral: reenviar a mesma linha faz o Google interpretar como **ajuste**
+de uma conversão existente. Se a original nunca entrou, não há o que
+ajustar e a operação falha. Reenvio só serve para corrigir valor, nunca
+para recuperar uma conversão que não entrou.
 
 ### Meta — dois caminhos com regras opostas
 
@@ -130,6 +144,32 @@ e-commerce.
 O `debug_token` do token de CAPI mostra só `read_ads_dataset_quality` e mesmo
 assim ele posta eventos — a permissão vem do usuário de sistema estar
 atribuído ao dataset. **Não conclua pelo escopo que o token está errado.**
+
+### Click-to-WhatsApp não devolve conversão
+
+Bloqueado do lado da Meta, não do código. O evento `business_messaging`
+exige `page_id` ou `whatsapp_business_account_id` no `user_data` (já
+enviamos via `META_PAGE_ID`), e além disso exige que **o dataset tenha uma
+Página associada**.
+
+O `crm_SD` não tem, e não existe caminho na interface para associar:
+"Conectar ativos" do dataset só oferece contas de anúncios, e o da Página só
+oferece Instagram. A conta do WhatsApp é "Simple Dev" (`435010563022816`),
+tipo **Aplicativo WhatsApp Business** — a suspeita é que a API de
+conversões de mensageria pressuponha a WhatsApp Business Platform.
+
+São 37 leads com `ctwa_clid` sem retorno. Enquanto durar, priorizar Lead
+Ads de formulário sobre Click-to-WhatsApp nas campanhas.
+
+### Otimização da Meta: o evento precisa ser estágio positivo
+
+Receber o evento não basta. Em **Gerenciador de Eventos → funil de vendas**,
+o evento nasce em *Outros estágios* — a caixa do que a Meta trata como
+**não** sendo lead de qualidade. Ficou assim de mai a set/2026: os eventos
+chegavam e eram descartados para efeito de otimização.
+
+Movido para *Estágios positivos* em 01/09/2026, com alvo de otimização
+definido. É o que destrava a meta `QUALITY_LEAD` nos conjuntos de anúncios.
 
 ### Idempotência
 
@@ -220,32 +260,75 @@ redirect, não um erro.
 
 ## Pendências
 
-**Otimização não está ligada.** Enviar conversão não muda o leilão sozinho:
+Atualizado em 01/09/2026.
 
-- Google Ads: adicionar "Lead Qualificado — CRM" como meta da campanha
-- Meta: usar a meta de performance "Conversion Leads"
+### Bloqueado, sem solução conhecida
 
-Esperar 4–6 semanas de histórico antes. Ligar cedo faz o algoritmo recalibrar
-sobre poucos eventos e piorar antes de melhorar.
+- **Click-to-WhatsApp não devolve conversão.** Ver a seção própria acima. 37
+  leads afetados. Enquanto durar, priorizar Lead Ads de formulário nas
+  campanhas da Meta.
 
-**Diagnóstico de mídia não executado** (levantado em 26/08/2026):
+### A fazer no Google Ads
 
-- Negativar `base44`, `lovable`, `multi softcenter`, `[software]` — este último
-  em correspondência **exata**, senão bloqueia as boas palavras-chave
+- **Desativar "Enviar formulário de lead"** — está em "Configuração
+  incorreta", conta "Todas" as conversões por clique, tem zero registros e
+  mesmo assim é principal e entra nas metas da conta. A versão "(1)" é a
+  que funciona (152 conversões).
+- Negativar `base44`, `lovable`, `multi softcenter` e `[software]` — o
+  último em correspondência **exata**, senão bloqueia as boas palavras-chave
 - Pausar a duplicata em frase de `criar aplicativo para minha empresa`, que
   custa 2,2× por clique e converte pior que a versão em ampla
 - Pausar Grupos 1 e 2, que gastam sem converter
-- Resolver a ação de conversão "Enviar formulário de lead", em "Configuração
-  incorreta", e a duplicata dela
 - Revisar os 551 termos de pesquisa
+- Pausar as 22 palavras-chave em correspondência ampla: a migração para
+  frase nunca terminou e a ampla responde por 43% dos cliques
 
-**Integração do gerador de escopo.** Existe um pacote separado
-(`simpledev-escopo-api`) rodando Claude Agent SDK que transforma transcrição em
-escopo e proposta. **Não roda na Vercel** — precisa de servidor de longa
-duração, filesystem gravável e execuções de minutos. Tem Dockerfile; a
-integração seria hospedar à parte e chamar por HTTP.
+### A verificar
 
-**Etapas de pós-venda** na aba Clientes, ainda sem estrutura definida.
+- **O webhook da Meta dispara para todos os formulários?** 48% dos leads
+  históricos de `meta_ads` chegaram sem identificador nenhum. Parte é
+  histórico (o webhook demorou a funcionar), parte pode ser assinatura
+  faltando. A consulta que separa as hipóteses agrupa por semana e conta
+  `meta_lead_id is null and ctwa_clid is null`: se cair nas semanas
+  recentes, era histórico e está resolvido.
+- **A campanha META_LEAD_FORMULARIO — qualidade** (`QUALITY_LEAD`, ligada em
+  01/09) entrega? Medir por taxa de qualificação no CRM, **não** por CPL —
+  ela vai ter CPL pior por definição. Prazo de decisão: 8 semanas.
+- **O CPL da campanha principal** depois do orçamento subir de R$ 170 para
+  R$ 270/dia. Referência: R$ 49,41.
 
-**Rotacionar credenciais** que passaram por chat: app secret da Meta, developer
-token do Google, tokens do CRM Pixel.
+### Segurança
+
+- **O token do `/api/webhook/lead` está em texto aberto no HTML da landing
+  page.** Qualquer um que abra o código-fonte cria lead na base. A
+  deduplicação por telefone reduz o dano, não elimina.
+- **Rotacionar credenciais** que passaram por chat: app secret da Meta,
+  developer token do Google, tokens do CRM Pixel e o `CRON_SECRET`.
+
+### Dívida de dados
+
+- **45 grupos de leads duplicados** anteriores a 01/09. Consolidar exige
+  cuidado com reuniões, anotações e follow-ups — tarefa própria, não
+  limpeza rápida.
+- **Os 3 caminhos de entrada agora deduplicam por telefone**, então o
+  problema parou de crescer.
+
+### Produto
+
+- **Integração do gerador de escopo.** Pacote separado
+  (`simpledev-escopo-api`) rodando Claude Agent SDK que transforma
+  transcrição em escopo e proposta. **Não roda na Vercel** — precisa de
+  servidor de longa duração, filesystem gravável e execuções de minutos.
+  Tem Dockerfile; a integração seria hospedar à parte e chamar por HTTP.
+- **Etapas de pós-venda** na aba Clientes, ainda sem estrutura definida.
+
+### Resolvido em 01/09/2026
+
+- Meta: evento movido de *Outros estágios* para *Estágios positivos*, com
+  alvo de otimização — era o que impedia `QUALITY_LEAD` de funcionar
+- Meta: CA 01 conectada ao dataset `crm_SD`
+- Deduplicação por telefone nos webhooks da Meta e da landing page
+- Captura de `gbraid`/`wbraid` (iOS) nos três caminhos
+- Landing page: lead enviado ao CRM antes do `window.open`, com `keepalive`
+- Middleware: rotas de serviço deixaram de levar 307 para /login — o cron de
+  follow-ups nunca havia executado
