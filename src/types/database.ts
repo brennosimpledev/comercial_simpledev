@@ -150,7 +150,7 @@ export interface Meeting {
   gravacao: string | null;
 }
 
-export type FollowUpStatus = "pendente" | "enviado" | "cancelado" | "pulado";
+export type FollowUpStatus = "pendente" | "enviado" | "cancelado" | "pulado" | "falhou";
 
 export interface FollowUp {
   id: string;
