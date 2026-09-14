@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await admin
     .from("leads")
     .select(
-      "origem, created_at, qualificado, desqualificado, estagio, gclid, gbraid, wbraid, utm_term"
+      "origem, created_at, qualificado, desqualificado, estagio, gclid, gbraid, wbraid, utm_term, utm_campaign, utm_content"
     )
     .gte("created_at", inicio)
     .eq("ja_cliente", false);
@@ -41,6 +41,7 @@ export async function GET(request: NextRequest) {
 
   const tabela: Record<string, Record<string, number>> = {};
   const termosGoogle: Record<string, { leads: number; qualif: number }> = {};
+  const campanhasMeta: Record<string, { leads: number; qualif: number; desqualif: number }> = {};
 
   for (const l of data ?? []) {
     const idade = (agora - new Date(l.created_at as string).getTime()) / 86_400_000;
@@ -61,6 +62,14 @@ export async function GET(request: NextRequest) {
       t.reuniao_ou_mais++;
     if (l.gclid || l.gbraid || l.wbraid) t.com_id_google++;
 
+    if (l.origem === "meta_ads") {
+      const chaveCamp = `${String(l.utm_campaign ?? "(sem campanha)")} | ${String(l.utm_content ?? "(sem anuncio)")}|${rotulo}`;
+      const c = (campanhasMeta[chaveCamp] ??= { leads: 0, qualif: 0, desqualif: 0 });
+      c.leads++;
+      if (l.qualificado) c.qualif++;
+      if (l.desqualificado) c.desqualif++;
+    }
+
     if (l.origem === "google_ads" && j === 0) {
       const termo = String(l.utm_term ?? "(sem termo)");
       const g = (termosGoogle[termo] ??= { leads: 0, qualif: 0 });
@@ -76,5 +85,11 @@ export async function GET(request: NextRequest) {
     })
     .sort((a, b) => (a.origem + a.janela).localeCompare(b.origem + b.janela));
 
-  return NextResponse.json({ dias, janelas, linhas, termos_google_janela_atual: termosGoogle });
+  return NextResponse.json({
+    dias,
+    janelas,
+    linhas,
+    termos_google_janela_atual: termosGoogle,
+    meta_por_campanha: campanhasMeta,
+  });
 }
