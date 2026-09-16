@@ -12,6 +12,10 @@ import {
   buscarArquivosDoMeet,
   vincularTranscricao,
   vincularGravacao,
+  listarDocumentos,
+  uploadDocumento,
+  removerDocumento,
+  type DocumentoReuniao,
 } from "@/app/(app)/leads/meetings";
 import { updateLeadNotes } from "@/app/(app)/leads/actions";
 import {
@@ -213,6 +217,8 @@ export function MeetingsCalendar({
   const [copiado, setCopiado] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [achados, setAchados] = useState<ArquivoDrive[] | null>(null);
+  const [docs, setDocs] = useState<DocumentoReuniao[] | null>(null);
+  const [enviandoDocs, setEnviandoDocs] = useState(false);
 
   const today = dKey(now);
   const grid = useMemo(() => calGrid(vYear, vMonth), [vYear, vMonth]);
@@ -295,6 +301,8 @@ export function MeetingsCalendar({
 
   function openMeeting(m: MeetingWithLead) {
     setSel(m);
+    setDocs(null);
+    listarDocumentos(m.id).then((r) => setDocs(r.docs));
     setResumo(m.leads.anotacoes ?? "");
     setShowReschedule(false);
     setRescDate("");
@@ -331,6 +339,39 @@ export function MeetingsCalendar({
         router.refresh();
       }
     });
+  }
+
+  async function enviarDocumentos(e: React.ChangeEvent<HTMLInputElement>) {
+    if (!sel || !e.target.files?.length) return;
+    const arquivos = Array.from(e.target.files);
+    e.target.value = "";
+    const id = sel.id;
+    setEnviandoDocs(true);
+    const erros: string[] = [];
+    // um por vez: cada server action aceita no maximo 5MB
+    for (const arq of arquivos) {
+      if (arq.size > 4.5 * 1024 * 1024) {
+        erros.push(`${arq.name} passa de 4,5MB`);
+        continue;
+      }
+      const fd = new FormData();
+      fd.append("file", arq);
+      const res = await uploadDocumento(id, fd);
+      if (res?.error) erros.push(res.error);
+    }
+    const r = await listarDocumentos(id);
+    setDocs(r.docs);
+    setEnviandoDocs(false);
+    if (erros.length) alert(erros.join("
+"));
+  }
+
+  async function apagarDocumento(d: DocumentoReuniao) {
+    if (!sel || !confirm(`Remover ${d.nome}?`)) return;
+    const id = sel.id;
+    const res = await removerDocumento(id, d.path);
+    if (res?.error) return alert(res.error);
+    setDocs((atual) => (atual ?? []).filter((x) => x.path !== d.path));
   }
 
   function removeFile() {
@@ -739,6 +780,60 @@ export function MeetingsCalendar({
                 placeholder="Como foi a reunião, pontos discutidos, próximos passos..."
                 className="sd-input px-2 py-1.5"
               />
+            </div>
+
+            {/* Documentos enviados pelo cliente */}
+            <div className="mb-5">
+              <label className="sd-label">Documentos do cliente</label>
+              {docs === null ? (
+                <p className="text-xs text-slate-500">Carregando...</p>
+              ) : (
+                docs.length > 0 && (
+                  <ul className="mb-2 space-y-1.5">
+                    {docs.map((d) => (
+                      <li
+                        key={d.path}
+                        className="flex items-center gap-3 rounded-lg border border-white/5 bg-navy px-3 py-2"
+                      >
+                        <a
+                          href={d.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 truncate text-sm text-brand hover:underline"
+                          title={d.nome}
+                        >
+                          {d.nome}
+                        </a>
+                        <a
+                          href={`${d.url}?download=${encodeURIComponent(d.nome)}`}
+                          className="shrink-0 text-xs text-slate-300 hover:text-brand"
+                        >
+                          Baixar
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => apagarDocumento(d)}
+                          className="shrink-0 text-xs text-red-400 hover:text-red-300"
+                        >
+                          Remover
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              )}
+              <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-white/10 px-3 py-3 text-sm text-slate-400 transition hover:border-brand/40 hover:text-slate-200">
+                {enviandoDocs
+                  ? "Enviando..."
+                  : "+ Adicionar documentos (pode selecionar vários)"}
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={enviarDocumentos}
+                  disabled={enviandoDocs}
+                />
+              </label>
             </div>
 
             {/* Transcricao - file upload */}

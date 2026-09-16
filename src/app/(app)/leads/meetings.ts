@@ -478,3 +478,83 @@ export async function disconnectGoogle() {
   revalidatePath("/leads");
   return { ok: true };
 }
+
+// ---------------------------------------------------------------------
+// Documentos enviados pelo cliente (varios por reuniao).
+// Ficam no bucket "meetings" em <meetingId>/documentos/, sem coluna no
+// banco: a pasta e a fonte da verdade.
+// ---------------------------------------------------------------------
+
+export type DocumentoReuniao = { nome: string; path: string; url: string; criado: string | null };
+
+const PASTA_DOCS = (meetingId: string) => `${meetingId}/documentos`;
+
+export async function listarDocumentos(meetingId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado.", docs: [] as DocumentoReuniao[] };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin.storage
+    .from("meetings")
+    .list(PASTA_DOCS(meetingId), { sortBy: { column: "created_at", order: "asc" } });
+  if (error) return { docs: [] as DocumentoReuniao[] };
+
+  const docs: DocumentoReuniao[] = (data ?? [])
+    .filter((f) => f.id)
+    .map((f) => {
+      const path = `${PASTA_DOCS(meetingId)}/${f.name}`;
+      return {
+        // prefixo numerico so garante nome unico no Storage
+        nome: f.name.replace(/^\d+_/, ""),
+        path,
+        url: admin.storage.from("meetings").getPublicUrl(path).data.publicUrl,
+        criado: f.created_at ?? null,
+      };
+    });
+  return { docs };
+}
+
+export async function uploadDocumento(meetingId: string, formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." };
+
+  const file = formData.get("file") as File;
+  if (!file || typeof file === "string") return { error: "Nenhum arquivo selecionado." };
+
+  const admin = createAdminClient();
+  await admin.storage.createBucket("meetings", { public: true });
+
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+  const path = `${PASTA_DOCS(meetingId)}/${Date.now()}_${safeName}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+
+  const { error } = await admin.storage
+    .from("meetings")
+    .upload(path, buffer, { contentType: file.type || "application/octet-stream" });
+  if (error) {
+    console.error("[uploadDocumento]", error);
+    return { error: `Falha ao enviar ${file.name}.` };
+  }
+  return { ok: true };
+}
+
+export async function removerDocumento(meetingId: string, path: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." };
+  // so apaga dentro da pasta de documentos desta reuniao
+  if (!path.startsWith(`${PASTA_DOCS(meetingId)}/`)) return { error: "Caminho inválido." };
+
+  const admin = createAdminClient();
+  const { error } = await admin.storage.from("meetings").remove([path]);
+  if (error) return { error: "Falha ao remover documento." };
+  return { ok: true };
+}
