@@ -362,8 +362,7 @@ export function MeetingsCalendar({
     const r = await listarDocumentos(id);
     setDocs(r.docs);
     setEnviandoDocs(false);
-    if (erros.length) alert(erros.join("
-"));
+    if (erros.length) alert(erros.join(" | "));
   }
 
   async function apagarDocumento(d: DocumentoReuniao) {
