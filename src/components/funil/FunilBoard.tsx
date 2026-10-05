@@ -195,6 +195,23 @@ export function FunilBoard({
     return map;
   }, [leads]);
 
+  // Muda o estagio pelo painel, sem precisar arrastar o card.
+  async function mover(leadId: string, destino: LeadStage) {
+    const anterior = leads;
+    const agora = new Date().toISOString();
+    setLeads((prev) =>
+      prev.map((l) => (l.id === leadId ? { ...l, estagio: destino, estagio_em: agora } : l))
+    );
+    setSel((atual) =>
+      atual && atual.id === leadId ? { ...atual, estagio: destino, estagio_em: agora } : atual
+    );
+    const res = await updateLeadStage(leadId, destino);
+    if (res?.error) {
+      setLeads(anterior);
+      alert(res.error);
+    }
+  }
+
   async function aoSoltar(event: DragEndEvent) {
     const leadId = String(event.active.id);
     const destino = event.over?.id as LeadStage | undefined;
@@ -264,6 +281,35 @@ export function FunilBoard({
               >
                 ✕
               </button>
+            </div>
+
+            <div className="mb-4">
+              <p className="sd-label">Mover para</p>
+              <div className="flex flex-wrap gap-1.5">
+                {CLOSER_STAGES.map((stage) => {
+                  const aqui = colunaDoCloser(sel.estagio) === stage;
+                  const cor =
+                    stage === "fechado"
+                      ? "border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                      : stage === "perdido"
+                        ? "border-red-500/40 text-red-400 hover:bg-red-500/10"
+                        : "border-white/15 text-slate-300 hover:bg-white/5";
+                  return (
+                    <button
+                      key={stage}
+                      type="button"
+                      disabled={aqui}
+                      onClick={() => mover(sel.id, stage)}
+                      className={
+                        "rounded-lg border px-2.5 py-1 text-xs transition " +
+                        (aqui ? "border-brand bg-brand/15 text-brand" : cor)
+                      }
+                    >
+                      {STAGE_LABELS[stage]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="mb-4 flex flex-wrap gap-2 text-xs">
