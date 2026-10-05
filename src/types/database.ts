@@ -120,6 +120,23 @@ export interface LeadMessage {
   sent_by: string | null;
 }
 
+
+export type ArquivoTipo = "escopo" | "proposta" | "outro";
+
+export interface LeadArquivo {
+  id: string;
+  created_at: string;
+  lead_id: string;
+  tipo: ArquivoTipo;
+  nome: string;
+  path: string;
+  versao: number;
+  atual: boolean;
+  valor: number | null;
+  observacao: string | null;
+  created_by: string | null;
+}
+
 export type MeetingStatus = "agendada" | "realizada" | "furada" | "cancelada";
 
 export const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {
