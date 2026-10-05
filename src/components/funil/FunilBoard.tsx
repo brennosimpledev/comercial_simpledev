@@ -20,7 +20,35 @@ import {
   type Lead,
   type LeadArquivo,
   type LeadStage,
+  type MeetingStatus,
 } from "@/types/database";
+
+export type ReuniaoResumo = {
+  id: string;
+  lead_id: string;
+  titulo: string | null;
+  starts_at: string;
+  status: MeetingStatus;
+  meet_link: string | null;
+};
+
+const STATUS_REUNIAO: Record<MeetingStatus, { label: string; cls: string }> = {
+  agendada: { label: "Agendada", cls: "bg-brand/15 text-brand" },
+  realizada: { label: "Realizada", cls: "bg-emerald-500/15 text-emerald-400" },
+  furada: { label: "Furada", cls: "bg-amber-500/15 text-amber-400" },
+  cancelada: { label: "Cancelada", cls: "bg-red-500/15 text-red-400" },
+};
+
+function fmtReuniao(iso: string) {
+  return new Date(iso).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+}
 
 type ArquivoAtual = Pick<
   LeadArquivo,
@@ -174,9 +202,11 @@ function Coluna({
 export function FunilBoard({
   initialLeads,
   atuais,
+  reunioes = [],
 }: {
   initialLeads: Lead[];
   atuais: ArquivoAtual[];
+  reunioes?: ReuniaoResumo[];
 }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [sel, setSel] = useState<Lead | null>(null);
@@ -326,6 +356,49 @@ export function FunilBoard({
               <Link href={`/leads/${sel.id}`} className="sd-btn-ghost px-2 py-1">
                 Ficha completa
               </Link>
+            </div>
+
+            <div className="sd-card mb-4 p-4">
+              <h3 className="mb-2 text-sm font-semibold text-slate-200">Reuniões</h3>
+              {reunioes.filter((r) => r.lead_id === sel.id).length === 0 ? (
+                <p className="text-xs text-slate-500">Nenhuma reunião registrada.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {reunioes
+                    .filter((r) => r.lead_id === sel.id)
+                    .map((r) => (
+                      <li
+                        key={r.id}
+                        className="flex items-center gap-2 rounded-lg border border-white/5 bg-navy-mid px-3 py-2"
+                      >
+                        <span className="shrink-0 text-xs text-slate-300">
+                          {fmtReuniao(r.starts_at)}
+                        </span>
+                        <span
+                          className={
+                            "shrink-0 rounded px-1.5 py-0.5 text-[10px] " +
+                            STATUS_REUNIAO[r.status].cls
+                          }
+                        >
+                          {STATUS_REUNIAO[r.status].label}
+                        </span>
+                        <span className="flex-1 truncate text-xs text-slate-500">
+                          {r.titulo ?? ""}
+                        </span>
+                        {r.meet_link && (
+                          <a
+                            href={r.meet_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-[11px] text-brand hover:underline"
+                          >
+                            Meet
+                          </a>
+                        )}
+                      </li>
+                    ))}
+                </ul>
+              )}
             </div>
 
             <div className="sd-card p-4">

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { FunilBoard } from "@/components/funil/FunilBoard";
 import { CLOSER_STAGES, type Lead, type LeadArquivo } from "@/types/database";
+import type { ReuniaoResumo } from "@/components/funil/FunilBoard";
 
 export const dynamic = "force-dynamic";
 
@@ -36,9 +37,17 @@ export default async function FunilPage() {
     .eq("atual", true)
     .in("lead_id", leads.length ? leads.map((l) => l.id) : ["sem-leads"]);
 
+  // Historico de reunioes dos leads do funil, para o painel do card.
+  const { data: mtgs } = await supabase
+    .from("meetings")
+    .select("id, lead_id, titulo, starts_at, status, meet_link")
+    .in("lead_id", leads.length ? leads.map((l) => l.id) : ["sem-leads"])
+    .order("starts_at", { ascending: false });
+
   return (
     <FunilBoard
       initialLeads={leads}
+      reunioes={(mtgs ?? []) as ReuniaoResumo[]}
       atuais={(arqs ?? []) as Pick<
         LeadArquivo,
         "id" | "lead_id" | "tipo" | "nome" | "versao" | "atual" | "valor" | "created_at"
