@@ -18,6 +18,7 @@ import {
   type DocumentoReuniao,
 } from "@/app/(app)/leads/meetings";
 import { updateLeadNotes } from "@/app/(app)/leads/actions";
+import { DropZone } from "@/components/ui/DropZone";
 import {
   ORIGIN_LABELS,
   type LeadOrigin,
@@ -327,10 +328,10 @@ export function MeetingsCalendar({
     });
   }
 
-  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!sel || !e.target.files?.[0]) return;
+  function handleFile(arquivos: File[]) {
+    if (!sel || !arquivos[0]) return;
     const fd = new FormData();
-    fd.append("file", e.target.files[0]);
+    fd.append("file", arquivos[0]);
     startTransition(async () => {
       const res = await uploadTranscricao(sel.id, fd);
       if (res?.error) alert(res.error);
@@ -341,10 +342,8 @@ export function MeetingsCalendar({
     });
   }
 
-  async function enviarDocumentos(e: React.ChangeEvent<HTMLInputElement>) {
-    if (!sel || !e.target.files?.length) return;
-    const arquivos = Array.from(e.target.files);
-    e.target.value = "";
+  async function enviarDocumentos(arquivos: File[]) {
+    if (!sel || arquivos.length === 0) return;
     const id = sel.id;
     setEnviandoDocs(true);
     const erros: string[] = [];
@@ -821,18 +820,12 @@ export function MeetingsCalendar({
                   </ul>
                 )
               )}
-              <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-white/10 px-3 py-3 text-sm text-slate-400 transition hover:border-brand/40 hover:text-slate-200">
-                {enviandoDocs
-                  ? "Enviando..."
-                  : "+ Adicionar documentos (pode selecionar vários)"}
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={enviarDocumentos}
-                  disabled={enviandoDocs}
-                />
-              </label>
+              <DropZone
+                onFiles={enviarDocumentos}
+                enviando={enviandoDocs}
+                multiple
+                label="+ Arraste ou clique para adicionar documentos"
+              />
             </div>
 
             {/* Transcricao - file upload */}
@@ -866,18 +859,13 @@ export function MeetingsCalendar({
                   </button>
                 </div>
               ) : (
-                <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-white/10 px-3 py-4 text-sm text-slate-400 transition hover:border-brand/40 hover:text-slate-200">
-                  {pending
-                    ? "Enviando..."
-                    : "Clique para enviar arquivo (PDF, DOC, audio...)"}
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={handleFile}
-                    accept=".pdf,.doc,.docx,.txt,.mp3,.wav,.m4a,.ogg,.mp4,.webm"
-                    disabled={pending}
-                  />
-                </label>
+                <DropZone
+                  onFiles={handleFile}
+                  enviando={pending}
+                  className="px-3 py-4"
+                  accept=".pdf,.doc,.docx,.txt,.mp3,.wav,.m4a,.ogg,.mp4,.webm"
+                  label="Arraste ou clique para enviar a transcrição (PDF, DOC, áudio...)"
+                />
               )}
 
               {(!sel.transcricao || !sel.gravacao) && (

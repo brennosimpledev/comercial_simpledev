@@ -253,8 +253,29 @@ export function Conversation({
     });
   }
 
+  const [arrastando, setArrastando] = useState(false);
+
   return (
-    <div className="flex h-[70vh] flex-col rounded-xl border border-white/10 bg-navy-mid">
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (hasWhatsapp && !busy) setArrastando(true);
+      }}
+      onDragLeave={(e) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setArrastando(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setArrastando(false);
+        const f = e.dataTransfer.files?.[0];
+        if (f && hasWhatsapp && !busy) handleFile(f);
+      }}
+      className={
+        "flex h-[70vh] flex-col rounded-xl border bg-navy-mid transition " +
+        (arrastando ? "border-brand ring-2 ring-brand/40" : "border-white/10")
+      }
+    >
       <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2">
         <span className="text-xs text-slate-400">Conversa</span>
         <button

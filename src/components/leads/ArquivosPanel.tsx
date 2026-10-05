@@ -10,6 +10,7 @@ import {
   type ArquivoComLink,
 } from "@/app/(app)/leads/arquivos";
 import type { ArquivoTipo } from "@/types/database";
+import { DropZone } from "@/components/ui/DropZone";
 
 const ABAS: { tipo: ArquivoTipo; label: string }[] = [
   { tipo: "escopo", label: "Escopos" },
@@ -48,9 +49,8 @@ export function ArquivosPanel({ leadId }: { leadId: string }) {
     listarArquivos(leadId).then((r) => setArquivos(r.arquivos));
   }, [leadId]);
 
-  async function enviar(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
+  async function enviar(arquivos: File[]) {
+    const file = arquivos[0];
     if (!file) return;
     if (file.size > LIMITE_MB * 1024 * 1024) {
       alert(`${file.name} passa de ${LIMITE_MB}MB.`);
@@ -210,12 +210,13 @@ export function ArquivosPanel({ leadId }: { leadId: string }) {
         />
       )}
 
-      <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-white/10 px-3 py-3 text-sm text-slate-400 transition hover:border-brand/40 hover:text-slate-200">
-        {enviando
-          ? "Enviando..."
-          : `+ Enviar ${aba === "escopo" ? "escopo" : "proposta"} (vira a versão atual)`}
-        <input type="file" className="hidden" onChange={enviar} disabled={enviando} />
-      </label>
+      <DropZone
+        onFiles={enviar}
+        enviando={enviando}
+        label={`+ Arraste ou clique para enviar ${
+          aba === "escopo" ? "o escopo" : "a proposta"
+        } (vira a versão atual)`}
+      />
     </div>
   );
 }
