@@ -30,6 +30,8 @@ export type ReuniaoResumo = {
   starts_at: string;
   status: MeetingStatus;
   meet_link: string | null;
+  gravacao: string | null;
+  transcricao: string | null;
 };
 
 const STATUS_REUNIAO: Record<MeetingStatus, { label: string; cls: string }> = {
@@ -38,6 +40,15 @@ const STATUS_REUNIAO: Record<MeetingStatus, { label: string; cls: string }> = {
   furada: { label: "Furada", cls: "bg-amber-500/15 text-amber-400" },
   cancelada: { label: "Cancelada", cls: "bg-red-500/15 text-red-400" },
 };
+
+// O Drive so embute video pela rota /preview.
+function drivePreview(url: string): string | null {
+  const marcador = "/file/d/";
+  const i = url.indexOf(marcador);
+  if (i === -1) return null;
+  const id = url.slice(i + marcador.length).split("/")[0].split("?")[0];
+  return id ? `https://drive.google.com/file/d/${id}/preview` : null;
+}
 
 function fmtReuniao(iso: string) {
   return new Date(iso).toLocaleString("pt-BR", {
@@ -385,6 +396,26 @@ export function FunilBoard({
                         <span className="flex-1 truncate text-xs text-slate-500">
                           {r.titulo ?? ""}
                         </span>
+                        {r.transcricao && (
+                          <a
+                            href={r.transcricao}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-[11px] text-slate-300 hover:text-brand"
+                          >
+                            Transcrição
+                          </a>
+                        )}
+                        {r.gravacao && (
+                          <a
+                            href={r.gravacao}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-[11px] text-emerald-400 hover:underline"
+                          >
+                            Gravação
+                          </a>
+                        )}
                         {r.meet_link && (
                           <a
                             href={r.meet_link}
@@ -399,6 +430,24 @@ export function FunilBoard({
                     ))}
                 </ul>
               )}
+
+              {(() => {
+                // Video da primeira reuniao que tiver gravacao, ja embutido.
+                const comVideo = reunioes
+                  .filter((r) => r.lead_id === sel.id && r.gravacao)
+                  .map((r) => drivePreview(r.gravacao as string))
+                  .find(Boolean);
+                return comVideo ? (
+                  <div className="mt-3 overflow-hidden rounded-lg border border-white/10">
+                    <iframe
+                      src={comVideo}
+                      className="aspect-video w-full"
+                      allow="autoplay"
+                      title="Gravação da reunião"
+                    />
+                  </div>
+                ) : null;
+              })()}
             </div>
 
             <div className="sd-card p-4">

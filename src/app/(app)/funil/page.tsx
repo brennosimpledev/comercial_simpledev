@@ -40,7 +40,7 @@ export default async function FunilPage() {
   // Historico de reunioes dos leads do funil, para o painel do card.
   const { data: mtgs } = await supabase
     .from("meetings")
-    .select("id, lead_id, titulo, starts_at, status, meet_link")
+    .select("id, lead_id, titulo, starts_at, status, meet_link, gravacao, transcricao")
     .in("lead_id", leads.length ? leads.map((l) => l.id) : ["sem-leads"])
     .order("starts_at", { ascending: false });
 
