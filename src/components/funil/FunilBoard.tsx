@@ -166,7 +166,7 @@ function Coluna({
   }, 0);
 
   return (
-    <div className="flex w-64 shrink-0 flex-col">
+    <div className="flex min-w-[190px] flex-1 flex-col">
       <div className="mb-2 flex items-baseline justify-between px-1">
         <h2 className={"text-sm font-semibold " + (COR_COLUNA[stage] ?? "text-slate-200")}>
           {STAGE_LABELS[stage]}
@@ -274,7 +274,7 @@ export function FunilBoard({
       </div>
 
       <DndContext sensors={sensors} onDragEnd={aoSoltar}>
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-4 lg:mx-[calc(50%-50vw)] lg:px-6">
           {CLOSER_STAGES.map((stage) => (
             <Coluna
               key={stage}
