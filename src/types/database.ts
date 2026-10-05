@@ -5,9 +5,14 @@ export type LeadStage =
   | "novo"
   | "sdr"
   | "reuniao_marcada"
+  | "reuniao_feita"
+  | "escopo_enviado"
+  | "apresentacao_marcada"
+  | "negociacao"
   | "proposta"
   | "fechado"
-  | "perdido";
+  | "perdido"
+  | "descartado";
 
 export type LeadOrigin =
   | "google_ads"
@@ -37,6 +42,7 @@ export interface Lead {
   relacao_projeto: string | null;
 
   estagio: LeadStage;
+  estagio_em: string | null;
   status: LeadStatus;
   anotacoes: string | null;
   descricao: string | null;
@@ -79,21 +85,41 @@ export interface Lead {
 
 export const STAGE_LABELS: Record<LeadStage, string> = {
   novo: "Novo",
-  sdr: "SDR",
+  sdr: "Em contato",
   reuniao_marcada: "Reunião Marcada",
-  proposta: "Proposta",
+  reuniao_feita: "Reunião Feita",
+  escopo_enviado: "Escopo Enviado",
+  apresentacao_marcada: "Apresentação Marcada",
+  negociacao: "Negociação",
+  proposta: "Negociação",
   fechado: "Fechado",
   perdido: "Perdido",
+  descartado: "Descartado",
 };
 
+// Quadro do SDR: volume ate a reuniao acontecer.
 export const STAGE_ORDER: LeadStage[] = [
   "novo",
   "sdr",
   "reuniao_marcada",
-  "proposta",
+  "descartado",
+];
+
+// Quadro do closer: so quem ja sentou na reuniao. "proposta" e o nome
+// antigo de "negociacao" e cai na mesma coluna.
+export const CLOSER_STAGES: LeadStage[] = [
+  "reuniao_feita",
+  "escopo_enviado",
+  "apresentacao_marcada",
+  "negociacao",
   "fechado",
   "perdido",
 ];
+
+export function colunaDoCloser(estagio: LeadStage): LeadStage | null {
+  if (estagio === "proposta") return "negociacao";
+  return CLOSER_STAGES.includes(estagio) ? estagio : null;
+}
 
 export const ORIGIN_LABELS: Record<LeadOrigin, string> = {
   google_ads: "Google Ads",

@@ -8,7 +8,7 @@ import { NotesEditor } from "@/components/leads/NotesEditor";
 import { LeadInfoEditor } from "@/components/leads/LeadInfoEditor";
 import { MeetingsPanel } from "@/components/leads/MeetingsPanel";
 import { BackLink } from "@/components/leads/BackLink";
-import { ArquivosPanel } from "@/components/leads/ArquivosPanel";
+
 import {
   STAGE_LABELS,
   type FollowUp,
@@ -99,9 +99,7 @@ export default async function LeadDetailPage({
             />
           </section>
 
-          <section className="sd-card p-5">
-            <ArquivosPanel leadId={lead.id} />
-          </section>
+
           <section className="sd-card p-5">
             <h2 className="mb-3 text-sm font-semibold text-slate-200">
               Anotações SDR

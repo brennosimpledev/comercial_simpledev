@@ -7,6 +7,7 @@ import { createMeetEvent, deleteEvent, patchEvent } from "@/lib/google/calendar"
 import { sendWhatsAppText } from "@/lib/evolution/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findMeetFiles, type DriveFile } from "@/lib/google/drive";
+import { avancarEstagio } from "./actions";
 
 function firstName(nome: string) {
   return (nome ?? "").trim().split(/\s+/)[0] || "";
@@ -166,6 +167,15 @@ export async function updateMeetingStatus(
     .from("meetings")
     .update({ status })
     .eq("id", meetingId);
+
+  // Reuniao realizada entrega o lead ao closer.
+  if (status === "realizada") {
+    await avancarEstagio(mtg.lead_id, "reuniao_feita", [
+      "novo",
+      "sdr",
+      "reuniao_marcada",
+    ]);
+  }
 
   revalidatePath("/reunioes");
   revalidatePath(`/leads/${mtg.lead_id}`);

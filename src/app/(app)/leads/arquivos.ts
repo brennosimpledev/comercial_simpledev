@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ArquivoTipo, LeadArquivo } from "@/types/database";
+import { avancarEstagio } from "./actions";
 
 // Bucket privado: escopo e proposta sao documentos do cliente, entao a
 // listagem devolve link assinado de curta duracao em vez de URL publica.
@@ -113,7 +114,19 @@ export async function uploadArquivo(leadId: string, formData: FormData) {
     return { error: "Arquivo enviado mas falha ao registrar." };
   }
 
+  // O primeiro escopo enviado move o lead de coluna sozinho, e a data do
+  // envio passa a contar os dias de espera por resposta.
+  if (tipo === "escopo") {
+    await avancarEstagio(leadId, "escopo_enviado", [
+      "novo",
+      "sdr",
+      "reuniao_marcada",
+      "reuniao_feita",
+    ]);
+  }
+
   revalidatePath(`/leads/${leadId}`);
+  revalidatePath("/funil");
   return { ok: true, versao };
 }
 

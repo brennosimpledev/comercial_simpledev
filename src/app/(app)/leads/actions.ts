@@ -26,9 +26,14 @@ const VALID_STAGES: LeadStage[] = [
   "novo",
   "sdr",
   "reuniao_marcada",
+  "reuniao_feita",
+  "escopo_enviado",
+  "apresentacao_marcada",
+  "negociacao",
   "proposta",
   "fechado",
   "perdido",
+  "descartado",
 ];
 
 // Muda o estagio de um lead (drag-and-drop do Kanban).
@@ -40,13 +45,13 @@ export async function updateLeadStage(id: string, estagio: LeadStage) {
   const status =
     estagio === "fechado"
       ? "ganho"
-      : estagio === "perdido"
+      : estagio === "perdido" || estagio === "descartado"
         ? "perdido"
         : "ativo";
 
   const { error } = await supabase
     .from("leads")
-    .update({ estagio, status })
+    .update({ estagio, status, estagio_em: new Date().toISOString() })
     .eq("id", id);
 
   if (error) return { error: "Não foi possível mover o lead." };
@@ -59,7 +64,32 @@ export async function updateLeadStage(id: string, estagio: LeadStage) {
 
   revalidatePath("/dashboard");
   revalidatePath("/leads");
+  revalidatePath("/funil");
   return { ok: true };
+}
+
+// Move o lead sem exigir acao manual, so quando ele ainda esta atras do
+// estagio de destino - nunca puxa para tras um lead ja adiantado.
+export async function avancarEstagio(
+  leadId: string,
+  destino: LeadStage,
+  deOnde: LeadStage[]
+) {
+  const supabase = await createClient();
+  const { data: lead } = await supabase
+    .from("leads")
+    .select("estagio")
+    .eq("id", leadId)
+    .single();
+  if (!lead || !deOnde.includes(lead.estagio as LeadStage)) return;
+
+  await supabase
+    .from("leads")
+    .update({ estagio: destino, estagio_em: new Date().toISOString() })
+    .eq("id", leadId);
+
+  revalidatePath("/funil");
+  revalidatePath("/leads");
 }
 
 // Cadastro manual de lead (indicacoes).

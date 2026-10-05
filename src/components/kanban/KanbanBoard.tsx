@@ -22,15 +22,10 @@ export function KanbanBoard({ initialLeads }: { initialLeads: Lead[] }) {
   );
 
   const byStage = useMemo(() => {
-    const map: Record<LeadStage, Lead[]> = {
-      novo: [],
-      sdr: [],
-      reuniao_marcada: [],
-      proposta: [],
-      fechado: [],
-      perdido: [],
-    };
-    for (const lead of leads) map[lead.estagio].push(lead);
+    const map = {} as Record<LeadStage, Lead[]>;
+    for (const stage of STAGE_ORDER) map[stage] = [];
+    // Quem ja passou para o funil do closer nao aparece no quadro do SDR.
+    for (const lead of leads) map[lead.estagio]?.push(lead);
     return map;
   }, [leads]);
 
