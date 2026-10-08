@@ -13,7 +13,7 @@ import {
 } from "@/lib/google/ads";
 import { enviarEventoMeta, metaConfigured } from "@/lib/meta/conversions";
 
-export type ConversionType = "qualificado" | "fechado";
+export type ConversionType = "qualificado" | "fechado" | "desqualificado";
 type Canal = "google" | "meta";
 
 const VALOR_QUALIFICADO = Number(
@@ -47,6 +47,8 @@ function identificadorGoogle(
 }
 
 function valorDe(lead: Lead, tipo: ConversionType) {
+  // Desqualificado e sinal, nao receita: vai sem valor.
+  if (tipo === "desqualificado") return 0;
   return tipo === "fechado"
     ? Number(lead.valor_fechado ?? VALOR_FECHADO_PADRAO)
     : VALOR_QUALIFICADO;
@@ -148,7 +150,9 @@ export async function reportConversion(
 
     const idGoogle = identificadorGoogle(lead);
 
-    if (googleConfigurado()) {
+    // O Google Ads nao tem conversao negativa: la o desqualificado seria
+    // lido como mais uma conversao. So a Meta recebe este tipo.
+    if (googleConfigurado() && tipo !== "desqualificado") {
       tarefas.push(
         registrarEEnviar({
           admin,
@@ -241,6 +245,9 @@ export async function reenviarPendentes(leadId: string): Promise<void> {
 
       if (canal === "google" && !idGoogle) continue;
       if (canal === "meta" && !idMeta) continue;
+      // Desqualificado so existe na Meta; no Google viraria conversao.
+      const tipoGoogle = tipo === "desqualificado" ? null : tipo;
+      if (canal === "google" && !tipoGoogle) continue;
 
       const agora = new Date();
       const valor = Number(linha.valor ?? 0);
@@ -259,7 +266,7 @@ export async function reenviarPendentes(leadId: string): Promise<void> {
           : await enviarConversaoGoogle({
               identificador: idGoogle!.valor,
               idTipo: idGoogle!.tipo,
-              tipo,
+              tipo: tipoGoogle!,
               eventTimestamp: agora.toISOString(),
               value: valor,
               currency: "BRL",

@@ -23,18 +23,24 @@ const VERSION = process.env.META_GRAPH_VERSION ?? "v21.0";
 const PAGE_ID = process.env.META_PAGE_ID;
 const WABA_ID = process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID;
 
-export type ConversionType = "qualificado" | "fechado";
+export type ConversionType = "qualificado" | "fechado" | "desqualificado";
 
 // Caminho CRM: nomes livres, entao configuraveis. Precisam bater com o que
 // esta registrado no Gerenciador de Eventos.
 const CRM_EVENT_NAMES: Record<ConversionType, string> = {
   qualificado: process.env.META_EVENT_QUALIFICADO ?? "Lead Qualificado",
   fechado: process.env.META_EVENT_FECHADO ?? "Venda Fechada",
+  // Retorno negativo: precisa ficar FORA dos estagios positivos no
+  // Gerenciador de Eventos, senao a Meta passa a buscar leads ruins.
+  desqualificado:
+    process.env.META_EVENT_DESQUALIFICADO ?? "Lead Desqualificado",
 };
 
 // Caminho Click-to-WhatsApp: conjunto fechado definido pela Meta. Nao e
 // configuravel de proposito - qualquer outro valor e recusado na hora.
-const CTWA_EVENT_NAMES: Record<ConversionType, string> = {
+// A Meta so aceita esta lista no Click-to-WhatsApp; nao ha equivalente
+// negativo, entao desqualificado nao tem como ser enviado por esse caminho.
+const CTWA_EVENT_NAMES: Partial<Record<ConversionType, string>> = {
   qualificado: "QualifiedLead",
   fechado: "Purchase",
 };
@@ -63,10 +69,16 @@ export async function enviarEventoMeta(opts: {
     return { ok: false, error: "Sem lead_id nem ctwa_clid." };
   }
 
+  const nomeCtwa = CTWA_EVENT_NAMES[opts.tipo];
+  if (!viaCrm && !nomeCtwa) {
+    return {
+      ok: false,
+      error: `Click-to-WhatsApp nao aceita o evento ${opts.tipo}.`,
+    };
+  }
+
   const evento: Record<string, unknown> = {
-    event_name: viaCrm
-      ? CRM_EVENT_NAMES[opts.tipo]
-      : CTWA_EVENT_NAMES[opts.tipo],
+    event_name: viaCrm ? CRM_EVENT_NAMES[opts.tipo] : (nomeCtwa as string),
     // Unix em segundos, e precisa ser posterior a geracao do lead.
     event_time: Math.floor(opts.eventTime.getTime() / 1000),
     event_id: opts.eventId,

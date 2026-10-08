@@ -254,6 +254,11 @@ export async function toggleLeadFlag(
     after(() => reportConversion(id, "qualificado"));
   }
 
+  // Retorno negativo para a Meta: ensina o modelo quem nao prestou.
+  if (flag === "desqualificado" && value) {
+    after(() => reportConversion(id, "desqualificado"));
+  }
+
   revalidatePath(`/leads/${id}`);
   revalidatePath("/leads");
   return { ok: true };
