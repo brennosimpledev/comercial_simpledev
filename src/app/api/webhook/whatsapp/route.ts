@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { responderForaDeHorario } from "@/lib/bot/atendente";
 import { brCanonical, last8 } from "@/lib/phone";
 import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 
@@ -277,6 +278,10 @@ export async function POST(request: NextRequest) {
         .update({ status: "cancelado" })
         .eq("lead_id", leadId)
         .eq("status", "pendente");
+
+      // Atendente de fora de horario. Só fala em resposta a esta mensagem;
+      // decide tudo lá dentro e nunca lança.
+      await responderForaDeHorario(supabase, leadId);
     }
 
     processed++;
