@@ -43,6 +43,7 @@ export interface Lead {
 
   estagio: LeadStage;
   estagio_em: string | null;
+  proximo_contato: string | null;
   status: LeadStatus;
   anotacoes: string | null;
   descricao: string | null;
@@ -146,6 +147,19 @@ export interface LeadMessage {
   sent_by: string | null;
 }
 
+
+
+export interface LeadContato {
+  id: string;
+  created_at: string;
+  lead_id: string;
+  feito_em: string;
+  canal: string;
+  resumo: string | null;
+  proximo_em: string | null;
+  concluido: boolean;
+  created_by: string | null;
+}
 
 export type ArquivoTipo = "escopo" | "proposta" | "outro";
 

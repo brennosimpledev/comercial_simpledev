@@ -13,6 +13,8 @@ import {
 } from "@dnd-kit/core";
 import { updateLeadStage } from "@/app/(app)/leads/actions";
 import { ArquivosPanel } from "@/components/leads/ArquivosPanel";
+import { MeetingsPanel } from "@/components/leads/MeetingsPanel";
+import { FollowUpPanel } from "@/components/funil/FollowUpPanel";
 import {
   CLOSER_STAGES,
   STAGE_LABELS,
@@ -20,19 +22,11 @@ import {
   type Lead,
   type LeadArquivo,
   type LeadStage,
+  type Meeting,
   type MeetingStatus,
 } from "@/types/database";
 
-export type ReuniaoResumo = {
-  id: string;
-  lead_id: string;
-  titulo: string | null;
-  starts_at: string;
-  status: MeetingStatus;
-  meet_link: string | null;
-  gravacao: string | null;
-  transcricao: string | null;
-};
+export type ReuniaoResumo = Meeting;
 
 const STATUS_REUNIAO: Record<MeetingStatus, { label: string; cls: string }> = {
   agendada: { label: "Agendada", cls: "bg-brand/15 text-brand" },
@@ -79,6 +73,23 @@ const COR_COLUNA: Partial<Record<LeadStage, string>> = {
   perdido: "text-red-400",
 };
 
+// Dias ate o retorno marcado. Negativo = atrasado.
+function diasAteRetorno(lead: Lead): number | null {
+  if (!lead.proximo_contato) return null;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const [a, m, d] = lead.proximo_contato.slice(0, 10).split("-").map(Number);
+  const alvo = new Date(a, m - 1, d);
+  return Math.round((alvo.getTime() - hoje.getTime()) / 86_400_000);
+}
+
+function rotuloRetorno(dias: number) {
+  if (dias < 0) return `retorno atrasado ${-dias}d`;
+  if (dias === 0) return "retorno hoje";
+  if (dias === 1) return "retorno amanhã";
+  return `retorno em ${dias}d`;
+}
+
 function diasParado(lead: Lead) {
   const base = lead.estagio_em ?? lead.updated_at ?? lead.created_at;
   if (!base) return 0;
@@ -107,8 +118,11 @@ function Card({
     id: lead.id,
   });
   const dias = diasParado(lead);
+  const retorno = diasAteRetorno(lead);
   const limite = ALERTA_DIAS[colunaDoCloser(lead.estagio) ?? lead.estagio];
-  const atrasado = limite !== undefined && dias >= limite;
+  // Com retorno marcado, o alerta passa a ser a data combinada.
+  const atrasado =
+    retorno !== null ? retorno <= 0 : limite !== undefined && dias >= limite;
 
   const escopo = arquivos.find((a) => a.tipo === "escopo");
   const proposta = arquivos.find((a) => a.tipo === "proposta");
@@ -152,7 +166,11 @@ function Card({
             (atrasado ? "bg-amber-500/15 text-amber-400" : "bg-white/5 text-slate-500")
           }
         >
-          {dias === 0 ? "hoje" : `parado há ${dias}d`}
+          {retorno !== null
+            ? rotuloRetorno(retorno)
+            : dias === 0
+              ? "hoje"
+              : `parado há ${dias}d`}
         </span>
       </div>
     </div>
@@ -214,10 +232,12 @@ export function FunilBoard({
   initialLeads,
   atuais,
   reunioes = [],
+  googleConnected = false,
 }: {
   initialLeads: Lead[];
   atuais: ArquivoAtual[];
   reunioes?: ReuniaoResumo[];
+  googleConnected?: boolean;
 }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [sel, setSel] = useState<Lead | null>(null);
@@ -226,15 +246,43 @@ export function FunilBoard({
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
   );
 
+  const [soRetornos, setSoRetornos] = useState(false);
+
+  const paraHoje = useMemo(
+    () => leads.filter((l) => {
+      const d = diasAteRetorno(l);
+      return d !== null && d <= 0;
+    }),
+    [leads]
+  );
+
   const porColuna = useMemo(() => {
     const map = {} as Record<LeadStage, Lead[]>;
     for (const s of CLOSER_STAGES) map[s] = [];
-    for (const lead of leads) {
+    const visiveis = soRetornos
+      ? leads.filter((l) => {
+          const d = diasAteRetorno(l);
+          return d !== null && d <= 0;
+        })
+      : leads;
+    for (const lead of visiveis) {
       const col = colunaDoCloser(lead.estagio);
       if (col) map[col].push(lead);
     }
+    // Quem tem retorno marcado vem primeiro, do mais atrasado ao mais
+    // distante; depois os sem retorno, do mais parado ao mais recente.
+    for (const s of CLOSER_STAGES) {
+      map[s].sort((a, b) => {
+        const da = diasAteRetorno(a);
+        const db = diasAteRetorno(b);
+        if (da !== null && db !== null) return da - db;
+        if (da !== null) return -1;
+        if (db !== null) return 1;
+        return diasParado(b) - diasParado(a);
+      });
+    }
     return map;
-  }, [leads]);
+  }, [leads, soRetornos]);
 
   // Muda o estagio pelo painel, sem precisar arrastar o card.
   async function mover(leadId: string, destino: LeadStage) {
@@ -279,9 +327,24 @@ export function FunilBoard({
         <div>
           <h1 className="text-xl font-bold text-white">Funil</h1>
           <p className="text-xs text-slate-400">
-            Quem já sentou na reunião. Clique no card para ver escopos e propostas.
+            Quem já sentou na reunião. Clique no card para o follow-up, os
+            documentos e as reuniões.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setSoRetornos((v) => !v)}
+          className={
+            "rounded-lg border px-3 py-1.5 text-sm transition " +
+            (soRetornos
+              ? "border-amber-500 bg-amber-500/15 text-amber-400"
+              : "border-white/15 text-slate-300 hover:bg-white/5")
+          }
+        >
+          {paraHoje.length === 0
+            ? "Nenhum retorno para hoje"
+            : `${paraHoje.length} para falar hoje`}
+        </button>
       </div>
 
       <DndContext sensors={sensors} onDragEnd={aoSoltar}>
@@ -370,6 +433,23 @@ export function FunilBoard({
             </div>
 
             <div className="sd-card mb-4 p-4">
+              <FollowUpPanel
+                leadId={sel.id}
+                proximoContato={sel.proximo_contato}
+                aoMudar={(proximo) => {
+                  setLeads((prev) =>
+                    prev.map((l) =>
+                      l.id === sel.id ? { ...l, proximo_contato: proximo } : l
+                    )
+                  );
+                  setSel((atual) =>
+                    atual ? { ...atual, proximo_contato: proximo } : atual
+                  );
+                }}
+              />
+            </div>
+
+            <div className="sd-card mb-4 p-4">
               <h3 className="mb-2 text-sm font-semibold text-slate-200">Reuniões</h3>
               {reunioes.filter((r) => r.lead_id === sel.id).length === 0 ? (
                 <p className="text-xs text-slate-500">Nenhuma reunião registrada.</p>
@@ -426,6 +506,13 @@ export function FunilBoard({
                             Meet
                           </a>
                         )}
+                        <Link
+                          href={`/reunioes?m=${r.id}`}
+                          className="shrink-0 text-[11px] text-slate-400 hover:text-brand"
+                          title="Abrir na agenda"
+                        >
+                          Agenda
+                        </Link>
                       </li>
                     ))}
                 </ul>
@@ -448,6 +535,17 @@ export function FunilBoard({
                   </div>
                 ) : null;
               })()}
+
+              <div className="mt-3 border-t border-white/5 pt-3">
+                <MeetingsPanel
+                  leadId={sel.id}
+                  meetings={reunioes.filter((r) => r.lead_id === sel.id)}
+                  googleConnected={googleConnected}
+                  hasWhatsapp={Boolean(sel.whatsapp)}
+                  leadName={sel.nome}
+                  leadEmail={sel.email}
+                />
+              </div>
             </div>
 
             <div className="sd-card p-4">

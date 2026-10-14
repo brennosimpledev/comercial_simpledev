@@ -300,6 +300,15 @@ export function MeetingsCalendar({
     setVMonth(n.getMonth());
   }
 
+  // Atalho vindo do funil: /reunioes?m=<id> ja abre aquela reuniao.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("m");
+    if (!id) return;
+    const alvo = meetings.find((m) => m.id === id);
+    if (alvo) openMeeting(alvo);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetings]);
+
   function openMeeting(m: MeetingWithLead) {
     setSel(m);
     setDocs(null);

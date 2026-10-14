@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { FunilBoard } from "@/components/funil/FunilBoard";
 import { CLOSER_STAGES, type Lead, type LeadArquivo } from "@/types/database";
 import type { ReuniaoResumo } from "@/components/funil/FunilBoard";
@@ -40,13 +41,22 @@ export default async function FunilPage() {
   // Historico de reunioes dos leads do funil, para o painel do card.
   const { data: mtgs } = await supabase
     .from("meetings")
-    .select("id, lead_id, titulo, starts_at, status, meet_link, gravacao, transcricao")
+    .select("*")
     .in("lead_id", leads.length ? leads.map((l) => l.id) : ["sem-leads"])
     .order("starts_at", { ascending: false });
+
+  // A conta do Google e da equipe: se existe uma conectada, da para
+  // agendar a partir do funil.
+  const { data: gacc } = await createAdminClient()
+    .from("google_accounts")
+    .select("user_id")
+    .limit(1)
+    .maybeSingle();
 
   return (
     <FunilBoard
       initialLeads={leads}
+      googleConnected={Boolean(gacc)}
       reunioes={(mtgs ?? []) as ReuniaoResumo[]}
       atuais={(arqs ?? []) as Pick<
         LeadArquivo,
