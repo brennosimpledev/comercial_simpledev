@@ -216,6 +216,7 @@ export function MeetingsCalendar({
   const [novaDate, setNovaDate] = useState("");
   const [novaTime, setNovaTime] = useState("");
   const [copiado, setCopiado] = useState(false);
+  const [linkCopiado, setLinkCopiado] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [achados, setAchados] = useState<ArquivoDrive[] | null>(null);
   const [docs, setDocs] = useState<DocumentoReuniao[] | null>(null);
@@ -467,6 +468,17 @@ export function MeetingsCalendar({
         router.refresh();
       }
     });
+  }
+
+  async function copiarLink() {
+    if (!sel?.meet_link) return;
+    try {
+      await navigator.clipboard.writeText(sel.meet_link);
+      setLinkCopiado(true);
+      setTimeout(() => setLinkCopiado(false), 2000);
+    } catch {
+      alert("Não foi possível copiar.");
+    }
   }
 
   async function copiarResumo() {
@@ -755,7 +767,7 @@ export function MeetingsCalendar({
 
             {/* Link Meet */}
             {sel.meet_link && (
-              <div className="mb-4">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
                 <a
                   href={sel.meet_link}
                   target="_blank"
@@ -764,6 +776,26 @@ export function MeetingsCalendar({
                 >
                   Entrar no Google Meet
                 </a>
+                <button
+                  type="button"
+                  onClick={copiarLink}
+                  className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-slate-200 transition hover:bg-white/5"
+                  title="Copiar o link para mandar no WhatsApp"
+                >
+                  {linkCopiado ? "Link copiado ✓" : "Copiar link"}
+                </button>
+                {sel.leads.whatsapp && (
+                  <a
+                    href={`${waLink(sel.leads.whatsapp)}?text=${encodeURIComponent(
+                      `Olá, ${primeiroNome(sel.leads.nome)}! Segue o link da nossa reunião: ${sel.meet_link}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg border border-emerald-500/40 px-3 py-1.5 text-sm text-emerald-400 transition hover:bg-emerald-500/10"
+                  >
+                    Enviar no WhatsApp
+                  </a>
+                )}
               </div>
             )}
 
