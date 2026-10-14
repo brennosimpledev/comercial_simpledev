@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppText } from "@/lib/evolution/client";
+import { cerebroAtivo, gerarResposta } from "@/lib/bot/cerebro";
 
 const TZ = "America/Sao_Paulo";
 
@@ -21,8 +22,9 @@ export function botAtivo() {
 const HORA_INICIO = Number(process.env.BOT_HORA_INICIO ?? 9);
 const HORA_FIM = Number(process.env.BOT_HORA_FIM ?? 18);
 
-// Teto por lead: o bot tem tres falas no roteiro e para.
-const MAX_MENSAGENS = 3;
+// Teto por lead. Com IA a conversa rende mais; o roteiro fixo tem so
+// tres falas e para por si.
+const MAX_MENSAGENS = Number(process.env.BOT_MAX_MENSAGENS ?? 6);
 // Mensagens seguidas do cliente nao viram varias respostas.
 const INTERVALO_MINIMO_S = 90;
 // Se um humano falou ha pouco, a conversa e dele.
@@ -54,6 +56,7 @@ type Mensagem = {
   direction: string;
   created_at: string;
   raw: Record<string, unknown> | null;
+  body?: string | null;
 };
 
 function ehDoBot(m: Mensagem) {
@@ -83,7 +86,7 @@ export async function responderForaDeHorario(
 
     const { data: msgs } = await supabase
       .from("lead_messages")
-      .select("direction, created_at, raw")
+      .select("direction, created_at, raw, body")
       .eq("lead_id", leadId)
       .order("created_at", { ascending: false })
       .limit(40);
@@ -119,7 +122,22 @@ export async function responderForaDeHorario(
     const primeiroNome = (lead.nome ?? "").trim().split(/\s+/)[0] ?? "";
     // Nome generico de numero desconhecido nao vira saudacao.
     const nome = /whatsapp/i.test(primeiroNome) ? "" : primeiroNome;
-    const texto = ROTEIRO[etapa](nome);
+
+    // Com chave de API, a resposta e gerada na hora, lendo a conversa; sem
+    // ela, ou se a geracao falhar, cai no roteiro fixo.
+    let texto: string | null = null;
+    if (cerebroAtivo()) {
+      const historico = [...lista]
+        .reverse()
+        .filter((m) => (m.body ?? "").trim())
+        .slice(-12)
+        .map((m) => ({
+          autor: m.direction === "inbound" ? ("cliente" as const) : ("nos" as const),
+          texto: (m.body ?? "").slice(0, 1200),
+        }));
+      texto = await gerarResposta({ nome, historico, etapa });
+    }
+    if (!texto) texto = ROTEIRO[Math.min(etapa, ROTEIRO.length - 1)](nome);
 
     const envio = await sendWhatsAppText(lead.whatsapp, texto);
     if (!envio.ok) {
@@ -132,7 +150,7 @@ export async function responderForaDeHorario(
       direction: "outbound",
       body: texto,
       status: "sent",
-      raw: { bot: true, etapa: etapa + 1, fase: 1 },
+      raw: { bot: true, etapa: etapa + 1, fase: 1, ia: cerebroAtivo() },
     });
 
     return { enviou: true };
