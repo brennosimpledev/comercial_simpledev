@@ -82,15 +82,22 @@ export async function GET(request: NextRequest) {
 
   const todos = leads ?? [];
 
-  // Quem tem pelo menos uma mensagem registrada fica de fora.
+  // Quem tem pelo menos uma mensagem registrada fica de fora. O Supabase
+  // devolve no maximo 1000 linhas por consulta: sem paginar, lead com
+  // conversa longa empurra os outros para fora e eles parecem "sem mensagem".
   const comMensagem = new Set<string>();
-  for (let i = 0; i < todos.length; i += 200) {
-    const fatia = todos.slice(i, i + 200).map((l) => l.id);
-    const { data } = await admin
-      .from("lead_messages")
-      .select("lead_id")
-      .in("lead_id", fatia);
-    for (const m of data ?? []) comMensagem.add(m.lead_id as string);
+  for (let i = 0; i < todos.length; i += 100) {
+    const fatia = todos.slice(i, i + 100).map((l) => l.id);
+    for (let p = 0; ; p += 1000) {
+      const { data } = await admin
+        .from("lead_messages")
+        .select("lead_id")
+        .in("lead_id", fatia)
+        .range(p, p + 999);
+      if (!data || data.length === 0) break;
+      for (const m of data) comMensagem.add(m.lead_id as string);
+      if (data.length < 1000) break;
+    }
   }
 
   const alvo = todos.filter((l) => !comMensagem.has(l.id));
