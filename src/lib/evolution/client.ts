@@ -289,10 +289,12 @@ export interface NumeroWhatsApp {
 
 // Consulta se os numeros tem conta no WhatsApp. So leitura: nao manda
 // mensagem nem abre conversa com ninguem.
+// Devolve null quando a consulta falha, para nao confundir erro de rede
+// com "numero sem WhatsApp".
 export async function consultarNumeros(
   numeros: string[]
-): Promise<NumeroWhatsApp[]> {
-  if (!evolutionConfigured() || numeros.length === 0) return [];
+): Promise<NumeroWhatsApp[] | null> {
+  if (!evolutionConfigured() || numeros.length === 0) return null;
   try {
     const res = await fetch(
       `${BASE}/chat/whatsappNumbers/${encodeURIComponent(INSTANCE!)}`,
@@ -303,11 +305,15 @@ export async function consultarNumeros(
         signal: AbortSignal.timeout(15_000),
       }
     );
-    if (!res.ok) return [];
+    if (!res.ok) {
+      console.error("[consultarNumeros] HTTP", res.status, (await res.text()).slice(0, 200));
+      return null;
+    }
     const data = await res.json();
-    return Array.isArray(data) ? (data as NumeroWhatsApp[]) : [];
-  } catch {
-    return [];
+    return Array.isArray(data) ? (data as NumeroWhatsApp[]) : null;
+  } catch (e) {
+    console.error("[consultarNumeros]", e);
+    return null;
   }
 }
 

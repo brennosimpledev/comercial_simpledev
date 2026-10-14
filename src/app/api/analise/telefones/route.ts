@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
   const alvo = todos.filter((l) => !comMensagem.has(l.id));
   const pagina = alvo.slice(offset, offset + limite);
 
-  const resultados = await emLotes(pagina, 5, async (l): Promise<Resultado> => {
+  const resultados = await emLotes(pagina, 2, async (l): Promise<Resultado> => {
     const original = (l.whatsapp as string | null) ?? null;
     const base: Resultado = {
       nome: (l.nome as string) ?? "",
@@ -118,6 +118,7 @@ export async function GET(request: NextRequest) {
     if (!digitos(original)) return { ...base, acao: "sem_telefone" };
 
     const respostas = await consultarNumeros(variantesBR(original!));
+    if (respostas === null) return { ...base, acao: "consulta_falhou" };
     const achado = respostas.find((r) => r.exists && r.jid);
     if (!achado) return { ...base, acao: "numero_sem_whatsapp" };
 
@@ -151,6 +152,7 @@ export async function GET(request: NextRequest) {
 
   const resumo = {
     sem_telefone: 0,
+    consulta_falhou: 0,
     numero_sem_whatsapp: 0,
     telefone_ok: 0,
     trocaria_telefone: 0,
