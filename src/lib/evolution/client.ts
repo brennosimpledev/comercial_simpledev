@@ -280,3 +280,38 @@ export async function sendWhatsAppText(
     return { ok: false, error: `Falha ao chamar Evolution: ${String(e)}` };
   }
 }
+
+export interface NumeroWhatsApp {
+  exists: boolean;
+  jid?: string;
+  number?: string;
+}
+
+// Consulta se os numeros tem conta no WhatsApp. So leitura: nao manda
+// mensagem nem abre conversa com ninguem.
+export async function consultarNumeros(
+  numeros: string[]
+): Promise<NumeroWhatsApp[]> {
+  if (!evolutionConfigured() || numeros.length === 0) return [];
+  try {
+    const res = await fetch(
+      `${BASE}/chat/whatsappNumbers/${encodeURIComponent(INSTANCE!)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: API_KEY! },
+        body: JSON.stringify({ numbers: numeros }),
+        signal: AbortSignal.timeout(15_000),
+      }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? (data as NumeroWhatsApp[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Variacoes de um numero BR com e sem o nono digito, ja com DDI.
+export function variantesBR(raw: string): string[] {
+  return brNumberVariants(toWaNumber(raw));
+}
