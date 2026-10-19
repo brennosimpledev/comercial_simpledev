@@ -71,7 +71,7 @@ export async function GET(request: NextRequest) {
       const [{ data: lead }, { data: fio }, { data: mtgs }] = await Promise.all([
         admin
           .from("leads")
-          .select("nome, origem, estagio, qualificado, desqualificado, ja_cliente, created_at")
+          .select("nome, origem, estagio, qualificado, desqualificado, ja_cliente, created_at, anotacoes")
           .eq("id", leadId)
           .single(),
         admin
