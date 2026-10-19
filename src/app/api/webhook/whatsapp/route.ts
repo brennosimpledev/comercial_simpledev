@@ -1,6 +1,7 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { responderForaDeHorario } from "@/lib/bot/atendente";
+import { entenderMidia } from "@/lib/midia/entender";
 import { brCanonical, last8 } from "@/lib/phone";
 import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 
@@ -284,7 +285,26 @@ export async function POST(request: NextRequest) {
       // Atendente de fora de horario. Roda depois de responder a Evolution,
       // espera o cliente terminar de escrever e so fala se for o caso.
       const idLead = leadId;
-      after(() => responderForaDeHorario(createAdminClient(), idLead, waMessageId));
+      const tipoMidia = kind;
+      after(async () => {
+        const admin = createAdminClient();
+        // Audio vira texto e foto vira descricao antes de o bot ler a
+        // conversa; o time tambem passa a ver isso no CRM.
+        if ((tipoMidia === "audio" || tipoMidia === "image") && waMessageId) {
+          const corpo = await entenderMidia(
+            tipoMidia,
+            data as unknown as Record<string, unknown>,
+            text
+          );
+          if (corpo) {
+            await admin
+              .from("lead_messages")
+              .update({ body: corpo })
+              .eq("wa_message_id", waMessageId);
+          }
+        }
+        await responderForaDeHorario(admin, idLead, waMessageId);
+      });
     }
 
     processed++;
