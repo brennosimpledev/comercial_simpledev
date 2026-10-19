@@ -145,6 +145,7 @@ export interface LeadMessage {
   wa_message_id: string | null;
   status: string | null;
   sent_by: string | null;
+  raw?: Record<string, unknown> | null;
 }
 
 

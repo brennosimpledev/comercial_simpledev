@@ -46,12 +46,31 @@ SOBRE A EMPRESA (só use se vier ao caso, sem despejar tudo)
 - Processo: planejamento, testes de qualidade e segurança, 90 dias de validação assistida depois da entrega.
 - Atendimento 100% remoto. Assina NDA antes de o cliente detalhar o projeto.
 
+FOTO, ÁUDIO E ARQUIVO
+Você não consegue ver imagem nem ouvir áudio. Quando aparecer "[enviou uma imagem]", "[enviou um áudio]" ou parecido, NUNCA diga que não entendeu nem peça para reenviar. Agradeça, diga que deixou separado para o time ver de manhã, e se fizer sentido peça para ele resumir por escrito o principal.
+
+SAUDAÇÃO
+Use o dia e a hora informados no contexto. Bom dia até 12h, boa tarde até 18h, boa noite depois disso. Não copie a saudação do cliente se ela não bater com o horário.
+
 FECHAMENTO DA MADRUGADA
 Quando já tiver as informações principais, ou quando o cliente der sinal de que quer encerrar, diga que anotou tudo e que o time comercial chama por aqui pela manhã. Depois disso, só responda se ele falar de novo.
 
 Responda APENAS com o texto da mensagem a enviar, nada além disso.`;
 
 type Fala = { autor: "cliente" | "nos"; texto: string };
+
+// Falas seguidas do mesmo lado viram uma so: a API exige que usuario e
+// assistente se alternem, e o historico real tem rajadas dos dois lados.
+function agruparFalas(historico: Fala[]) {
+  const saida: { role: "user" | "assistant"; content: string }[] = [];
+  for (const f of historico) {
+    const role = f.autor === "cliente" ? ("user" as const) : ("assistant" as const);
+    const ultima = saida[saida.length - 1];
+    if (ultima && ultima.role === role) ultima.content += `\n${f.texto}`;
+    else saida.push({ role, content: f.texto });
+  }
+  return saida;
+}
 
 export async function gerarResposta(opts: {
   nome: string;
@@ -61,7 +80,16 @@ export async function gerarResposta(opts: {
   const chave = process.env.ANTHROPIC_API_KEY;
   if (!chave) return null;
 
+  const agora = new Date().toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "long",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
   const contexto = [
+    `Agora é ${agora} (horário de Brasília).`,
     opts.nome ? `Nome do lead: ${opts.nome}.` : "Nome do lead desconhecido.",
     `Esta é a mensagem número ${opts.etapa + 1} que você envia nesta conversa.`,
     opts.etapa >= 4
@@ -71,10 +99,7 @@ export async function gerarResposta(opts: {
     .filter(Boolean)
     .join(" ");
 
-  const mensagens = opts.historico.map((f) => ({
-    role: f.autor === "cliente" ? ("user" as const) : ("assistant" as const),
-    content: f.texto,
-  }));
+  const mensagens = agruparFalas(opts.historico);
 
   // A API exige comecar por "user"; conversa que abre com fala nossa recebe
   // o contexto como primeira fala do usuario.
@@ -120,6 +145,56 @@ export async function gerarResposta(opts: {
     return texto;
   } catch (e) {
     console.error("[bot:cerebro] falhou:", e);
+    return null;
+  }
+}
+
+// Resumo para o time ler de manha antes de mandar a primeira mensagem:
+// o que o lead quer, o contexto e o que ainda falta perguntar.
+const SISTEMA_RESUMO = `Você resume, para o vendedor da SimpleDEV, uma conversa de WhatsApp que o assistente automático teve com um lead fora do horário.
+
+Escreva em português, em no máximo 5 linhas curtas, sem markdown, neste formato:
+Quer: (o que precisa desenvolver, nas palavras do cliente)
+Contexto: (empresa em operação ou projeto novo, segmento, sistema atual)
+Prazo: (quando quer começar, se disse)
+Quem usa: (se disse)
+Falta perguntar: (o que ainda não se sabe e importa para qualificar)
+
+Se uma informação não apareceu, escreva "não disse". Não invente nada.`;
+
+export async function gerarResumo(historico: Fala[]): Promise<string | null> {
+  const chave = process.env.ANTHROPIC_API_KEY;
+  if (!chave || historico.length === 0) return null;
+
+  const conversa = historico
+    .map((f) => `${f.autor === "cliente" ? "Cliente" : "Assistente"}: ${f.texto}`)
+    .join("\n");
+
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": chave,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: MODELO,
+        max_tokens: 250,
+        system: SISTEMA_RESUMO,
+        messages: [{ role: "user", content: conversa }],
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+    const texto = (data.content ?? [])
+      .filter((b) => b.type === "text")
+      .map((b) => b.text ?? "")
+      .join("")
+      .trim();
+    return texto || null;
+  } catch {
     return null;
   }
 }

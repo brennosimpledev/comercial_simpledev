@@ -294,6 +294,11 @@ export function Conversation({
         )}
         {messages.map((m) => {
           const out = m.direction === "outbound";
+          // Fala do atendente automatico: cor e etiqueta proprias, para o
+          // time saber o que o cliente ja contou antes de falar com ele.
+          const doBot = Boolean(
+            out && m.raw && (m.raw as { bot?: boolean }).bot
+          );
           return (
             <div
               key={m.id}
@@ -302,11 +307,18 @@ export function Conversation({
               <div
                 className={
                   "max-w-[75%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm " +
-                  (out
-                    ? "bg-emerald-600 text-white"
-                    : "bg-slate-700 text-slate-100")
+                  (doBot
+                    ? "border border-violet-400/40 bg-violet-600/80 text-white"
+                    : out
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-700 text-slate-100")
                 }
               >
+                {doBot && (
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-200">
+                    🤖 Bot — fora do horário
+                  </div>
+                )}
                 <MediaBlock message={m} />
                 {m.body && <div>{m.body}</div>}
                 <div

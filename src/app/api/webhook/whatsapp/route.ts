@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { responderForaDeHorario } from "@/lib/bot/atendente";
 import { brCanonical, last8 } from "@/lib/phone";
@@ -104,6 +104,8 @@ function acharAnuncio(
   return null;
 }
 export const dynamic = "force-dynamic";
+// Folga para a espera do bot, que roda depois da resposta.
+export const maxDuration = 60;
 
 // Recebe eventos da Evolution API (mensagens de WhatsApp).
 // Configure na Evolution o webhook apontando para:
@@ -279,9 +281,10 @@ export async function POST(request: NextRequest) {
         .eq("lead_id", leadId)
         .eq("status", "pendente");
 
-      // Atendente de fora de horario. Só fala em resposta a esta mensagem;
-      // decide tudo lá dentro e nunca lança.
-      await responderForaDeHorario(supabase, leadId);
+      // Atendente de fora de horario. Roda depois de responder a Evolution,
+      // espera o cliente terminar de escrever e so fala se for o caso.
+      const idLead = leadId;
+      after(() => responderForaDeHorario(createAdminClient(), idLead, waMessageId));
     }
 
     processed++;
