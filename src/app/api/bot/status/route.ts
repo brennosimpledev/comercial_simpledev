@@ -56,7 +56,53 @@ export async function GET(request: NextRequest) {
     if ((count ?? 0) > 0) responderam++;
   }
 
+  // ?detalhe=1: a conversa inteira de cada lead que o bot atendeu, para
+  // avaliar a qualidade das respostas e nao so a contagem.
+  let conversas: unknown[] | undefined;
+  if (request.nextUrl.searchParams.get("detalhe") === "1") {
+    conversas = [];
+    for (const leadId of leads) {
+      const primeira = doBot
+        .filter((m) => m.lead_id === leadId)
+        .map((m) => new Date(m.created_at).getTime())
+        .sort((a, b) => a - b)[0];
+      const desde = new Date(primeira - 6 * 3600_000).toISOString();
+
+      const [{ data: lead }, { data: fio }, { data: mtgs }] = await Promise.all([
+        admin
+          .from("leads")
+          .select("nome, origem, estagio, qualificado, desqualificado, ja_cliente, created_at")
+          .eq("id", leadId)
+          .single(),
+        admin
+          .from("lead_messages")
+          .select("direction, body, media_type, created_at, raw")
+          .eq("lead_id", leadId)
+          .gte("created_at", desde)
+          .order("created_at", { ascending: true })
+          .limit(60),
+        admin.from("meetings").select("starts_at, status, created_at").eq("lead_id", leadId),
+      ]);
+
+      conversas.push({
+        lead,
+        reunioes: mtgs ?? [],
+        mensagens: (fio ?? []).map((m) => ({
+          quando: m.created_at,
+          quem:
+            m.direction === "inbound"
+              ? "cliente"
+              : m.raw && (m.raw as { bot?: boolean }).bot
+                ? `bot${(m.raw as { ia?: boolean }).ia ? "_ia" : ""}`
+                : "humano",
+          texto: (m.body ?? (m.media_type ? `[${m.media_type}]` : "")).slice(0, 700),
+        })),
+      });
+    }
+  }
+
   return NextResponse.json({
+    ...(conversas ? { conversas } : {}),
     ligado: botAtivo(),
     agora_e_fora_de_horario: foraDoHorario(),
     janela: `${process.env.BOT_HORA_INICIO ?? 9}h às ${process.env.BOT_HORA_FIM ?? 18}h, dias úteis`,
