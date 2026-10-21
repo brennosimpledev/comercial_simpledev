@@ -15,6 +15,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppText } from "@/lib/evolution/client";
 import { cerebroAtivo, gerarResposta, gerarResumo } from "@/lib/bot/cerebro";
+import { brCanonical, last8 } from "@/lib/phone";
 
 const TZ = "America/Sao_Paulo";
 
@@ -35,8 +36,35 @@ const MAX_MENSAGENS = Number(process.env.BOT_MAX_MENSAGENS ?? 6);
 // manda tres mensagens seguidas recebe uma resposta so, para as tres.
 const ESPERA_MS = Number(process.env.BOT_ESPERA_MS ?? 9000);
 
+// Cliente que escreve poucos segundos depois da nossa mensagem escreveu
+// antes de le-la. Responder na hora faz o bot repetir a pergunta que o
+// cliente esta prestes a responder; melhor esperar mais um pouco.
+const JANELA_CRUZADA_MS = 8000;
+const ESPERA_CRUZADA_MS = Number(process.env.BOT_ESPERA_CRUZADA_MS ?? 15000);
+
 // So estes estagios sao territorio do bot.
 const ESTAGIOS_DO_BOT = ["novo", "sdr"];
+
+// O mesmo WhatsApp atende o financeiro de quem ja fechou. Se QUALQUER
+// cadastro com este numero ja for cliente, o bot nao fala - inclusive
+// quando o lead foi duplicado e o card fechado nao e o que recebe as
+// mensagens (aconteceu com um cliente fechado em 19/10).
+async function numeroDeCliente(supabase: SupabaseClient, whatsapp: string) {
+  const { data } = await supabase
+    .from("leads")
+    .select("whatsapp, estagio, status, ja_cliente, valor_fechado")
+    .like("whatsapp_digits", `%${last8(whatsapp)}`)
+    .limit(10);
+  const canon = brCanonical(whatsapp);
+  return (data ?? []).some(
+    (l) =>
+      brCanonical(l.whatsapp as string | null) === canon &&
+      (l.ja_cliente ||
+        l.status === "ganho" ||
+        l.estagio === "fechado" ||
+        Number(l.valor_fechado ?? 0) > 0)
+  );
+}
 
 export function foraDoHorario(agora = new Date()) {
   const local = new Date(agora.toLocaleString("en-US", { timeZone: TZ }));
@@ -110,12 +138,13 @@ export async function responderForaDeHorario(
 
     const { data: lead } = await supabase
       .from("leads")
-      .select("id, nome, whatsapp, bot_pausado, ja_cliente, estagio, anotacoes")
+      .select("id, nome, whatsapp, bot_pausado, ja_cliente, estagio, status, anotacoes")
       .eq("id", leadId)
       .single();
     if (!lead?.whatsapp) return { enviou: false, motivo: "sem_whatsapp" };
     if (lead.bot_pausado) return { enviou: false, motivo: "bot_pausado" };
     if (lead.ja_cliente) return { enviou: false, motivo: "ja_cliente" };
+    if (lead.status === "ganho") return { enviou: false, motivo: "cliente_fechado" };
     if (!ESTAGIOS_DO_BOT.includes(lead.estagio as string)) {
       return { enviou: false, motivo: "fora_do_estagio_do_bot" };
     }
@@ -134,6 +163,10 @@ export async function responderForaDeHorario(
       .eq("direction", "outbound")
       .or("raw.is.null,raw->>bot.is.null");
     if ((falasHumanas ?? 0) > 0) return { enviou: false, motivo: "ja_atendido_por_humano" };
+
+    if (await numeroDeCliente(supabase, lead.whatsapp as string)) {
+      return { enviou: false, motivo: "numero_de_cliente" };
+    }
 
     // Espera o cliente terminar de escrever.
     await espera(ESPERA_MS);
@@ -166,6 +199,30 @@ export async function responderForaDeHorario(
       return { enviou: false, motivo: "teto_de_mensagens" };
     }
 
+    // Mensagens cruzadas: o cliente mandou isto logo depois da nossa
+    // pergunta, sem ter lido. Espera mais um pouco; se ele responder a
+    // pergunta nesse meio tempo, o disparo da resposta dele fala por tudo.
+    const nossaUltima = lista.find((m) => m.direction === "outbound");
+    if (
+      gatilho &&
+      nossaUltima &&
+      new Date(ultima.created_at).getTime() -
+        new Date(nossaUltima.created_at).getTime() <
+        JANELA_CRUZADA_MS
+    ) {
+      await espera(ESPERA_CRUZADA_MS);
+      const { data: maisNova } = await supabase
+        .from("lead_messages")
+        .select("direction, wa_message_id")
+        .eq("lead_id", leadId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (maisNova?.wa_message_id !== ultima.wa_message_id) {
+        return { enviou: false, motivo: "cliente_ainda_escrevendo" };
+      }
+    }
+
     const etapa = doBot.length;
     const primeiroNome = (lead.nome ?? "").trim().split(/\s+/)[0] ?? "";
     // Nome generico de numero desconhecido nao vira saudacao.
@@ -191,6 +248,20 @@ export async function responderForaDeHorario(
       if (etapa === 0) texto = ABERTURA(nome);
       else if (!jaEncerrou) texto = ENCERRAMENTO;
       else return { enviou: false, motivo: "ia_falhou_e_ja_encerrou" };
+    }
+
+    // A IA leva alguns segundos. Se nesse tempo o cliente escreveu de novo
+    // ou alguem respondeu, esta resposta ja esta velha: quem fala e o
+    // disparo da mensagem nova, com a conversa inteira.
+    const { data: antesDeEnviar } = await supabase
+      .from("lead_messages")
+      .select("wa_message_id")
+      .eq("lead_id", leadId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (antesDeEnviar?.wa_message_id !== ultima.wa_message_id) {
+      return { enviou: false, motivo: "conversa_andou_durante_a_ia" };
     }
 
     const envio = await sendWhatsAppText(lead.whatsapp, texto);
