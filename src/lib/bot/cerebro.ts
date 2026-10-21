@@ -129,7 +129,10 @@ export async function gerarResposta(opts: {
       },
       body: JSON.stringify({
         model: MODELO,
-        max_tokens: 300,
+        // O modelo pensa antes de responder e esse raciocinio entra na conta
+        // de max_tokens. Com 300, a mensagem saia cortada no meio da palavra.
+        // O tamanho da resposta e controlado pelo prompt e por MAX_CHARS.
+        max_tokens: 4000,
         system: `${SISTEMA}\n\nCONTEXTO DESTA CONVERSA\n${contexto}`,
         messages: mensagens,
       }),
@@ -143,7 +146,14 @@ export async function gerarResposta(opts: {
 
     const data = (await res.json()) as {
       content?: { type: string; text?: string }[];
+      stop_reason?: string;
     };
+    // Resposta cortada ou recusada nao vai para o cliente: o atendente cai
+    // no encerramento fixo em vez de mandar meia frase.
+    if (data.stop_reason === "max_tokens" || data.stop_reason === "refusal") {
+      console.error("[bot:cerebro] resposta descartada:", data.stop_reason);
+      return null;
+    }
     const texto = (data.content ?? [])
       .filter((b) => b.type === "text")
       .map((b) => b.text ?? "")
@@ -151,9 +161,13 @@ export async function gerarResposta(opts: {
       .trim();
 
     if (!texto) return null;
-    // Resposta gigante vira sinal de que o modelo saiu do papel: melhor o
-    // roteiro fixo do que um textão de vendedor no WhatsApp do cliente.
-    if (texto.length > MAX_CHARS) return texto.slice(0, MAX_CHARS);
+    // Textao e sinal de que o modelo saiu do papel. Corta na ultima frase
+    // inteira que cabe, nunca no meio da palavra.
+    if (texto.length > MAX_CHARS) {
+      const corte = texto.slice(0, MAX_CHARS);
+      const fim = Math.max(corte.lastIndexOf(". "), corte.lastIndexOf("? "), corte.lastIndexOf("! "));
+      return fim > 0 ? corte.slice(0, fim + 1) : null;
+    }
     return texto;
   } catch (e) {
     console.error("[bot:cerebro] falhou:", e);
@@ -194,14 +208,19 @@ export async function gerarResumo(historico: Fala[]): Promise<string | null> {
       },
       body: JSON.stringify({
         model: MODELO,
-        max_tokens: 250,
+        // Mesmo motivo da resposta: o raciocinio do modelo conta aqui.
+        max_tokens: 4000,
         system: SISTEMA_RESUMO,
         messages: [{ role: "user", content: conversa }],
       }),
       signal: AbortSignal.timeout(20_000),
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { content?: { type: string; text?: string }[] };
+    const data = (await res.json()) as {
+      content?: { type: string; text?: string }[];
+      stop_reason?: string;
+    };
+    if (data.stop_reason === "max_tokens") return null;
     const texto = (data.content ?? [])
       .filter((b) => b.type === "text")
       .map((b) => b.text ?? "")
