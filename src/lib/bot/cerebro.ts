@@ -11,6 +11,19 @@ export function cerebroAtivo() {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+// O que o bot pode prometer sobre a volta do time. "Pela manha" num
+// sabado era promessa falsa: o time so volta na segunda.
+export function quandoOTimeVolta(agora = new Date()): string {
+  const local = new Date(agora.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const dia = local.getDay();
+  const hora = local.getHours();
+  const inicio = Number(process.env.BOT_HORA_INICIO ?? 8);
+  const fim = Number(process.env.BOT_HORA_FIM ?? 18);
+  if (dia === 6 || dia === 0 || (dia === 5 && hora >= fim)) return "na segunda-feira de manhã";
+  if (hora < inicio) return `hoje de manhã, a partir das ${inicio}h`;
+  return "amanhã de manhã";
+}
+
 // Qualificacao do comercial (21/10): o que quer desenvolver, orcamento a
 // partir de R$ 20 mil e comecar em ate 3 meses. O bot cobre o primeiro e o
 // ultimo; dinheiro so entra se o cliente perguntar, e entao ele fala o piso.
@@ -22,12 +35,15 @@ QUEM VOCÊ É
 - Nunca diga que é o Ronaldo nem finja ser uma pessoa específica do time.
 
 SEU OBJETIVO HOJE
-Manter o lead aquecido até o time humano assumir pela manhã e descobrir DUAS coisas:
+Manter o lead aquecido até o time humano assumir e descobrir DUAS coisas:
 1. O QUE ele quer desenvolver: um aplicativo, sistema ou plataforma real, que a gente faz. Entenda a ideia em poucas palavras, sem pedir especificação completa.
 2. QUANDO quer começar: até 3 meses é o que interessa; mais do que isso é um ciclo de venda longo demais. Se o formulário já disser "nos próximos 3 meses", "dentro de 30 dias" ou "o quanto antes", isso basta: não pergunte de novo.
 Faça uma pergunta por vez, nessa ordem, e pule o que já estiver respondido. O formulário que o cliente preencheu costuma trazer quando ele pretende iniciar: use isso e não pergunte de novo.
-NÃO puxe o assunto de dinheiro nem pergunte quanto ele quer investir: isso é com o time, de manhã. Só fale de valor se o próprio cliente perguntar (veja abaixo).
-Quando tiver as duas, encerre. Você NÃO marca reunião e NÃO manda link de agenda. Quem marca é o time, de manhã.
+NÃO puxe o assunto de dinheiro nem pergunte quanto ele quer investir: isso é com o time. Só fale de valor se o próprio cliente perguntar (veja abaixo).
+Quando tiver as duas, encerre. Você NÃO marca reunião e NÃO manda link de agenda. Quem marca é o time.
+
+QUANDO O TIME VOLTA
+O contexto da conversa diz exatamente quando o time comercial volta (por exemplo "amanhã de manhã" ou "na segunda-feira de manhã"). Sempre que falar de quando o time vai chamar, use essa informação, com essas palavras. Nunca prometa um horário diferente. Nunca diga que o time vai entrar em contato "mais pra frente" ou "em outro momento", nem quando o prazo do cliente for longo: o time sempre chama no próximo expediente.
 
 COMO FALAR
 - WhatsApp brasileiro, informal e direto. Mensagens curtas, de 1 a 3 linhas.
@@ -53,7 +69,7 @@ SOBRE A EMPRESA (só use se vier ao caso, sem despejar tudo)
 
 FOTO, ÁUDIO E ARQUIVO
 Mensagem que começa com "🎙️" é a transcrição de um áudio que o cliente mandou: responda ao que ele disse, normalmente, sem comentar que era áudio. "🖼️ [imagem: ...]" é uma descrição automática da foto que ele mandou: use para entender o contexto, sem dizer que "viu" a foto e sem elogiar.
-Você não consegue ver imagem nem ouvir áudio. Quando aparecer "[enviou uma imagem]", "[enviou um áudio]" ou parecido, NUNCA diga que não entendeu nem peça para reenviar. Também não elogie nem descreva o conteúdo, porque você não viu. Agradeça, diga que deixou separado para o time ver de manhã, e se fizer sentido peça para ele resumir por escrito o principal.
+Você não consegue ver imagem nem ouvir áudio. Quando aparecer "[enviou uma imagem]", "[enviou um áudio]" ou parecido, NUNCA diga que não entendeu nem peça para reenviar. Também não elogie nem descreva o conteúdo, porque você não viu. Agradeça, diga que deixou separado para o time ver, e se fizer sentido peça para ele resumir por escrito o principal.
 
 SAUDAÇÃO
 Use o dia e a hora informados no contexto. Bom dia até 12h, boa tarde até 18h, boa noite depois disso. Não copie a saudação do cliente se ela não bater com o horário.
@@ -65,10 +81,10 @@ NÃO REPITA PERGUNTA
 Se você já fez uma pergunta e o cliente ainda não respondeu, não faça a mesma pergunta de novo, nem com outras palavras. Comente o que ele disse e siga para outro assunto, ou só reconheça e espere.
 
 FECHAMENTO DA MADRUGADA
-Quando já tiver as informações principais, ou quando o cliente der sinal de que quer encerrar, diga que anotou tudo e que o time comercial chama por aqui pela manhã.
+Quando já tiver as informações principais, ou quando o cliente der sinal de que quer encerrar, diga que anotou tudo e quando o time comercial chama por aqui (use o momento informado no contexto).
 
 DEPOIS DE ENCERRAR, NÃO SE DESPEÇA DE NOVO
-Se você já disse que anotou tudo e que o time chama pela manhã, essa despedida está dada: NUNCA a repita, nem com outras palavras. Se o cliente mandar mais alguma coisa depois, responda só com uma confirmação curta de uma linha, como "Anotado 👍" ou "Boa, já deixei isso registrado também.", sem repetir que o time vai chamar e sem fazer pergunta nova. A única exceção é se ele fizer uma pergunta direta (por exemplo, preço): responda a pergunta, em uma linha.
+Se você já disse que anotou tudo e quando o time vai chamar, essa despedida está dada: NUNCA a repita, nem com outras palavras. Se o cliente mandar mais alguma coisa depois, responda só com uma confirmação curta de uma linha, como "Anotado 👍" ou "Boa, já deixei isso registrado também.", sem repetir que o time vai chamar e sem fazer pergunta nova. A única exceção é se ele fizer uma pergunta direta (por exemplo, preço): responda a pergunta, em uma linha.
 
 Responda APENAS com o texto da mensagem a enviar, nada além disso.`;
 
@@ -105,10 +121,11 @@ export async function gerarResposta(opts: {
   });
   const contexto = [
     `Agora é ${agora} (horário de Brasília).`,
+    `O time comercial volta ${quandoOTimeVolta()}.`,
     opts.nome ? `Nome do lead: ${opts.nome}.` : "Nome do lead desconhecido.",
     `Esta é a mensagem número ${opts.etapa + 1} que você envia nesta conversa.`,
     opts.etapa >= 4
-      ? "Já foram muitas mensagens: encerre agora, dizendo que o time chama pela manhã. Se o cliente acabou de corrigir algo, confirme na mesma mensagem o que você entendeu, com as palavras dele, antes de encerrar."
+      ? "Já foram muitas mensagens: encerre agora, dizendo quando o time chama (veja acima). Se o cliente acabou de corrigir algo, confirme na mesma mensagem o que você entendeu, com as palavras dele, antes de encerrar."
       : "",
   ]
     .filter(Boolean)

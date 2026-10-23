@@ -14,7 +14,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppText } from "@/lib/evolution/client";
-import { cerebroAtivo, gerarResposta, gerarResumo } from "@/lib/bot/cerebro";
+import { cerebroAtivo, gerarResposta, gerarResumo, quandoOTimeVolta } from "@/lib/bot/cerebro";
 import { brCanonical, last8 } from "@/lib/phone";
 
 const TZ = "America/Sao_Paulo";
@@ -81,9 +81,14 @@ const ABERTURA = (nome: string) =>
   `Oi${nome ? `, ${nome}` : ""}! Aqui é o assistente da SimpleDEV.\n` +
   `O time comercial já está fora do expediente, mas eu adianto o seu atendimento pra não te deixar esperando.\n\n` +
   `Me conta rapidinho: o que você precisa desenvolver?`;
-const ENCERRAMENTO =
-  `Anotei tudo aqui 👊\n` +
-  `Amanhã de manhã o time comercial te chama por aqui pra continuar de onde paramos.`;
+const INICIO_ENCERRAMENTO = "Anotei tudo aqui 👊";
+const encerramento = () => {
+  const quando = quandoOTimeVolta();
+  return (
+    `${INICIO_ENCERRAMENTO}\n` +
+    `${quando.charAt(0).toUpperCase()}${quando.slice(1)} o time comercial te chama por aqui pra continuar de onde paramos.`
+  );
+};
 
 type Mensagem = {
   direction: string;
@@ -244,9 +249,9 @@ export async function responderForaDeHorario(
       viaIa = Boolean(texto);
     }
     if (!texto) {
-      const jaEncerrou = doBot.some((m) => (m.body ?? "") === ENCERRAMENTO);
+      const jaEncerrou = doBot.some((m) => (m.body ?? "").startsWith(INICIO_ENCERRAMENTO));
       if (etapa === 0) texto = ABERTURA(nome);
-      else if (!jaEncerrou) texto = ENCERRAMENTO;
+      else if (!jaEncerrou) texto = encerramento();
       else return { enviou: false, motivo: "ia_falhou_e_ja_encerrou" };
     }
 
