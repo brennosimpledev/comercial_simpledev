@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { login } from "./actions";
 
@@ -57,6 +58,7 @@ export default function LoginPage() {
             {pending ? "Entrando..." : "Entrar"}
           </button>
         </form>
+        <Link href="/auth/recover" className="mt-4 block text-center text-sm text-brand hover:underline">Esqueci minha senha</Link>
       </div>
     </main>
   );

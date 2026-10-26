@@ -35,6 +35,14 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+  // Supabase may use the Site URL when a custom redirect is not allowlisted.
+  if (path === "/" && request.nextUrl.searchParams.has("code")) {
+    const callback = request.nextUrl.clone();
+    callback.pathname = "/auth/callback";
+    callback.search = "";
+    callback.searchParams.set("code", request.nextUrl.searchParams.get("code")!);
+    return NextResponse.redirect(callback);
+  }
   const isPublic = PUBLIC_PATHS.some((p) => path.startsWith(p));
 
   // Nao logado tentando acessar area interna -> manda pro login.
