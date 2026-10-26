@@ -23,3 +23,14 @@ test('callback only opens password form after a successful code exchange',async(
  const invalid=await failed.GET(new NextRequest('https://comercial-simpledev.vercel.app/auth/callback?code=expired'));
  assert(invalid.headers.get('location').endsWith('?error=invalid_link'));
 });
+
+test('assisted recovery validates tokens and only verifies recovery OTPs', async()=>{
+ let calls=0; const token='a'.repeat(56);
+ const action=load('src/app/auth/confirm/actions.ts',{verifyOtp:async input=>{calls++;assert.deepEqual(input,{token_hash:token,type:'recovery'});return {error:null}}});
+ assert((await action.confirmRecovery('bad')).error);assert.equal(calls,0);
+ assert((await action.confirmRecovery(token)).success);assert.equal(calls,1);
+ const expired=load('src/app/auth/confirm/actions.ts',{verifyOtp:async()=>({error:{message:'expired'}})});
+ assert((await expired.confirmRecovery(token)).error);
+ const offline=load('src/app/auth/confirm/actions.ts',{verifyOtp:async()=>{throw Error('network')}});
+ assert((await offline.confirmRecovery(token)).error);
+});

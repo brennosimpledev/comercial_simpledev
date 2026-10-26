@@ -18,3 +18,11 @@ Verificação automatizada: `node --test scripts/password-recovery.test.cjs`.
 Verificação de aceite: solicitar o link de uma conta controlada, recebê-lo e abrir
 no mesmo navegador; o próprio usuário deve escolher e confirmar a nova senha.
 Não registrar códigos, senhas ou links de recuperação nos logs.
+
+Recuperação assistida: um administrador pode gerar um link de recuperação para
+uma conta existente usando `auth.admin.generateLink`. Isso não envia e-mail.
+Entregar o `hashed_token` em `/auth/confirm#token_hash=...` por um canal privado.
+A página remove o fragmento do histórico e só verifica o token após confirmação
+explícita. O servidor aceita apenas o tipo `recovery`; a senha continua sendo
+escolhida e enviada pelo próprio usuário. Nunca expor a chave administrativa
+no navegador nem criar um endpoint público para gerar esses links.
