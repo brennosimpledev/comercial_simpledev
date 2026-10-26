@@ -14,7 +14,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppText } from "@/lib/evolution/client";
-import { cerebroAtivo, gerarResposta, gerarResumo, quandoOTimeVolta } from "@/lib/bot/cerebro";
+import { cerebroAtivo, gerarResposta, gerarResumo } from "@/lib/bot/cerebro";
 import { brCanonical, last8 } from "@/lib/phone";
 
 const TZ = "America/Sao_Paulo";
@@ -74,21 +74,13 @@ export function foraDoHorario(agora = new Date()) {
   return hora < HORA_INICIO || hora >= HORA_FIM;
 }
 
-// Rede de seguranca para quando a IA falha. Na primeira fala, apresenta;
-// depois disso, so encerra - repetir pergunta generica no meio da conversa
-// e pior do que ficar quieto.
+// Rede de seguranca para quando a IA falha, so na primeira fala. Depois
+// disso o bot fica quieto: texto fixo no meio da conversa repetia pergunta
+// ou despedida.
 const ABERTURA = (nome: string) =>
   `Oi${nome ? `, ${nome}` : ""}! Aqui é o assistente da SimpleDEV.\n` +
   `O time comercial já está fora do expediente, mas eu adianto o seu atendimento pra não te deixar esperando.\n\n` +
   `Me conta rapidinho: o que você precisa desenvolver?`;
-const INICIO_ENCERRAMENTO = "Anotei tudo aqui 👊";
-const encerramento = () => {
-  const quando = quandoOTimeVolta();
-  return (
-    `${INICIO_ENCERRAMENTO}\n` +
-    `${quando.charAt(0).toUpperCase()}${quando.slice(1)} o time comercial te chama por aqui pra continuar de onde paramos.`
-  );
-};
 
 type Mensagem = {
   direction: string;
@@ -194,6 +186,15 @@ export async function responderForaDeHorario(
     if (!ultima || ultima.direction !== "inbound") {
       return { enviou: false, motivo: "nada_novo" };
     }
+    // Reacao, figurinha ou mensagem sem conteudo nao pede resposta. Antes,
+    // o bot tentava responder a nada, a IA falhava e saia uma segunda
+    // despedida pelo texto fixo.
+    const semConteudo =
+      !(ultima.body ?? "").trim() &&
+      (!ultima.media_type || ultima.media_type === "sticker");
+    if (semConteudo) {
+      return { enviou: false, motivo: "mensagem_sem_conteudo" };
+    }
     // Humano entrou durante a espera.
     if (lista.some((m) => m.direction === "outbound" && !ehDoBot(m))) {
       return { enviou: false, motivo: "ja_atendido_por_humano" };
@@ -242,6 +243,12 @@ export async function responderForaDeHorario(
       .filter((f) => f.texto)
       .slice(-14);
 
+    // A conversa precisa terminar com o cliente: se a ultima fala com
+    // conteudo e nossa, a API trata como resposta pela metade e recusa.
+    if (historico.length === 0 || historico[historico.length - 1].autor !== "cliente") {
+      return { enviou: false, motivo: "nada_novo_para_responder" };
+    }
+
     let texto: string | null = null;
     let viaIa = false;
     if (cerebroAtivo()) {
@@ -249,10 +256,10 @@ export async function responderForaDeHorario(
       viaIa = Boolean(texto);
     }
     if (!texto) {
-      const jaEncerrou = doBot.some((m) => (m.body ?? "").startsWith(INICIO_ENCERRAMENTO));
+      // Texto fixo so na primeira fala. No meio da conversa ele repetia
+      // pergunta ou despedida; ficar calado e melhor, o time assume logo.
       if (etapa === 0) texto = ABERTURA(nome);
-      else if (!jaEncerrou) texto = encerramento();
-      else return { enviou: false, motivo: "ia_falhou_e_ja_encerrou" };
+      else return { enviou: false, motivo: "ia_falhou_no_meio_da_conversa" };
     }
 
     // A IA leva alguns segundos. Se nesse tempo o cliente escreveu de novo

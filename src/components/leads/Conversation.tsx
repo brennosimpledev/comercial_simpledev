@@ -9,6 +9,7 @@ import {
   sendLeadAudio,
 } from "@/app/(app)/leads/actions";
 import { createClient } from "@/lib/supabase/client";
+import { gerarContinuidade } from "@/app/(app)/leads/continuidade";
 import type { LeadMessage } from "@/types/database";
 
 function MediaBlock({ message }: { message: LeadMessage }) {
@@ -147,6 +148,44 @@ export function Conversation({
     endRef.current?.scrollIntoView({ block: "end" });
   }, [messages.length]);
 
+  // Rascunho da mensagem de continuidade, gerado a partir do que o cliente
+  // ja contou. O vendedor revisa antes de enviar.
+  const [rascunho, setRascunho] = useState<string | null>(null);
+  const [gerando, setGerando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+
+  async function sugerirMensagem() {
+    setGerando(true);
+    const res = await gerarContinuidade(leadId);
+    setGerando(false);
+    if (res?.error || !res?.texto) return alert(res?.error ?? "Falha ao gerar a mensagem.");
+    setCopiado(false);
+    setRascunho(res.texto);
+  }
+
+  function enviarRascunho() {
+    const body = (rascunho ?? "").trim();
+    if (!body) return;
+    startTransition(async () => {
+      const res = await sendLeadMessage(leadId, body);
+      if (res?.error) alert(res.error);
+      else {
+        setRascunho(null);
+        router.refresh();
+      }
+    });
+  }
+
+  async function copiarRascunho() {
+    try {
+      await navigator.clipboard.writeText(rascunho ?? "");
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2000);
+    } catch {
+      alert("Não foi possível copiar.");
+    }
+  }
+
   function send() {
     const body = text.trim();
     if (!body) return;
@@ -278,6 +317,15 @@ export function Conversation({
     >
       <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2">
         <span className="text-xs text-slate-400">Conversa</span>
+        <div className="flex items-center gap-2">
+        <button
+          onClick={sugerirMensagem}
+          disabled={gerando || pending}
+          title="Monta a próxima mensagem a partir do que o cliente já contou"
+          className="rounded-lg border border-violet-400/40 px-2 py-1 text-xs text-violet-200 hover:bg-violet-500/10 disabled:opacity-50"
+        >
+          {gerando ? "Escrevendo..." : "✍️ Sugerir mensagem"}
+        </button>
         <button
           onClick={importHistory}
           disabled={importing || pending || !hasWhatsapp}
@@ -285,6 +333,7 @@ export function Conversation({
         >
           {importing ? "Carregando..." : "Carregar histórico"}
         </button>
+        </div>
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto p-4">
         {messages.length === 0 && (
@@ -338,6 +387,47 @@ export function Conversation({
         <div ref={endRef} />
       </div>
 
+      {rascunho !== null && (
+        <div className="border-t border-violet-400/30 bg-violet-500/5 p-3">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-violet-200">
+            Sugestão de mensagem — revise antes de enviar
+          </p>
+          <textarea
+            value={rascunho}
+            onChange={(e) => setRascunho(e.target.value)}
+            rows={4}
+            className="mb-2 w-full rounded-lg border border-white/10 bg-[#0b2a49] px-3 py-2 text-sm text-slate-100 outline-none focus:border-violet-400"
+          />
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={enviarRascunho}
+              disabled={!hasWhatsapp || pending || !rascunho.trim()}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {pending ? "Enviando..." : "Enviar pelo WhatsApp"}
+            </button>
+            <button
+              onClick={copiarRascunho}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5"
+            >
+              {copiado ? "Copiado ✓" : "Copiar"}
+            </button>
+            <button
+              onClick={sugerirMensagem}
+              disabled={gerando}
+              className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-slate-200 hover:bg-white/5 disabled:opacity-50"
+            >
+              {gerando ? "Escrevendo..." : "Gerar outra"}
+            </button>
+            <button
+              onClick={() => setRascunho(null)}
+              className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:text-slate-200"
+            >
+              Descartar
+            </button>
+          </div>
+        </div>
+      )}
       <div className="flex items-center gap-2 border-t border-slate-800 p-3">
         <input
           ref={fileRef}
