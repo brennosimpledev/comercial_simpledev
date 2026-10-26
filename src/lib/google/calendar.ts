@@ -104,3 +104,56 @@ export async function deleteEvent(
   );
   return res.ok || res.status === 410; // 410 = ja removido
 }
+
+export interface PeriodoOcupado {
+  inicio: string; // ISO
+  fim: string;
+}
+
+// Periodos ocupados na agenda principal, a partir dos eventos. O escopo da
+// conta (calendar.events) nao cobre a consulta freeBusy, mas permite listar
+// eventos. Evento marcado como "disponivel" (transparent) nao ocupa; evento
+// de dia inteiro ocupa o dia todo, por seguranca. Devolve null se a leitura
+// falhar, para quem chama nao confundir erro com agenda vazia.
+export async function listarOcupados(
+  accessToken: string,
+  minISO: string,
+  maxISO: string
+): Promise<PeriodoOcupado[] | null> {
+  const params = new URLSearchParams({
+    timeMin: minISO,
+    timeMax: maxISO,
+    singleEvents: "true",
+    orderBy: "startTime",
+    maxResults: "250",
+  });
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params}`,
+      { headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15_000) }
+    );
+    if (!res.ok) {
+      console.error("[calendar] listarOcupados HTTP", res.status);
+      return null;
+    }
+    const data = (await res.json()) as {
+      items?: {
+        status?: string;
+        transparency?: string;
+        start?: { dateTime?: string; date?: string };
+        end?: { dateTime?: string; date?: string };
+      }[];
+    };
+    const ocupados: PeriodoOcupado[] = [];
+    for (const ev of data.items ?? []) {
+      if (ev.status === "cancelled" || ev.transparency === "transparent") continue;
+      const inicio = ev.start?.dateTime ?? (ev.start?.date ? `${ev.start.date}T00:00:00-03:00` : null);
+      const fim = ev.end?.dateTime ?? (ev.end?.date ? `${ev.end.date}T00:00:00-03:00` : null);
+      if (inicio && fim) ocupados.push({ inicio, fim });
+    }
+    return ocupados;
+  } catch (e) {
+    console.error("[calendar] listarOcupados:", e);
+    return null;
+  }
+}

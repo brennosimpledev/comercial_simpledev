@@ -12,6 +12,7 @@ import {
   type Lead,
   type LeadOrigin,
 } from "@/types/database";
+import { EtiquetaBot } from "@/components/leads/EtiquetaBot";
 
 function ymd(d: Date) {
   return d.toISOString().slice(0, 10);
@@ -218,6 +219,9 @@ export function LeadsView({
               <Link href={`/leads/${lead.id}`} className="hover:text-brand">
                 {lead.nome}
               </Link>
+              <div className="mt-0.5">
+                <EtiquetaBot avaliacao={lead.bot_avaliacao} />
+              </div>
             </div>
             <div className="w-36 shrink-0 text-slate-300">
               {lead.whatsapp ?? "—"}

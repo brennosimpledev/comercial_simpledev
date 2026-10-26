@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cerebroAtivo, gerarResposta, gerarResumo } from "@/lib/bot/cerebro";
+import { horariosLivres } from "@/lib/agenda";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -104,6 +105,9 @@ export async function GET(request: NextRequest) {
     if (f.autor === "nos") etapa++;
   });
 
+  // Horarios livres de agora: o ensaio mostra o que o bot ofereceria hoje.
+  const horarios = await horariosLivres(admin);
+
   const [rodadas, resumo] = await Promise.all([
     Promise.all(
       momentos.slice(0, 6).map(async (mo) => {
@@ -119,7 +123,12 @@ export async function GET(request: NextRequest) {
             nome,
             historico: historico.slice(0, mo.ate),
             etapa: mo.etapa,
-          }),
+            horarios,
+          }).then((r) =>
+            r.agendar
+              ? `[AGENDARIA: ${horarios.find((h) => h.iso === r.agendar)?.rotulo ?? r.agendar}]`
+              : r.texto
+          ),
         };
       })
     ),
@@ -130,6 +139,7 @@ export async function GET(request: NextRequest) {
     nome: lead?.nome ?? null,
     falas_no_trecho_do_bot: historico.length,
     rodadas,
-    resumo_hoje: resumo,
+    resumo_hoje: resumo ? `${resumo.resumo}
+CODIGO: ${resumo.codigo ?? "?"}` : null,
   });
 }

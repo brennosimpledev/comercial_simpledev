@@ -44,6 +44,8 @@ export interface Lead {
   estagio: LeadStage;
   estagio_em: string | null;
   proximo_contato: string | null;
+  // Avaliacao do bot (migration 0018): agendado | qualificado | nao_qualificado | sdr
+  bot_avaliacao?: string | null;
   status: LeadStatus;
   anotacoes: string | null;
   descricao: string | null;

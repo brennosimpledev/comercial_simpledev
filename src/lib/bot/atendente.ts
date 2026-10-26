@@ -14,7 +14,8 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppText } from "@/lib/evolution/client";
-import { cerebroAtivo, gerarResposta, gerarResumo } from "@/lib/bot/cerebro";
+import { cerebroAtivo, gerarResposta, gerarResumo, quandoOTimeVolta } from "@/lib/bot/cerebro";
+import { agendarPeloBot, horariosLivres, rotuloHorario } from "@/lib/agenda";
 import { brCanonical, last8 } from "@/lib/phone";
 
 const TZ = "America/Sao_Paulo";
@@ -30,7 +31,9 @@ export function botAtivo() {
 const HORA_INICIO = Number(process.env.BOT_HORA_INICIO ?? 8);
 const HORA_FIM = Number(process.env.BOT_HORA_FIM ?? 18);
 
-const MAX_MENSAGENS = Number(process.env.BOT_MAX_MENSAGENS ?? 6);
+// Teto por lead. Qualificar as tres coisas e marcar a reuniao pede algumas
+// trocas a mais que so colher a ideia.
+const MAX_MENSAGENS = Number(process.env.BOT_MAX_MENSAGENS ?? 8);
 
 // Quanto esperar o cliente terminar de escrever antes de responder. Quem
 // manda tres mensagens seguidas recebe uma resposta so, para as tres.
@@ -251,9 +254,38 @@ export async function responderForaDeHorario(
 
     let texto: string | null = null;
     let viaIa = false;
+    let agendouEm: string | null = null;
     if (cerebroAtivo()) {
-      texto = await gerarResposta({ nome, historico, etapa });
+      // Horarios livres de verdade: agenda do Google, reunioes do CRM e
+      // bloqueios. Sem conseguir ler a agenda, a lista vem vazia e o bot
+      // nao oferece horario.
+      const horarios = await horariosLivres(supabase);
+      const resposta = await gerarResposta({ nome, historico, etapa, horarios });
+      texto = resposta.texto;
       viaIa = Boolean(texto);
+
+      if (resposta.agendar) {
+        const marcado = await agendarPeloBot(supabase, leadId, resposta.agendar);
+        if (marcado.ok) {
+          agendouEm = marcado.inicio.toISOString();
+          texto =
+            `Prontinho${nome ? `, ${nome}` : ""}! Sua conversa com nosso especialista ficou marcada para ${rotuloHorario(marcado.inicio)}.` +
+            (marcado.meetLink ? `\n\nLink do Google Meet: ${marcado.meetLink}` : "") +
+            `\n\nSe surgir algum imprevisto, é só avisar por aqui.`;
+        } else {
+          console.error("[bot] agendamento falhou:", marcado.motivo);
+          // O horario foi ocupado desde a oferta (ou a agenda falhou): oferece
+          // o que sobrou ou devolve para o time.
+          const outros = (await horariosLivres(supabase)).filter((h) => h.iso !== resposta.agendar);
+          texto =
+            outros.length > 0
+              ? `Esse horário acabou de ser ocupado 😕 Tenho ${outros
+                  .map((h) => h.rotulo)
+                  .join(" ou ")}. Algum desses fica bom pra você?`
+              : `Esse horário acabou de ser ocupado 😕 O time comercial te chama ${quandoOTimeVolta()} pra achar o melhor horário com você.`;
+        }
+        viaIa = true;
+      }
     }
     if (!texto) {
       // Texto fixo so na primeira fala. No meio da conversa ele repetia
@@ -288,7 +320,7 @@ export async function responderForaDeHorario(
       body: texto,
       status: "sent",
       wa_message_id: envio.waMessageId ?? null,
-      raw: { bot: true, etapa: etapa + 1, fase: 1, ia: viaIa },
+      raw: { bot: true, etapa: etapa + 1, fase: 2, ia: viaIa, ...(agendouEm ? { agendou: agendouEm } : {}) },
     });
 
     await atualizarResumo(supabase, leadId, (lead.anotacoes as string | null) ?? "", [
@@ -314,8 +346,9 @@ async function atualizarResumo(
   anotacoes: string,
   historico: { autor: "cliente" | "nos"; texto: string }[]
 ) {
-  const resumo = await gerarResumo(historico);
-  if (!resumo) return;
+  const gerado = await gerarResumo(historico);
+  if (!gerado) return;
+  const resumo = gerado.resumo;
 
   const quando = new Date().toLocaleString("pt-BR", {
     timeZone: TZ,
@@ -336,4 +369,11 @@ async function atualizarResumo(
         : bloco;
 
   await supabase.from("leads").update({ anotacoes: novas }).eq("id", leadId);
+
+  // Etiqueta do lead na lista ("SDR qualificar", "agendado pelo bot"...).
+  // Update separado: sem a migration 0018 a coluna nao existe e isso nao
+  // pode impedir o resumo de ser gravado.
+  if (gerado.codigo) {
+    await supabase.from("leads").update({ bot_avaliacao: gerado.codigo }).eq("id", leadId);
+  }
 }

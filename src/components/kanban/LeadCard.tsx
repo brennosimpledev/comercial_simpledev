@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useDraggable } from "@dnd-kit/core";
 import { ORIGIN_LABELS, type Lead } from "@/types/database";
+import { EtiquetaBot } from "@/components/leads/EtiquetaBot";
 
 const ORIGIN_STYLES: Record<string, string> = {
   google_ads: "bg-blue-100 text-blue-700",
@@ -42,6 +43,12 @@ export function LeadCard({ lead }: { lead: Lead }) {
           {ORIGIN_LABELS[lead.origem]}
         </span>
       </div>
+
+      {lead.bot_avaliacao && (
+        <div className="mt-1">
+          <EtiquetaBot avaliacao={lead.bot_avaliacao} />
+        </div>
+      )}
 
       {lead.necessidade && (
         <p className="mt-1 line-clamp-2 text-xs text-slate-500">
