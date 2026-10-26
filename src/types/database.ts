@@ -206,6 +206,8 @@ export interface Meeting {
   resumo: string | null;
   transcricao: string | null;
   gravacao: string | null;
+  // Vezes que a reuniao foi remarcada (migration 0017).
+  remarcacoes?: number;
 }
 
 export type FollowUpStatus = "pendente" | "enviado" | "cancelado" | "pulado" | "falhou";

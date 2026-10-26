@@ -18,6 +18,12 @@ import {
   type DocumentoReuniao,
 } from "@/app/(app)/leads/meetings";
 import { updateLeadNotes } from "@/app/(app)/leads/actions";
+import {
+  listarBloqueios,
+  criarBloqueio,
+  removerBloqueio,
+  type Bloqueio,
+} from "@/app/(app)/reunioes/bloqueios";
 import { DropZone } from "@/components/ui/DropZone";
 import {
   ORIGIN_LABELS,
@@ -239,28 +245,108 @@ export function MeetingsCalendar({
     return m;
   }, [meetings]);
 
-  // Numero da reuniao dentro do historico daquele lead. Canceladas nao
-  // entram na contagem: "2a reuniao" quando a primeira foi cancelada confunde.
-  const ordem = useMemo(() => {
+  // Ordem da reuniao no funil. A 1a e a de descoberta; a 2a (apresentacao
+  // do orcamento) so existe depois de uma reuniao REALIZADA. Falta,
+  // cancelamento e remarcacao nao avancam a ordem: quem furou e voltou
+  // continua na reuniao de descoberta. Calculado do historico, entao vale
+  // tambem para as reunioes antigas.
+  //
+  // Junto, o historico de problemas de cada reuniao: quantas vezes ela foi
+  // remarcada e quantas reunioes anteriores do lead furaram ou foram
+  // canceladas.
+  const { ordem, alertas, realizadasPorLead } = useMemo(() => {
     const porLead: Record<string, MeetingWithLead[]> = {};
-    for (const m of meetings) {
-      if (m.status === "cancelada") continue;
-      (porLead[m.lead_id] ??= []).push(m);
-    }
+    for (const m of meetings) (porLead[m.lead_id] ??= []).push(m);
+
     const mapa: Record<string, number> = {};
-    for (const lista of Object.values(porLead)) {
+    const avisos: Record<string, { remarcou: number; faltou: number; cancelou: number }> = {};
+    const realizadas: Record<string, number> = {};
+
+    for (const [leadId, lista] of Object.entries(porLead)) {
+      let feitas = 0;
+      let faltas = 0;
+      let cancelamentos = 0;
       lista
         .slice()
-        .sort(
-          (a, b) =>
-            new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
-        )
-        .forEach((m, i) => {
-          mapa[m.id] = i + 1;
+        .sort((a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime())
+        .forEach((m) => {
+          mapa[m.id] = feitas + 1;
+          avisos[m.id] = {
+            remarcou: Number((m as { remarcacoes?: number }).remarcacoes) || 0,
+            faltou: faltas,
+            cancelou: cancelamentos,
+          };
+          if (m.status === "realizada") feitas++;
+          if (m.status === "furada") faltas++;
+          if (m.status === "cancelada") cancelamentos++;
         });
+      realizadas[leadId] = feitas;
     }
-    return mapa;
+    return { ordem: mapa, alertas: avisos, realizadasPorLead: realizadas };
   }, [meetings]);
+
+  function textoAlerta(id: string) {
+    const a = alertas[id];
+    if (!a) return "";
+    const partes = [
+      a.remarcou ? `remarcou ${a.remarcou}x` : "",
+      a.faltou ? `faltou ${a.faltou}x` : "",
+      a.cancelou ? `cancelou ${a.cancelou}x` : "",
+    ].filter(Boolean);
+    return partes.join(" · ");
+  }
+
+  // Bloqueios de agenda do mes visivel.
+  const [bloqueios, setBloqueios] = useState<Bloqueio[]>([]);
+  const [showBloqueio, setShowBloqueio] = useState(false);
+  const [bqData, setBqData] = useState("");
+  const [bqPeriodo, setBqPeriodo] = useState<"manha" | "tarde" | "dia" | "personalizado">("manha");
+  const [bqInicio, setBqInicio] = useState("");
+  const [bqFim, setBqFim] = useState("");
+  const [bqMotivo, setBqMotivo] = useState("");
+  const [bqSalvando, setBqSalvando] = useState(false);
+
+  async function carregarBloqueios(ano: number, mes: number) {
+    // Cobre a grade inteira, que mostra dias do mes anterior e seguinte.
+    const desde = new Date(ano, mes - 1, 20).toISOString();
+    const ate = new Date(ano, mes + 1, 15).toISOString();
+    const r = await listarBloqueios(desde, ate);
+    setBloqueios(r.bloqueios);
+  }
+
+  useEffect(() => {
+    carregarBloqueios(vYear, vMonth);
+  }, [vYear, vMonth]);
+
+  const bloqueiosPorDia = useMemo(() => {
+    const m: Record<string, Bloqueio[]> = {};
+    for (const b of bloqueios) (m[meetKey(b.inicio)] ??= []).push(b);
+    return m;
+  }, [bloqueios]);
+
+  async function salvarBloqueio() {
+    setBqSalvando(true);
+    const r = await criarBloqueio({
+      data: bqData,
+      periodo: bqPeriodo,
+      inicioHora: bqInicio,
+      fimHora: bqFim,
+      motivo: bqMotivo,
+    });
+    setBqSalvando(false);
+    if (r?.error) return alert(r.error);
+    if (r?.aviso) alert(r.aviso);
+    setShowBloqueio(false);
+    setBqMotivo("");
+    await carregarBloqueios(vYear, vMonth);
+  }
+
+  async function apagarBloqueio(b: Bloqueio) {
+    if (!confirm(`Desbloquear ${fmtTime(b.inicio)}–${fmtTime(b.fim)}${b.motivo ? ` (${b.motivo})` : ""}?`)) return;
+    const r = await removerBloqueio(b.id);
+    if (r?.error) return alert(r.error);
+    await carregarBloqueios(vYear, vMonth);
+  }
 
   const cnt = {
     agendada: meetings.filter((m) => m.status === "agendada").length,
@@ -563,13 +649,108 @@ export function MeetingsCalendar({
             ›
           </button>
         </div>
-        <button
-          onClick={goToday}
-          className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300 hover:bg-white/5"
-        >
-          Hoje
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              setBqData(new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }));
+              setShowBloqueio((v) => !v);
+            }}
+            className="rounded-lg border border-slate-500/40 px-3 py-1.5 text-sm text-slate-300 hover:bg-white/5"
+          >
+            🚫 Bloquear horário
+          </button>
+          <button
+            onClick={goToday}
+            className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-slate-300 hover:bg-white/5"
+          >
+            Hoje
+          </button>
+        </div>
       </div>
+
+      {showBloqueio && (
+        <div className="sd-card mb-4 p-4">
+          <p className="mb-3 text-sm font-semibold text-slate-200">
+            Bloquear agenda — ninguém consegue marcar reunião nesse período
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="sd-label">Data</label>
+              <input
+                type="date"
+                value={bqData}
+                onChange={(e) => setBqData(e.target.value)}
+                className="sd-input px-2 py-1.5"
+              />
+            </div>
+            <div>
+              <label className="sd-label">Período</label>
+              <div className="flex gap-1">
+                {(
+                  [
+                    ["manha", "Manhã"],
+                    ["tarde", "Tarde"],
+                    ["dia", "Dia inteiro"],
+                    ["personalizado", "Horário"],
+                  ] as const
+                ).map(([v, l]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setBqPeriodo(v)}
+                    className={`rounded-lg border px-2.5 py-1.5 text-sm ${
+                      bqPeriodo === v
+                        ? "border-brand bg-brand/15 text-brand"
+                        : "border-white/10 text-slate-300 hover:bg-white/5"
+                    }`}
+                  >
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {bqPeriodo === "personalizado" && (
+              <>
+                <div>
+                  <label className="sd-label">De</label>
+                  <input
+                    type="time"
+                    value={bqInicio}
+                    onChange={(e) => setBqInicio(e.target.value)}
+                    className="sd-input px-2 py-1.5"
+                  />
+                </div>
+                <div>
+                  <label className="sd-label">Até</label>
+                  <input
+                    type="time"
+                    value={bqFim}
+                    onChange={(e) => setBqFim(e.target.value)}
+                    className="sd-input px-2 py-1.5"
+                  />
+                </div>
+              </>
+            )}
+            <div className="min-w-[180px] flex-1">
+              <label className="sd-label">Motivo (opcional)</label>
+              <input
+                value={bqMotivo}
+                onChange={(e) => setBqMotivo(e.target.value)}
+                placeholder="Ex: médico"
+                className="sd-input px-2 py-1.5"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={salvarBloqueio}
+              disabled={bqSalvando}
+              className="sd-btn py-1.5"
+            >
+              {bqSalvando ? "Salvando..." : "Bloquear"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Calendario */}
       <div className="overflow-x-auto">
@@ -617,23 +798,37 @@ export function MeetingsCalendar({
                     {day.date.getDate()}
                   </div>
                   <div className="space-y-0.5">
+                    {(bloqueiosPorDia[day.key] ?? []).map((b) => (
+                      <button
+                        key={b.id}
+                        onClick={() => apagarBloqueio(b)}
+                        title={`Bloqueado${b.motivo ? `: ${b.motivo}` : ""}. Clique para desbloquear.`}
+                        className="w-full truncate rounded border border-dashed border-slate-500/60 bg-slate-700/40 px-1.5 py-0.5 text-left text-[11px] font-medium text-slate-300 hover:bg-slate-600/50"
+                      >
+                        🚫 {fmtTime(b.inicio)}–{fmtTime(b.fim)}
+                        {b.motivo ? ` ${b.motivo}` : ""}
+                      </button>
+                    ))}
                     {dm.map((m) => {
                       const sc = STATUS_CFG[m.status] ?? STATUS_CFG.agendada;
                       const n = ordem[m.id] ?? 1;
                       const follow = n > 1;
+                      const alerta = textoAlerta(m.id);
                       return (
                         <button
                           key={m.id}
                           onClick={() => openMeeting(m)}
-                          title={
-                            follow
-                              ? `${ordinalBR(n)} com ${m.leads.nome}`
-                              : m.leads.nome
-                          }
+                          title={[
+                            follow ? `${ordinalBR(n)} com ${m.leads.nome}` : m.leads.nome,
+                            alerta ? `Atenção: ${alerta}` : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" — ")}
                           className={`w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium text-white transition hover:brightness-125 ${
                             follow ? sc.pillFollow : sc.pill
                           }`}
                         >
+                          {alerta && <span className="mr-0.5">🔁</span>}
                           {follow && (
                             <span className="mr-1 font-bold opacity-90">
                               {n}ª
@@ -668,8 +863,10 @@ export function MeetingsCalendar({
         ))}
         <div className="flex items-center gap-1.5 text-xs text-slate-400">
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-800" />
-          Tom escuro = 2ª reunião em diante
+          Tom escuro = 2ª reunião (apresentação), depois de uma realizada
         </div>
+        <div className="text-xs text-slate-400">🔁 = cliente já remarcou, faltou ou cancelou</div>
+        <div className="text-xs text-slate-400">🚫 = horário bloqueado</div>
       </div>
 
       {/* Modal detalhe */}
@@ -699,6 +896,14 @@ export function MeetingsCalendar({
                 </p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
+                {textoAlerta(sel.id) && (
+                  <span
+                    className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-300"
+                    title="Histórico deste cliente com reuniões"
+                  >
+                    🔁 {textoAlerta(sel.id)}
+                  </span>
+                )}
                 {ordem[sel.id] > 1 && (
                   <span className="rounded-full bg-violet-500/15 px-2.5 py-0.5 text-xs font-medium text-violet-300">
                     {ordinalBR(ordem[sel.id])}
@@ -1110,7 +1315,7 @@ export function MeetingsCalendar({
             {showNova && !showReschedule && (
               <div className="mb-5 rounded-lg border border-violet-500/20 bg-navy p-3">
                 <label className="sd-label">
-                  {ordinalBR((ordem[sel.id] ?? 1) + 1)} com{" "}
+                  {ordinalBR((realizadasPorLead[sel.lead_id] ?? 0) + 1)} com{" "}
                   {primeiroNome(sel.leads.nome)}
                 </label>
                 <div className="flex gap-2">

@@ -8,6 +8,7 @@ import { sendWhatsAppText } from "@/lib/evolution/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findMeetFiles, type DriveFile } from "@/lib/google/drive";
 import { avancarEstagio } from "./actions";
+import { conflitoComBloqueio } from "@/lib/agenda";
 
 function firstName(nome: string) {
   return (nome ?? "").trim().split(/\s+/)[0] || "";
@@ -72,6 +73,9 @@ export async function scheduleMeeting(
   }
 
   const end = new Date(start.getTime() + (opts.durationMin || 30) * 60_000);
+
+  const bloqueio = await conflitoComBloqueio(supabase, start, end);
+  if (bloqueio) return { error: bloqueio };
 
   const title = `${lead.nome} — SimpleDEV`;
   const emailForInvite = opts.attendeeEmail?.trim() || lead.email;
@@ -339,9 +343,12 @@ export async function rescheduleMeeting(
 
   const end = new Date(start.getTime() + (durationMin || 30) * 60_000);
 
+  const bloqueio = await conflitoComBloqueio(supabase, start, end);
+  if (bloqueio) return { error: bloqueio };
+
   const { data: mtg } = await supabase
     .from("meetings")
-    .select("lead_id, google_event_id")
+    .select("*")
     .eq("id", meetingId)
     .single();
   if (!mtg) return { error: "Reunião não encontrada." };
@@ -365,6 +372,13 @@ export async function rescheduleMeeting(
       ends_at: end.toISOString(),
       status: "agendada",
     })
+    .eq("id", meetingId);
+
+  // Conta a remarcacao num update separado: se a coluna ainda nao existir
+  // (migration 0017), a remarcacao em si nao pode falhar por isso.
+  await supabase
+    .from("meetings")
+    .update({ remarcacoes: (Number((mtg as { remarcacoes?: number }).remarcacoes) || 0) + 1 })
     .eq("id", meetingId);
 
   revalidatePath("/reunioes");
