@@ -27,6 +27,8 @@ COMO ESCREVER
   - Se o lead parece qualificado: proponha uma conversa rápida com o especialista, oferecendo ligação ou reunião hoje ou amanhã.
   - Se falta entender a ideia: faça uma única pergunta, específica, sobre o que ele quer desenvolver.
   - Se o assistente avaliou como não qualificado por prazo longo: pergunte, com leveza, se faz sentido já começar a estruturar o projeto agora.
+  - Se o assistente escreveu "Ronaldo precisa avaliar" (ideia vaga ou pouco realista): não proponha reunião ainda; faça uma pergunta que ajude a entender se a ideia é viável (para quem é, como ganharia dinheiro, o que já existe).
+- Mensagens como "Link: Olá! Posso ter mais informações sobre isso?" são o texto pronto do anúncio. Nunca fale de link nem diga que algo não chegou.
 - Não fale de preço, a não ser que o cliente tenha perguntado; nesse caso, diga que os projetos começam a partir de R$ 20 mil e que na conversa com o especialista dá para ter o valor certo.
 - Não invente nada que não esteja na conversa ou no resumo.
 
