@@ -1,0 +1,1045 @@
+{
+  "schemaVersion": 1,
+  "title": "Exemplo sintético de escopo",
+  "objective": "Validar a estrutura de requisitos, decisões e planejamento sem dados de cliente.",
+  "sources": [
+    {
+      "name": "Item sintético de demonstração",
+      "reference": "fixture-demo"
+    }
+  ],
+  "roles": [
+    {
+      "id": "ROLE-01",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "ROLE-02",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "ROLE-03",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "ROLE-04",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "ROLE-05",
+      "name": "Item sintético de demonstração"
+    }
+  ],
+  "modules": [
+    {
+      "id": "MOD-01",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-02",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-03",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-04",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-05",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-06",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-07",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-08",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-09",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-10",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-11",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-12",
+      "name": "Item sintético de demonstração"
+    },
+    {
+      "id": "MOD-13",
+      "name": "Item sintético de demonstração"
+    }
+  ],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "moduleId": "MOD-01",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-002",
+      "moduleId": "MOD-01",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-003",
+      "moduleId": "MOD-01",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-004",
+      "moduleId": "MOD-01",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-005",
+      "moduleId": "MOD-01",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-006",
+      "moduleId": "MOD-01",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-007",
+      "moduleId": "MOD-01",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-008",
+      "moduleId": "MOD-01",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-009",
+      "moduleId": "MOD-02",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-010",
+      "moduleId": "MOD-02",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-011",
+      "moduleId": "MOD-02",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-012",
+      "moduleId": "MOD-02",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-013",
+      "moduleId": "MOD-02",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-014",
+      "moduleId": "MOD-02",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-015",
+      "moduleId": "MOD-03",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-016",
+      "moduleId": "MOD-03",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-017",
+      "moduleId": "MOD-03",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-018",
+      "moduleId": "MOD-03",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-019",
+      "moduleId": "MOD-03",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-020",
+      "moduleId": "MOD-03",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-021",
+      "moduleId": "MOD-04",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-022",
+      "moduleId": "MOD-04",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-023",
+      "moduleId": "MOD-04",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-024",
+      "moduleId": "MOD-04",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-025",
+      "moduleId": "MOD-04",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-026",
+      "moduleId": "MOD-04",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-027",
+      "moduleId": "MOD-05",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-028",
+      "moduleId": "MOD-05",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-029",
+      "moduleId": "MOD-05",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-030",
+      "moduleId": "MOD-05",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-031",
+      "moduleId": "MOD-05",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-032",
+      "moduleId": "MOD-06",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-033",
+      "moduleId": "MOD-06",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-034",
+      "moduleId": "MOD-06",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-035",
+      "moduleId": "MOD-06",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-036",
+      "moduleId": "MOD-07",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-037",
+      "moduleId": "MOD-07",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-038",
+      "moduleId": "MOD-07",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-039",
+      "moduleId": "MOD-08",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-040",
+      "moduleId": "MOD-08",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-041",
+      "moduleId": "MOD-08",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-042",
+      "moduleId": "MOD-08",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-043",
+      "moduleId": "MOD-08",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-044",
+      "moduleId": "MOD-09",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-045",
+      "moduleId": "MOD-09",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-046",
+      "moduleId": "MOD-09",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "pending",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes",
+      "decisionId": "DEC-WHATSAPP"
+    },
+    {
+      "id": "REQ-047",
+      "moduleId": "MOD-09",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-048",
+      "moduleId": "MOD-10",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-049",
+      "moduleId": "MOD-10",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-050",
+      "moduleId": "MOD-10",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-051",
+      "moduleId": "MOD-10",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-052",
+      "moduleId": "MOD-10",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-053",
+      "moduleId": "MOD-10",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-054",
+      "moduleId": "MOD-10",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-055",
+      "moduleId": "MOD-11",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-056",
+      "moduleId": "MOD-11",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-057",
+      "moduleId": "MOD-11",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-058",
+      "moduleId": "MOD-11",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-059",
+      "moduleId": "MOD-12",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "pending",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes",
+      "decisionId": "DEC-IA"
+    },
+    {
+      "id": "REQ-060",
+      "moduleId": "MOD-12",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "pending",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes",
+      "decisionId": "DEC-IA"
+    },
+    {
+      "id": "REQ-061",
+      "moduleId": "MOD-12",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "pending",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes",
+      "decisionId": "DEC-IA"
+    },
+    {
+      "id": "REQ-062",
+      "moduleId": "MOD-12",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "pending",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes",
+      "decisionId": "DEC-IA"
+    },
+    {
+      "id": "REQ-063",
+      "moduleId": "MOD-12",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "pending",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes",
+      "decisionId": "DEC-IA"
+    },
+    {
+      "id": "REQ-064",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-065",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-066",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-067",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-068",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-069",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-070",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-071",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "included",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-072",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "pending",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes",
+      "decisionId": "DEC-LOJAS"
+    },
+    {
+      "id": "REQ-073",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "optional",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-074",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "optional",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    },
+    {
+      "id": "REQ-075",
+      "moduleId": "MOD-13",
+      "roleIds": [],
+      "title": "Exemplo sintético de escopo",
+      "description": "Requisito fictício para validar o fluxo automatizado.",
+      "inclusion": "optional",
+      "acceptance": [],
+      "hours": null,
+      "assumptions": [],
+      "source": "Fixture sintético de testes"
+    }
+  ],
+  "decisions": [
+    {
+      "id": "DEC-LOJAS",
+      "question": "Qual alternativa deve ser considerada neste cenário fictício?",
+      "options": [
+        "Alternativa fictícia",
+        "Alternativa fictícia"
+      ],
+      "answer": null
+    },
+    {
+      "id": "DEC-WHATSAPP",
+      "question": "Qual alternativa deve ser considerada neste cenário fictício?",
+      "options": [
+        "Alternativa fictícia",
+        "Alternativa fictícia"
+      ],
+      "answer": null
+    },
+    {
+      "id": "DEC-IA",
+      "question": "Qual alternativa deve ser considerada neste cenário fictício?",
+      "options": [
+        "Alternativa fictícia",
+        "Alternativa fictícia"
+      ],
+      "answer": null
+    }
+  ],
+  "exclusions": [
+    "Item fictício fora do escopo de demonstração.",
+    "Item fictício fora do escopo de demonstração.",
+    "Item fictício fora do escopo de demonstração.",
+    "Item fictício fora do escopo de demonstração.",
+    "Item fictício fora do escopo de demonstração.",
+    "Item fictício fora do escopo de demonstração."
+  ],
+  "risks": [
+    "Risco sintético de exemplo.",
+    "Risco sintético de exemplo.",
+    "Risco sintético de exemplo.",
+    "Risco sintético de exemplo."
+  ],
+  "planningNotes": [
+    "Nota sintética de planejamento.",
+    "Nota sintética de planejamento.",
+    "Nota sintética de planejamento.",
+    "Nota sintética de planejamento."
+  ]
+}

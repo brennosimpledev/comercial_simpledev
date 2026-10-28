@@ -1,0 +1,229 @@
+{
+  "$ref": "#/definitions/scope",
+  "definitions": {
+    "scope": {
+      "type": "object",
+      "properties": {
+        "schemaVersion": {
+          "type": "number",
+          "const": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "objective": {
+          "$ref": "#/definitions/scope/properties/title"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "$ref": "#/definitions/scope/properties/title"
+              },
+              "reference": {
+                "$ref": "#/definitions/scope/properties/title"
+              }
+            },
+            "required": [
+              "name",
+              "reference"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        },
+        "roles": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_-]{1,63}$"
+              },
+              "name": {
+                "$ref": "#/definitions/scope/properties/title"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 100
+        },
+        "modules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/scope/properties/roles/items"
+          },
+          "minItems": 1,
+          "maxItems": 200
+        },
+        "requirements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/scope/properties/roles/items/properties/id"
+              },
+              "moduleId": {
+                "$ref": "#/definitions/scope/properties/roles/items/properties/id"
+              },
+              "roleIds": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/scope/properties/roles/items/properties/id"
+                }
+              },
+              "title": {
+                "$ref": "#/definitions/scope/properties/title"
+              },
+              "description": {
+                "$ref": "#/definitions/scope/properties/title"
+              },
+              "inclusion": {
+                "type": "string",
+                "enum": [
+                  "included",
+                  "optional",
+                  "pending",
+                  "excluded"
+                ]
+              },
+              "decisionId": {
+                "$ref": "#/definitions/scope/properties/roles/items/properties/id"
+              },
+              "acceptance": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/scope/properties/title"
+                },
+                "maxItems": 30
+              },
+              "hours": {
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 10000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "assumptions": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/scope/properties/title"
+                },
+                "maxItems": 30
+              },
+              "source": {
+                "$ref": "#/definitions/scope/properties/title"
+              }
+            },
+            "required": [
+              "id",
+              "moduleId",
+              "roleIds",
+              "title",
+              "description",
+              "inclusion",
+              "acceptance",
+              "hours",
+              "assumptions",
+              "source"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 1000
+        },
+        "decisions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "$ref": "#/definitions/scope/properties/roles/items/properties/id"
+              },
+              "question": {
+                "$ref": "#/definitions/scope/properties/title"
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/definitions/scope/properties/title"
+                },
+                "minItems": 2
+              },
+              "answer": {
+                "anyOf": [
+                  {
+                    "$ref": "#/definitions/scope/properties/title"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "question",
+              "options",
+              "answer"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 100
+        },
+        "exclusions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/scope/properties/title"
+          },
+          "maxItems": 100
+        },
+        "risks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/scope/properties/title"
+          },
+          "maxItems": 100
+        },
+        "planningNotes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/scope/properties/title"
+          },
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "schemaVersion",
+        "title",
+        "objective",
+        "sources",
+        "roles",
+        "modules",
+        "requirements",
+        "decisions",
+        "exclusions",
+        "risks",
+        "planningNotes"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$schema": "http://json-schema.org/draft-07/schema#"
+}
