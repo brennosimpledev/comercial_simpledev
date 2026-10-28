@@ -7,6 +7,8 @@ type CookieToSet = { name: string; value: string; options?: CookieOptions };
 const PUBLIC_PATHS = ["/login", "/auth"];
 
 export async function updateSession(request: NextRequest) {
+  // These endpoints verify their own scoped bearer token / webhook signature.
+  if (["/api/delivery/mcp", "/api/delivery/github/webhook", "/api/delivery/github/reconcile"].includes(request.nextUrl.pathname)) return NextResponse.next({request});
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
