@@ -78,7 +78,8 @@ export async function GET(request: NextRequest) {
     // Mesmo numero cadastrado como cliente em outro card.
     if (await numeroDeCliente(supabase, c.lead.whatsapp as string)) continue;
     const passo = REGUA_AUTOMATICA[c.prox!.indice];
-    plano.push({ ...c, passo, texto: passo.texto(primeiroNome(c.lead.nome)) });
+    // Sem formulario, vai sem nome: "Oi, tudo bem?" nunca erra.
+    plano.push({ ...c, passo, texto: passo.texto(primeiroNome(c.s.nomeDoFormulario)) });
   }
 
   if (ensaio) {
