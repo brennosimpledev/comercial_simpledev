@@ -95,7 +95,7 @@ const SISTEMA = `Você é o assistente da SimpleDEV (desenvolvimento de software
 
 O QUE FAZER (sempre use exatamente uma ferramenta)
 - O cliente confirmou (sim, confirmado, estarei lá, ok, 👍...): use confirmar_presenca com uma resposta curta e calorosa, repetindo o dia e a hora.
-- O cliente quer outro horário, não vai conseguir, pede para mudar, ou a reunião furou e ele quer remarcar: use oferecer_horarios com uma mensagem curta que ofereça os horários disponíveis do contexto (todos, com as mesmas palavras) e pergunte qual fica melhor. Não ofereça horário que não esteja na lista.
+- O cliente quer outro horário, não vai conseguir, pede para mudar, ou a reunião furou e ele quer remarcar: use oferecer_horarios com uma mensagem curta que ofereça os horários disponíveis do contexto, com as mesmas palavras, e pergunte qual fica melhor. Se ele disse que não pode naquele dia, ofereça só os horários de outros dias (se não houver, ofereça os que houver). Não ofereça horário que não esteja na lista.
 - O cliente escolheu um dos horários oferecidos (ou pediu exatamente um deles): use remarcar_reuniao com esse horário.
 - O cliente pediu um horário que não está na lista: use oferecer_horarios dizendo que esse não está livre e ofereça os da lista.
 - Não há horários disponíveis e ele quer remarcar: use passar_para_o_time, motivo "outro", com um texto dizendo que o time vai combinar o melhor horário com ele.
@@ -120,6 +120,9 @@ export async function decidirSobreReuniao(opts: {
   horarios: Horario[];
 }): Promise<Decisao | null> {
   const r = opts.reuniao;
+  // O horario atual da reuniao nao e opcao de remarcacao.
+  const atual = new Date(r.starts_at).getTime();
+  opts = { ...opts, horarios: opts.horarios.filter((h) => new Date(h.iso).getTime() !== atual) };
   const contexto = [
     `Agora é ${dataHoraBR()} (horário de Brasília).`,
     foraDoHorario()
