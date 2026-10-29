@@ -60,7 +60,7 @@ export async function leadsComSituacao(
   dias = 30
 ): Promise<{ lead: LeadDaFila; s: Situacao }[]> {
   const desde = new Date(Date.now() - dias * 86_400_000).toISOString();
-  const { data: leads } = await supabase
+  const { data: leads, error } = await supabase
     .from("leads")
     .select("id, nome, whatsapp, estagio, bot_avaliacao, bot_pausado, proximo_contato, created_at")
     .in("estagio", ESTAGIOS_SDR)
@@ -70,6 +70,7 @@ export async function leadsComSituacao(
     .gte("created_at", desde)
     .order("created_at", { ascending: false })
     .limit(500);
+  if (error) console.error("[followups] leads:", error.message);
   const lista = (leads ?? []) as LeadDaFila[];
   if (lista.length === 0) return [];
 
@@ -84,12 +85,13 @@ export async function leadsComSituacao(
     for (const r of reunioes ?? []) comReuniao.add(r.lead_id as string);
 
     for (let de = 0; ; de += 1000) {
-      const { data } = await supabase
+      const { data, error: erroMsgs } = await supabase
         .from("lead_messages")
         .select("lead_id, direction, created_at, body, media_type, followup:raw->>followup")
         .in("lead_id", lote)
         .order("created_at", { ascending: true })
         .range(de, de + 999);
+      if (erroMsgs) console.error("[followups] mensagens:", erroMsgs.message);
       linhas.push(...((data ?? []) as Linha[]));
       if (!data || data.length < 1000) break;
     }

@@ -55,7 +55,8 @@ export async function GET(request: NextRequest) {
   // No ensaio da para olhar leads de antes do inicio da regua.
   const desde = (ensaio && q.get("desde")) || undefined;
 
-  const candidatos = (await leadsComSituacao(supabase, 15))
+  const todos = await leadsComSituacao(supabase, 15);
+  const candidatos = todos
     .filter(({ lead }) => !lead.bot_pausado && lead.whatsapp)
     .map(({ lead, s }) => ({ lead, s, prox: proximaDaRegua(s, desde) }))
     .filter(({ prox }) => prox && prox.vence.getTime() <= agora)
@@ -85,6 +86,18 @@ export async function GET(request: NextRequest) {
       ensaio: true,
       ligado: ligado(),
       enviados_hoje: enviadosHoje ?? 0,
+      // Por que cada lead do SDR entrou ou nao na rodada.
+      diagnostico: todos.map(({ lead, s }) => {
+        const prox = proximaDaRegua(s, desde);
+        return {
+          lead: lead.nome,
+          primeiro_contato: s.primeiraNossa,
+          respondeu: s.respondeu,
+          automaticos: s.automaticos,
+          pausado: lead.bot_pausado,
+          proxima: prox ? prox.vence.toISOString() : null,
+        };
+      }),
       mandaria: plano.map((p) => ({
         lead: p.lead.nome,
         passo: `${p.prox!.indice + 1}/${REGUA_AUTOMATICA.length} ${p.passo.titulo}`,
