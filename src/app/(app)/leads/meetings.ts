@@ -3,12 +3,27 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { getValidAccessToken, getTeamAccessToken } from "@/lib/google/tokens";
-import { createMeetEvent, deleteEvent, patchEvent } from "@/lib/google/calendar";
+import {
+  adicionarConvidadosNoEvento,
+  convidadosDoEvento,
+  createMeetEvent,
+  deleteEvent,
+  patchEvent,
+  type Convidado,
+} from "@/lib/google/calendar";
 import { sendWhatsAppText } from "@/lib/evolution/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findMeetFiles, type DriveFile } from "@/lib/google/drive";
 import { avancarEstagio } from "./actions";
 import { conflitoComBloqueio, zerarConfirmacao } from "@/lib/agenda";
+
+// "a@x.com, b@y.com" ou um por linha. Devolve os validos sem repetir e os
+// que nao parecem e-mail, para avisar em vez de descartar calado.
+function lerEmails(texto: string | undefined) {
+  const partes = (texto ?? "").split(/[\s,;]+/).map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const ok = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+  return { validos: [...new Set(partes.filter(ok))], invalidos: partes.filter((e) => !ok(e)) };
+}
 
 function firstName(nome: string) {
   return (nome ?? "").trim().split(/\s+/)[0] || "";
@@ -30,6 +45,8 @@ export async function scheduleMeeting(
     startLocal: string;
     durationMin: number;
     attendeeEmail?: string;
+    // Outros e-mails no convite, separados por virgula ou linha.
+    convidados?: string;
     notifyWhatsapp?: boolean;
   }
 ) {
@@ -77,6 +94,11 @@ export async function scheduleMeeting(
   const bloqueio = await conflitoComBloqueio(supabase, start, end);
   if (bloqueio) return { error: bloqueio };
 
+  const extras = lerEmails(opts.convidados);
+  if (extras.invalidos.length) {
+    return { error: `E-mail inválido: ${extras.invalidos.join(", ")}` };
+  }
+
   const title = `${lead.nome} — SimpleDEV`;
   const emailForInvite = opts.attendeeEmail?.trim() || lead.email;
 
@@ -93,6 +115,7 @@ export async function scheduleMeeting(
     startISO: start.toISOString(),
     endISO: end.toISOString(),
     attendeeEmail: emailForInvite ?? undefined,
+    attendeeEmails: extras.validos,
   });
 
   if (!result.ok) {
@@ -583,4 +606,50 @@ export async function removerDocumento(meetingId: string, path: string) {
   const { error } = await admin.storage.from("meetings").remove([path]);
   if (error) return { error: "Falha ao remover documento." };
   return { ok: true };
+}
+
+// ---------------------------------------------------------------------
+// Convidados do convite no Google (socio do cliente, time tecnico...).
+// O Google e a fonte da verdade: a lista e lida e gravada no evento.
+// ---------------------------------------------------------------------
+
+async function eventoDaReuniao(meetingId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Não autenticado." as const };
+  const { data: mtg } = await supabase
+    .from("meetings")
+    .select("google_event_id")
+    .eq("id", meetingId)
+    .single();
+  if (!mtg?.google_event_id) return { error: "Reunião sem evento no Google." as const };
+  const token = (await getValidAccessToken(supabase, user.id)) ?? (await getTeamAccessToken());
+  if (!token) return { error: "Nenhuma conta Google conectada na equipe." as const };
+  return { token, eventId: mtg.google_event_id as string };
+}
+
+export async function listarConvidados(
+  meetingId: string
+): Promise<{ convidados?: Convidado[]; error?: string }> {
+  const ev = await eventoDaReuniao(meetingId);
+  if ("error" in ev) return { error: ev.error };
+  const convidados = await convidadosDoEvento(ev.token, ev.eventId);
+  if (!convidados) return { error: "Não foi possível ler o convite no Google." };
+  return { convidados };
+}
+
+export async function adicionarConvidados(
+  meetingId: string,
+  texto: string
+): Promise<{ convidados?: Convidado[]; error?: string }> {
+  const { validos, invalidos } = lerEmails(texto);
+  if (invalidos.length) return { error: `E-mail inválido: ${invalidos.join(", ")}` };
+  if (validos.length === 0) return { error: "Digite pelo menos um e-mail." };
+  const ev = await eventoDaReuniao(meetingId);
+  if ("error" in ev) return { error: ev.error };
+  const convidados = await adicionarConvidadosNoEvento(ev.token, ev.eventId, validos);
+  if (!convidados) return { error: "O Google não aceitou os convidados. Tente de novo." };
+  return { convidados };
 }

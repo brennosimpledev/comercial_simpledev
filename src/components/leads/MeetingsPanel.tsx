@@ -70,6 +70,7 @@ export function MeetingsPanel({
   const [time, setTime] = useState("");
   const [durationMin, setDurationMin] = useState(30);
   const [email, setEmail] = useState(leadEmail ?? "");
+  const [convidados, setConvidados] = useState("");
   const [notify, setNotify] = useState(true);
   const [dateError, setDateError] = useState("");
 
@@ -99,6 +100,7 @@ export function MeetingsPanel({
         startLocal: `${date}T${time}`,
         durationMin,
         attendeeEmail: email || undefined,
+        convidados,
         notifyWhatsapp: notify,
       });
       if (res?.error) alert(res.error);
@@ -107,6 +109,7 @@ export function MeetingsPanel({
         setDate("");
         setTime("");
         setEmail(leadEmail ?? "");
+        setConvidados("");
         router.refresh();
       }
     });
@@ -225,6 +228,17 @@ export function MeetingsPanel({
               placeholder="email@exemplo.com"
               className="sd-input px-2 py-1.5"
             />
+          </div>
+          <div>
+            <label className="sd-label">Outros convidados (opcional)</label>
+            <input
+              type="text"
+              value={convidados}
+              onChange={(e) => setConvidados(e.target.value)}
+              placeholder="socio@empresa.com, ronaldo@simpledev.com.br"
+              className="sd-input px-2 py-1.5"
+            />
+            <p className="mt-1 text-[11px] text-slate-500">Separe os e-mails por vírgula.</p>
           </div>
           <label className="flex items-center gap-2 text-xs text-slate-300">
             <input

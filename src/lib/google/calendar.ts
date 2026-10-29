@@ -17,8 +17,17 @@ export async function createMeetEvent(
     startISO: string; // instante (UTC)
     endISO: string;
     attendeeEmail?: string;
+    // Outros convidados alem do lead (socio, time tecnico do cliente...).
+    attendeeEmails?: string[];
   }
 ): Promise<CreateEventResult> {
+  const convidados = [
+    ...new Set(
+      [opts.attendeeEmail, ...(opts.attendeeEmails ?? [])]
+        .filter((e): e is string => Boolean(e && e.trim()))
+        .map((e) => e.trim().toLowerCase())
+    ),
+  ];
   const body = {
     summary: opts.summary,
     description: opts.description ?? "",
@@ -37,8 +46,8 @@ export async function createMeetEvent(
         { method: "popup", minutes: 30 },
       ],
     },
-    ...(opts.attendeeEmail
-      ? { attendees: [{ email: opts.attendeeEmail }] }
+    ...(convidados.length > 0
+      ? { attendees: convidados.map((email) => ({ email })) }
       : {}),
   };
 
@@ -86,6 +95,58 @@ export async function patchEvent(
     }
   );
   return res.ok;
+}
+
+const urlEvento = (eventId: string) =>
+  `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`;
+
+export type Convidado = { email: string; resposta: string | null; organizador: boolean };
+
+// Convidados do evento, com a resposta de cada um ao convite. null se a
+// leitura falhar.
+export async function convidadosDoEvento(
+  accessToken: string,
+  eventId: string
+): Promise<Convidado[] | null> {
+  const res = await fetch(`${urlEvento(eventId)}?fields=attendees`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as {
+    attendees?: { email: string; responseStatus?: string; organizer?: boolean }[];
+  };
+  return (data.attendees ?? []).map((a) => ({
+    email: a.email,
+    resposta: a.responseStatus ?? null,
+    organizador: Boolean(a.organizer),
+  }));
+}
+
+// Acrescenta convidados ao evento sem tirar os que ja estao; o Google manda
+// o convite so para os novos. Devolve a lista final, ou null se falhar.
+export async function adicionarConvidadosNoEvento(
+  accessToken: string,
+  eventId: string,
+  emails: string[]
+): Promise<Convidado[] | null> {
+  const atuais = await convidadosDoEvento(accessToken, eventId);
+  if (atuais === null) return null;
+  const ja = new Set(atuais.map((a) => a.email.toLowerCase()));
+  const novos = emails.filter((e) => !ja.has(e.toLowerCase()));
+  if (novos.length === 0) return atuais;
+
+  const res = await fetch(`${urlEvento(eventId)}?sendUpdates=all`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      attendees: [
+        ...atuais.map((a) => ({ email: a.email, responseStatus: a.resposta ?? undefined })),
+        ...novos.map((email) => ({ email })),
+      ],
+    }),
+  });
+  if (!res.ok) return null;
+  return [...atuais, ...novos.map((email) => ({ email, resposta: "needsAction", organizador: false }))];
 }
 
 // Cancela (deleta) um evento no Google Calendar.

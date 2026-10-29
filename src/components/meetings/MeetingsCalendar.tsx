@@ -13,10 +13,13 @@ import {
   vincularTranscricao,
   vincularGravacao,
   listarDocumentos,
+  listarConvidados,
+  adicionarConvidados,
   uploadDocumento,
   removerDocumento,
   type DocumentoReuniao,
 } from "@/app/(app)/leads/meetings";
+import type { Convidado } from "@/lib/google/calendar";
 import { updateLeadNotes } from "@/app/(app)/leads/actions";
 import {
   listarBloqueios,
@@ -113,6 +116,13 @@ function drivePreview(url: string): string | null {
   const m = url.match(/\/file\/d\/([^/]+)/);
   return m ? `https://drive.google.com/file/d/${m[1]}/preview` : null;
 }
+
+const RESPOSTA_CONVITE: Record<string, string> = {
+  accepted: "Aceitou o convite",
+  declined: "Recusou o convite",
+  tentative: "Talvez",
+  needsAction: "Ainda não respondeu",
+};
 
 function primeiroNome(nome: string) {
   return (nome ?? "").trim().split(/\s+/)[0] || "cliente";
@@ -227,6 +237,10 @@ export function MeetingsCalendar({
   const [buscando, setBuscando] = useState(false);
   const [achados, setAchados] = useState<ArquivoDrive[] | null>(null);
   const [docs, setDocs] = useState<DocumentoReuniao[] | null>(null);
+  // null = carregando; undefined = sem evento no Google / falhou ao ler.
+  const [convidados, setConvidados] = useState<Convidado[] | null | undefined>(null);
+  const [novosConvidados, setNovosConvidados] = useState("");
+  const [convidando, setConvidando] = useState(false);
   const [enviandoDocs, setEnviandoDocs] = useState(false);
 
   const today = dKey(now);
@@ -401,6 +415,9 @@ export function MeetingsCalendar({
     setSel(m);
     setDocs(null);
     listarDocumentos(m.id).then((r) => setDocs(r.docs));
+    setConvidados(m.google_event_id ? null : undefined);
+    setNovosConvidados("");
+    if (m.google_event_id) listarConvidados(m.id).then((r) => setConvidados(r.convidados));
     setResumo(m.leads.anotacoes ?? "");
     setShowReschedule(false);
     setRescDate("");
@@ -555,6 +572,16 @@ export function MeetingsCalendar({
         router.refresh();
       }
     });
+  }
+
+  async function convidar() {
+    if (!sel || !novosConvidados.trim()) return;
+    setConvidando(true);
+    const r = await adicionarConvidados(sel.id, novosConvidados);
+    setConvidando(false);
+    if (r.error) return alert(r.error);
+    setConvidados(r.convidados);
+    setNovosConvidados("");
   }
 
   async function copiarLink() {
@@ -1014,6 +1041,56 @@ export function MeetingsCalendar({
                     Enviar no WhatsApp
                   </a>
                 )}
+              </div>
+            )}
+
+            {/* Convidados do convite no Google */}
+            {sel.google_event_id && (
+              <div className="mb-4">
+                <label className="sd-label">Convidados</label>
+                {convidados === null ? (
+                  <p className="text-xs text-slate-500">Carregando…</p>
+                ) : convidados === undefined ? (
+                  <p className="text-xs text-slate-500">Não foi possível ler o convite no Google.</p>
+                ) : (
+                  <ul className="mb-2 flex flex-wrap gap-1.5">
+                    {convidados.map((c) => (
+                      <li
+                        key={c.email}
+                        title={RESPOSTA_CONVITE[c.resposta ?? ""] ?? "Sem resposta"}
+                        className="rounded-full bg-white/5 px-2 py-0.5 text-xs text-slate-300"
+                      >
+                        {c.resposta === "accepted" ? "✓ " : c.resposta === "declined" ? "✕ " : ""}
+                        {c.email}
+                        {c.organizador ? " (organizador)" : ""}
+                      </li>
+                    ))}
+                    {convidados.length === 0 && (
+                      <li className="text-xs text-slate-500">Ninguém convidado ainda.</li>
+                    )}
+                  </ul>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={novosConvidados}
+                    onChange={(e) => setNovosConvidados(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && convidar()}
+                    placeholder="email@empresa.com, outro@empresa.com"
+                    className="sd-input flex-1 px-2 py-1.5 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={convidar}
+                    disabled={convidando || !novosConvidados.trim()}
+                    className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-slate-200 transition hover:bg-white/5 disabled:opacity-50"
+                  >
+                    {convidando ? "Convidando…" : "Convidar"}
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  O Google manda o convite com o link do Meet para cada e-mail novo.
+                </p>
               </div>
             )}
 
