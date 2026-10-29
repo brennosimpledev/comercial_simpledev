@@ -41,7 +41,7 @@ type Bundle = {
     evidence: Record<string, unknown>;
     synced_at: string;
   } | null;
-  tokens: { id: string; expires_at: string; revoked_at: string | null }[];
+  tokens: { id: string; expires_at: string | null; revoked_at: string | null; project_id?: string | null }[];
   members: { user_id: string }[];
   isOwner: boolean;
 };
@@ -767,9 +767,11 @@ export function ProjectWorkspace({ id }: { id: string }) {
         <section className="space-y-4">
           <h2 className="text-xl">Claude / MCP</h2>
           <p>
-            Crie uma conexão restrita a este projeto, válida por 30 dias. No
-            Claude, configure um conector remoto com o endereço abaixo e o
-            cabeçalho Authorization: Bearer TOKEN.
+            Crie uma conexão para sua conta do CRM. Claude poderá listar, criar
+            e atualizar projetos aos quais seu usuário tem acesso. A conexão
+            permanece ativa até você revogá-la. No Claude, configure um único
+            conector remoto com o endereço abaixo e o cabeçalho Authorization:
+            Bearer TOKEN.
           </p>
           <code className="block break-all">
             {typeof window !== "undefined" ? window.location.origin : ""}
@@ -785,11 +787,11 @@ export function ProjectWorkspace({ id }: { id: string }) {
               })
             }
           >
-            Criar token de conexão
+            Criar conexão da conta
           </button>
           {token && (
             <div className="rounded border border-brand p-3">
-              <p>Copie agora. O token não será exibido novamente.</p>
+            <p>Copie agora. O token não será exibido novamente; ele vale para os projetos aos quais sua conta tem acesso até ser revogado.</p>
               <input
                 aria-label="Token de conexão"
                 type="password"
@@ -815,8 +817,7 @@ export function ProjectWorkspace({ id }: { id: string }) {
           {bundle.tokens.map((t) => (
             <div key={t.id} className="flex gap-4">
               <span>
-                Expira em {new Date(t.expires_at).toLocaleDateString("pt-BR")} ·{" "}
-                {t.revoked_at ? "Revogado" : "Ativo"}
+                {t.project_id ? "Conexão antiga de um projeto" : "Conexão da conta"} · {t.expires_at ? `Expira em ${new Date(t.expires_at).toLocaleDateString("pt-BR")}` : "Sem expiração"} · {t.revoked_at ? "Revogado" : "Ativo"}
               </span>
               <button
                 disabled={busy || !!t.revoked_at}
