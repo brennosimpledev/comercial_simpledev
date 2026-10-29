@@ -9,20 +9,29 @@ export const dynamic = "force-dynamic";
 export default async function FunilPage() {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("leads")
-    .select("*")
-    // "proposta" e o nome antigo da coluna Negociacao.
-    .in("estagio", [...CLOSER_STAGES, "proposta"])
-    .order("estagio_em", { ascending: true });
+  const buscar = (estagios: string[]) =>
+    supabase
+      .from("leads")
+      .select("*")
+      .in("estagio", estagios)
+      .order("estagio_em", { ascending: true });
+  // "proposta" e o nome antigo da coluna Negociacao.
+  let { data, error } = await buscar([...CLOSER_STAGES, "proposta"]);
+  // Sem a migration 0020 os estagios novos nao existem no banco e a consulta
+  // inteira falha; o funil segue com as colunas antigas.
+  if (error) {
+    ({ data, error } = await buscar(
+      [...CLOSER_STAGES, "proposta"].filter((s) => s !== "interesse" && s !== "desqualificado")
+    ));
+  }
 
   if (error) {
     return (
       <div className="py-12 text-center">
         <h1 className="mb-2 text-xl font-bold text-white">Funil</h1>
         <p className="text-sm text-slate-400">
-          Estágios do closer não encontrados. Execute a migration 0015 no SQL
-          Editor do Supabase.
+          Estágios do closer não encontrados. Execute as migrations 0015 e
+          0020 no SQL Editor do Supabase.
         </p>
       </div>
     );

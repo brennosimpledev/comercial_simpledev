@@ -10,8 +10,10 @@ export type LeadStage =
   | "apresentacao_marcada"
   | "negociacao"
   | "proposta"
+  | "interesse"
   | "fechado"
   | "perdido"
+  | "desqualificado"
   | "descartado";
 
 export type LeadOrigin =
@@ -95,8 +97,10 @@ export const STAGE_LABELS: Record<LeadStage, string> = {
   apresentacao_marcada: "Apresentação Marcada",
   negociacao: "Negociação",
   proposta: "Negociação",
+  interesse: "Interesse de fechamento",
   fechado: "Fechado",
   perdido: "Perdido",
+  desqualificado: "Desqualificado",
   descartado: "Descartado",
 };
 
@@ -109,14 +113,17 @@ export const STAGE_ORDER: LeadStage[] = [
 ];
 
 // Quadro do closer: so quem ja sentou na reuniao. "proposta" e o nome
-// antigo de "negociacao" e cai na mesma coluna.
+// antigo de "negociacao" e cai na mesma coluna. Perdido e quem era bom e
+// nao fechou; desqualificado e lead ruim que passou do SDR.
 export const CLOSER_STAGES: LeadStage[] = [
   "reuniao_feita",
   "escopo_enviado",
   "apresentacao_marcada",
   "negociacao",
+  "interesse",
   "fechado",
   "perdido",
+  "desqualificado",
 ];
 
 export function colunaDoCloser(estagio: LeadStage): LeadStage | null {

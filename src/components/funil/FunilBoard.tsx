@@ -65,12 +65,15 @@ type ArquivoAtual = Pick<
 const ALERTA_DIAS: Partial<Record<LeadStage, number>> = {
   escopo_enviado: 3,
   negociacao: 5,
+  interesse: 3,
   apresentacao_marcada: 7,
 };
 
 const COR_COLUNA: Partial<Record<LeadStage, string>> = {
+  interesse: "text-lime-300",
   fechado: "text-emerald-400",
   perdido: "text-red-400",
+  desqualificado: "text-orange-400",
 };
 
 // Dias ate o retorno marcado. Negativo = atrasado.
@@ -397,7 +400,9 @@ export function FunilBoard({
                       ? "border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
                       : stage === "perdido"
                         ? "border-red-500/40 text-red-400 hover:bg-red-500/10"
-                        : "border-white/15 text-slate-300 hover:bg-white/5";
+                        : stage === "desqualificado"
+                          ? "border-orange-500/40 text-orange-400 hover:bg-orange-500/10"
+                          : "border-white/15 text-slate-300 hover:bg-white/5";
                   return (
                     <button
                       key={stage}

@@ -19,7 +19,7 @@ import {
   enviarFechamentoPendente,
   reenviarPendentes,
 } from "@/lib/conversions/report";
-import type { LeadStage, LeadOrigin } from "@/types/database";
+import { CLOSER_STAGES, type LeadStage, type LeadOrigin } from "@/types/database";
 
 const VALID_STAGES: LeadStage[] = [
   "novo",
@@ -30,8 +30,10 @@ const VALID_STAGES: LeadStage[] = [
   "apresentacao_marcada",
   "negociacao",
   "proposta",
+  "interesse",
   "fechado",
   "perdido",
+  "desqualificado",
   "descartado",
 ];
 
@@ -44,21 +46,40 @@ export async function updateLeadStage(id: string, estagio: LeadStage) {
   const status =
     estagio === "fechado"
       ? "ganho"
-      : estagio === "perdido" || estagio === "descartado"
+      : estagio === "perdido" || estagio === "descartado" || estagio === "desqualificado"
         ? "perdido"
         : "ativo";
 
-  const { error } = await supabase
-    .from("leads")
-    .update({ estagio, status, estagio_em: new Date().toISOString() })
-    .eq("id", id);
+  const { data: antes } = await supabase.from("leads").select("estagio").eq("id", id).single();
+  const patch: Record<string, unknown> = { estagio, status, estagio_em: new Date().toISOString() };
+  // A coluna Desqualificado e a marcacao "desqualificado" andam juntas: a
+  // marcacao e o que conta nos relatorios e o que vai para a Meta.
+  if (estagio === "desqualificado") {
+    patch.desqualificado = true;
+    patch.qualificado = false;
+  } else if (antes?.estagio === "desqualificado") {
+    patch.desqualificado = false;
+  }
 
-  if (error) return { error: "Não foi possível mover o lead." };
+  const { error } = await supabase.from("leads").update(patch).eq("id", id);
+
+  if (error) {
+    return {
+      error:
+        estagio === "interesse" || estagio === "desqualificado"
+          ? "Não foi possível mover o lead. Rode a migration 0020 no Supabase."
+          : "Não foi possível mover o lead.",
+    };
+  }
 
   // Conversao offline para o Google Ads. Roda depois da resposta para
   // nao atrasar a UI, e nunca lanca (ver reportConversion).
   if (estagio === "fechado") {
     after(() => reportConversion(id, "fechado"));
+  }
+  // Retorno negativo para a Meta: lead ruim que chegou ate a reuniao.
+  if (estagio === "desqualificado" && antes?.estagio !== "desqualificado") {
+    after(() => reportConversion(id, "desqualificado"));
   }
 
   revalidatePath("/dashboard");
@@ -236,8 +257,15 @@ export async function toggleLeadFlag(
   if (flag === "qualificado" && value) patch.desqualificado = false;
   if (flag === "desqualificado" && value) {
     patch.qualificado = false;
-    patch.estagio = "perdido";
     patch.status = "perdido";
+    // Quem ja passou pela reuniao vai para a coluna Desqualificado do
+    // funil do closer; antes disso, continua indo para Perdido.
+    const { data: atual } = await supabase.from("leads").select("estagio").eq("id", id).single();
+    const doCloser =
+      atual &&
+      [...CLOSER_STAGES, "proposta"].includes(atual.estagio as LeadStage) &&
+      atual.estagio !== "perdido";
+    patch.estagio = doCloser ? "desqualificado" : "perdido";
   }
 
   const { error } = await supabase.from("leads").update(patch).eq("id", id);
