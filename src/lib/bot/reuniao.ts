@@ -113,7 +113,7 @@ type Decisao =
   | { tipo: "remarcar"; iso: string }
   | { tipo: "time"; motivo: "cancelar" | "outro"; texto: string };
 
-async function decidir(opts: {
+export async function decidirSobreReuniao(opts: {
   nome: string;
   historico: { autor: "cliente" | "nos"; texto: string }[];
   reuniao: ReuniaoEmJogo;
@@ -351,7 +351,7 @@ export async function atenderReuniao(
     const nome = primeiroNome(nomeDoFormulario((entradas ?? []) as { direction: string; body: string | null }[]));
 
     const horarios = await horariosLivres(supabase);
-    const decisao = await decidir({ nome, historico, reuniao, horarios });
+    const decisao = await decidirSobreReuniao({ nome, historico, reuniao, horarios });
     if (!decisao) return { agiu: false, motivo: "ia_falhou" };
     if (opts.ensaio) return { agiu: false, motivo: "ensaio", decisao };
 
