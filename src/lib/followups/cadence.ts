@@ -115,5 +115,8 @@ export function nomeDoFormulario(msgs: { direction: string; body: string | null 
 /** Primeiro nome que serve para saudacao ("WhatsApp 1234" nao serve). */
 export function primeiroNome(nome: string | null | undefined) {
   const p = (nome ?? "").trim().split(/\s+/)[0] ?? "";
-  return /whatsapp/i.test(p) ? "" : p;
+  if (/whatsapp/i.test(p)) return "";
+  // So letras: "dgn_.js" ou "@fulano" no campo nome nao viram saudacao.
+  if (!/^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'-]+$/.test(p)) return "";
+  return p.charAt(0).toUpperCase() + p.slice(1).toLowerCase();
 }
