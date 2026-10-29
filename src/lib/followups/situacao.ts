@@ -48,6 +48,9 @@ type Linha = {
   followup: string | null;
 };
 
+/** Ultimo erro da consulta de leads, para o ensaio mostrar. */
+export let erroLeads: string | null = null;
+
 const texto = (m: Linha) =>
   ((m.body ?? "").trim() || (m.media_type ? `[${m.media_type}]` : "")).slice(0, 280);
 
@@ -60,18 +63,26 @@ export async function leadsComSituacao(
   dias = 30
 ): Promise<{ lead: LeadDaFila; s: Situacao }[]> {
   const desde = new Date(Date.now() - dias * 86_400_000).toISOString();
-  const { data: leads, error } = await supabase
-    .from("leads")
-    .select("id, nome, whatsapp, estagio, bot_avaliacao, bot_pausado, proximo_contato, created_at")
-    .in("estagio", ESTAGIOS_SDR)
-    .eq("status", "ativo")
-    .eq("desqualificado", false)
-    .eq("ja_cliente", false)
-    .gte("created_at", desde)
-    .order("created_at", { ascending: false })
-    .limit(500);
-  if (error) console.error("[followups] leads:", error.message);
-  const lista = (leads ?? []) as LeadDaFila[];
+  const buscar = (campos: string) =>
+    supabase
+      .from("leads")
+      .select(campos)
+      .in("estagio", ESTAGIOS_SDR)
+      .eq("status", "ativo")
+      .eq("desqualificado", false)
+      .eq("ja_cliente", false)
+      .gte("created_at", desde)
+      .order("created_at", { ascending: false })
+      .limit(500);
+  const campos = "id, nome, whatsapp, estagio, bot_pausado, proximo_contato, created_at";
+  let { data: leads, error } = await buscar(`${campos}, bot_avaliacao`);
+  // Sem a migration 0018 a coluna bot_avaliacao nao existe: segue sem etiqueta.
+  if (error) {
+    erroLeads = error.message;
+    console.error("[followups] leads:", error.message);
+    ({ data: leads, error } = await buscar(campos));
+  }
+  const lista = (leads ?? []) as unknown as LeadDaFila[];
   if (lista.length === 0) return [];
 
   const ids = lista.map((l) => l.id);

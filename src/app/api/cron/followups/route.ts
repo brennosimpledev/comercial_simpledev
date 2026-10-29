@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWhatsAppText, evolutionConfigured } from "@/lib/evolution/client";
 import { numeroDeCliente } from "@/lib/bot/atendente";
 import { REGUA_AUTOMATICA, horarioComercial, primeiroNome } from "@/lib/followups/cadence";
-import { leadsComSituacao, proximaDaRegua } from "@/lib/followups/situacao";
+import { erroLeads, leadsComSituacao, proximaDaRegua } from "@/lib/followups/situacao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
       ensaio: true,
       ligado: ligado(),
       enviados_hoje: enviadosHoje ?? 0,
+      erro_leads: erroLeads,
       // Por que cada lead do SDR entrou ou nao na rodada.
       diagnostico: todos.map(({ lead, s }) => {
         const prox = proximaDaRegua(s, desde);
