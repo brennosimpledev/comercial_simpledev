@@ -17,6 +17,11 @@ const CONFIG: Record<string, { texto: string; titulo: string; cls: string }> = {
     titulo: "O bot ficou em dúvida e não agendou. Melhor o SDR qualificar pessoalmente.",
     cls: "bg-amber-500/15 text-amber-300",
   },
+  sem_resposta: {
+    texto: "💤 Não respondeu ao bot",
+    titulo: "O bot mandou a primeira mensagem e o lead não respondeu a ele. O SDR segue normalmente.",
+    cls: "bg-white/5 text-slate-400",
+  },
   nao_qualificado: {
     texto: "Bot: não qualificado",
     titulo: "O bot encontrou um motivo para não qualificar. Veja o resumo nas anotações.",

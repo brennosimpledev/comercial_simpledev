@@ -14,7 +14,13 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppText } from "@/lib/evolution/client";
-import { cerebroAtivo, gerarResposta, gerarResumo, quandoOTimeVolta } from "@/lib/bot/cerebro";
+import {
+  cerebroAtivo,
+  gerarResposta,
+  gerarResumo,
+  quandoOTimeVolta,
+  type CodigoAvaliacao,
+} from "@/lib/bot/cerebro";
 import { agendarPeloBot, horariosLivres, rotuloHorario } from "@/lib/agenda";
 import { brCanonical, last8 } from "@/lib/phone";
 
@@ -34,6 +40,9 @@ const HORA_FIM = Number(process.env.BOT_HORA_FIM ?? 18);
 // Teto por lead. Qualificar as tres coisas e marcar a reuniao pede algumas
 // trocas a mais que so colher a ideia.
 const MAX_MENSAGENS = Number(process.env.BOT_MAX_MENSAGENS ?? 8);
+
+// Nome do arquivo, legenda ou descricao da foto que indica pagamento.
+const COMPROVANTE = /comprovante|recibo|\bpix\b|pagamento|transfer[eê]ncia|boleto/i;
 
 // Quanto esperar o cliente terminar de escrever antes de responder. Quem
 // manda tres mensagens seguidas recebe uma resposta so, para as tres.
@@ -252,10 +261,24 @@ export async function responderForaDeHorario(
       return { enviou: false, motivo: "nada_novo_para_responder" };
     }
 
+    // Arquivo sozinho nao e conversa de venda. Comprovante de pagamento vem
+    // de quem ja e cliente (em 26/10 o bot respondeu um com "o que voce
+    // quer desenvolver?"): so agradece e sai da conversa. Outro arquivo sem
+    // texto na abertura: avisa que vai olhar, sem pergunta de venda.
+    const iNossa = lista.findIndex((m) => m.direction === "outbound");
+    const turno = iNossa === -1 ? lista : lista.slice(0, iNossa);
+    const temArquivo = turno.some((m) => m.media_type === "document" || m.media_type === "image");
+    const comprovante = temArquivo && turno.some((m) => COMPROVANTE.test(m.body ?? ""));
+    const soArquivo = turno.length > 0 && turno.every((m) => m.media_type === "document");
+
     let texto: string | null = null;
     let viaIa = false;
     let agendouEm: string | null = null;
-    if (cerebroAtivo()) {
+    if (comprovante) {
+      texto = "Recebido, obrigado!";
+    } else if (soArquivo && etapa === 0) {
+      texto = "Opa, recebi! Vou dar uma olhada aqui.";
+    } else if (cerebroAtivo()) {
       // Horarios livres de verdade: agenda do Google, reunioes do CRM e
       // bloqueios. Sem conseguir ler a agenda, a lista vem vazia e o bot
       // nao oferece horario.
@@ -320,8 +343,28 @@ export async function responderForaDeHorario(
       body: texto,
       status: "sent",
       wa_message_id: envio.waMessageId ?? null,
-      raw: { bot: true, etapa: etapa + 1, fase: 2, ia: viaIa, ...(agendouEm ? { agendou: agendouEm } : {}) },
+      raw: {
+        bot: true,
+        etapa: etapa + 1,
+        fase: 2,
+        ia: viaIa,
+        ...(agendouEm ? { agendou: agendouEm } : {}),
+        ...(comprovante ? { comprovante: true } : {}),
+      },
     });
+
+    if (comprovante) {
+      // Pausar o bot tambem cancela a regua de follow-up desse numero.
+      await supabase.from("leads").update({ bot_pausado: true }).eq("id", leadId);
+      await gravarBloco(
+        supabase,
+        leadId,
+        (lead.anotacoes as string | null) ?? "",
+        "Mandou um comprovante de pagamento. O bot só agradeceu e foi pausado para este lead.\nAvaliação do bot: provável cliente. Confira e marque como cliente se for o caso.",
+        null
+      );
+      return { enviou: true };
+    }
 
     await atualizarResumo(supabase, leadId, (lead.anotacoes as string | null) ?? "", [
       ...historico,
@@ -348,8 +391,24 @@ async function atualizarResumo(
 ) {
   const gerado = await gerarResumo(historico);
   if (!gerado) return;
-  const resumo = gerado.resumo;
 
+  // Quem nao respondeu nada depois da primeira mensagem do bot nao e caso
+  // de "SDR qualificar": essa etiqueta saiu em todos os leads da semana de
+  // 26/10 e deixou de dizer alguma coisa.
+  const iPrimeira = historico.findIndex((f) => f.autor === "nos");
+  const respondeu = iPrimeira !== -1 && historico.slice(iPrimeira + 1).some((f) => f.autor === "cliente");
+  const codigo = respondeu ? gerado.codigo : "sem_resposta";
+
+  await gravarBloco(supabase, leadId, anotacoes, gerado.resumo, codigo);
+}
+
+async function gravarBloco(
+  supabase: SupabaseClient,
+  leadId: string,
+  anotacoes: string,
+  resumo: string,
+  codigo: CodigoAvaliacao | null
+) {
   const quando = new Date().toLocaleString("pt-BR", {
     timeZone: TZ,
     day: "2-digit",
@@ -373,7 +432,7 @@ async function atualizarResumo(
   // Etiqueta do lead na lista ("SDR qualificar", "agendado pelo bot"...).
   // Update separado: sem a migration 0018 a coluna nao existe e isso nao
   // pode impedir o resumo de ser gravado.
-  if (gerado.codigo) {
-    await supabase.from("leads").update({ bot_avaliacao: gerado.codigo }).eq("id", leadId);
+  if (codigo) {
+    await supabase.from("leads").update({ bot_avaliacao: codigo }).eq("id", leadId);
   }
 }

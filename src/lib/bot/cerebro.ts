@@ -265,18 +265,19 @@ Quer: (o que precisa desenvolver, nas palavras do cliente)
 Orçamento: (o valor que disse ou como reagiu aos R$ 20 mil; se o assunto não chegou a surgir, "não falou")
 Quando começa: (o que ele disse, ou o que veio no formulário)
 Contexto: (empresa em operação ou projeto novo, segmento, em uma linha)
-Avaliação do bot: (uma das quatro opções abaixo)
-CODIGO: (uma palavra: agendado, qualificado, nao_qualificado ou sdr)
+Avaliação do bot: (uma das cinco opções abaixo)
+CODIGO: (uma palavra: agendado, qualificado, nao_qualificado, sdr ou sem_resposta)
 
 Opções de avaliação:
 - "Reunião agendada pelo bot (data e hora)": quando a conversa traz a confirmação de que a reunião ficou marcada. CODIGO: agendado
 - "Qualificado": as três condições confirmadas, mas a reunião não chegou a ser marcada. CODIGO: qualificado
 - "Não qualificado (motivo)": motivo claro — fora da área, prazo acima de 3 meses, disse que não pode investir a partir de R$ 20 mil, ou entrou em contato por engano. CODIGO: nao_qualificado
-- "SDR deve qualificar: (motivo)": qualquer dúvida — ideia vaga ou pouco realista, orçamento não confirmado ou hesitante, outra pessoa decide, o cliente parou de responder antes de explicar. CODIGO: sdr
+- "SDR deve qualificar: (motivo)": qualquer dúvida — ideia vaga ou pouco realista, orçamento não confirmado ou hesitante, outra pessoa decide, o cliente parou de responder no meio da conversa. CODIGO: sdr
+- "Sem resposta: o lead ainda não respondeu ao assistente": o assistente mandou a primeira mensagem e o cliente não respondeu nada depois dela. CODIGO: sem_resposta
 
 Se uma informação não apareceu, escreva "não disse". Não invente nada. A avaliação é uma sugestão: quem confirma é o time.`;
 
-export type CodigoAvaliacao = "agendado" | "qualificado" | "nao_qualificado" | "sdr";
+export type CodigoAvaliacao = "agendado" | "qualificado" | "nao_qualificado" | "sdr" | "sem_resposta";
 
 export async function gerarResumo(
   historico: Fala[]
@@ -314,7 +315,7 @@ export async function gerarResumo(
     const linhas = texto.split("\n");
     const linhaCodigo = linhas.find((l) => /^CODIGO:/i.test(l.trim()));
     const valor = linhaCodigo?.split(":")[1]?.trim().toLowerCase() ?? "";
-    const codigo = (["agendado", "qualificado", "nao_qualificado", "sdr"] as const).find(
+    const codigo = (["agendado", "qualificado", "nao_qualificado", "sdr", "sem_resposta"] as const).find(
       (c) => c === valor
     );
     const resumo = linhas.filter((l) => !/^CODIGO:/i.test(l.trim())).join("\n").trim();
