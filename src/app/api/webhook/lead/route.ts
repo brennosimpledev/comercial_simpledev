@@ -4,7 +4,6 @@ import {
   mapWebhookToLead,
   type LpWebhookPayload,
 } from "@/lib/mappers/webhook-lead";
-import { scheduleFollowUpsForLead } from "@/lib/followups/schedule";
 import { brCanonical, last8 } from "@/lib/phone";
 
 export const runtime = "nodejs";
@@ -118,13 +117,6 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error("[webhook/lead] insert error:", error);
     return json({ error: "could not save lead" }, 500);
-  }
-
-  // Agenda a regua de follow-up (nao bloqueia a resposta se falhar).
-  try {
-    await scheduleFollowUpsForLead(supabase, data);
-  } catch (e) {
-    console.error("[webhook/lead] followup schedule error:", e);
   }
 
   return json({ ok: true, id: data.id }, 201);

@@ -38,7 +38,9 @@ export async function montarContinuidade(
   supabase: SupabaseClient,
   leadId: string,
   // So para o ensaio: reconstroi o momento antes da primeira fala humana.
-  ensaio?: { antesDe: string }
+  ensaio?: { antesDe: string },
+  // "retomada": o lead ja conversou e parou de responder (fila /followups).
+  modo?: "retomada"
 ): Promise<{ ok?: boolean; texto?: string; error?: string }> {
   if (!process.env.ANTHROPIC_API_KEY) return { error: "Chave da IA não configurada." };
 
@@ -88,7 +90,9 @@ export async function montarContinuidade(
     `Nome do lead: ${(lead.nome as string) ?? "desconhecido"}.`,
     resumo ? `Resumo do assistente automático:\n${resumo}` : "Não há resumo do assistente automático.",
     `Conversa até agora (mais antiga primeiro):\n${conversa || "(sem mensagens)"}`,
-    "Escreva a próxima mensagem do Ronaldo.",
+    modo === "retomada"
+      ? "O cliente parou de responder depois da última mensagem nossa. Escreva uma mensagem curta do Ronaldo para retomar: lembre em uma frase o ponto em que a conversa parou, com as palavras do cliente, sem cobrar resposta e sem repetir a mesma pergunta da última mensagem. Termine com uma pergunta fácil de responder (sim ou não, ou uma escolha entre duas opções). Não se apresente de novo."
+      : "Escreva a próxima mensagem do Ronaldo.",
   ].join("\n\n");
 
   const client = new Anthropic();

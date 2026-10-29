@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { manualLeadSchema } from "@/lib/validators/lead";
-import { scheduleFollowUpsForLead } from "@/lib/followups/schedule";
 import {
   sendWhatsAppText,
   sendWhatsAppMedia,
@@ -112,12 +111,6 @@ export async function createManualLead(_prev: unknown, formData: FormData) {
     .single();
 
   if (error || !lead) return { error: "Não foi possível salvar o lead." };
-
-  try {
-    await scheduleFollowUpsForLead(supabase, lead);
-  } catch {
-    /* nao bloqueia o cadastro */
-  }
 
   revalidatePath("/dashboard");
   revalidatePath("/leads");

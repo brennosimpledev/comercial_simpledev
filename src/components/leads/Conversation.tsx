@@ -348,6 +348,9 @@ export function Conversation({
           const doBot = Boolean(
             out && m.raw && (m.raw as { bot?: boolean }).bot
           );
+          const automatico = Boolean(
+            out && m.raw && (m.raw as { followup?: string }).followup
+          );
           return (
             <div
               key={m.id}
@@ -366,6 +369,11 @@ export function Conversation({
                 {doBot && (
                   <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-200">
                     🤖 Bot — fora do horário
+                  </div>
+                )}
+                {automatico && (
+                  <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-100">
+                    🔁 Follow-up automático
                   </div>
                 )}
                 <MediaBlock message={m} />

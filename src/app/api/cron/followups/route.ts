@@ -1,174 +1,125 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWhatsAppText, evolutionConfigured } from "@/lib/evolution/client";
+import { numeroDeCliente } from "@/lib/bot/atendente";
+import { REGUA_AUTOMATICA, horarioComercial, primeiroNome } from "@/lib/followups/cadence";
+import { leadsComSituacao, proximaDaRegua } from "@/lib/followups/situacao";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
-// Disparado pelo Vercel Cron (ver vercel.json).
-// Envia os follow-ups pendentes cujo horario ja chegou, respeitando
-// "bot pausado" e leads desqualificados/fechados.
+// Regua automatica para quem nunca respondeu. Roda as 9h e as 14h em dia
+// util (vercel.json) e manda, por lead, so a proxima tentativa que venceu.
 //
-// Tres guardas que faltavam e custaram caro em set/2026, quando a Evolution
-// ficou fora do ar por uma semana:
+// Desligada por padrao: so envia com FOLLOWUP_AUTO ligado no Vercel.
+//   GET ?secret=...&ensaio=1            -> lista o que mandaria agora, sem enviar
+//   GET ?secret=...&ensaio=1&desde=ISO  -> idem, contando leads mais antigos
 //
-//   1. Falha nao grava mensagem. Antes, cada tentativa frustrada inseria
-//      uma linha em lead_messages - ~17 mil mensagens fantasma no
-//      historico de uns 25 leads.
-//   2. Tentativas sao contadas e o follow-up desiste. Antes, o mesmo
-//      registro voltava a cada 15 minutos para sempre.
-//   3. Teto diario, alem do teto por rodada. 25 por rodada parece
-//      prudente e vira 2.400 por dia.
+// Guardas que vieram da queda da Evolution em set/2026: falha nao grava
+// mensagem, teto por rodada e teto diario. E as da regua nova: nada fora do
+// horario comercial, nada para quem respondeu, tem reuniao, e cliente ou
+// esta pausado, e nada em cima de uma mensagem nossa recente.
 
 const POR_RODADA = 25;
-const TETO_DIARIO = 300;
-const MAX_TENTATIVAS = 5;
-// Follow-up muito atrasado perdeu o proposito: cobrar alguem sobre uma
-// conversa de semanas atras faz mais mal que bem.
-const VENCIMENTO_DIAS = 3;
+const TETO_DIARIO = 60;
+// Se alguem do time (ou o bot) falou ha pouco, espera a proxima rodada em
+// vez de empilhar mensagem.
+const RESPIRO_H = 5;
+
+function ligado() {
+  const v = (process.env.FOLLOWUP_AUTO ?? "").toLowerCase();
+  return v === "1" || v === "on" || v === "true";
+}
 
 export async function GET(request: NextRequest) {
   // Vercel Cron envia Authorization: Bearer <CRON_SECRET> quando a env existe.
   const cronSecret = process.env.CRON_SECRET;
+  const q = request.nextUrl.searchParams;
   if (cronSecret) {
     const auth = request.headers.get("authorization");
-    const query = request.nextUrl.searchParams.get("secret");
-    if (auth !== `Bearer ${cronSecret}` && query !== cronSecret) {
+    if (auth !== `Bearer ${cronSecret}` && q.get("secret") !== cronSecret) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
   }
 
-  if (!evolutionConfigured()) {
-    return NextResponse.json({ ok: true, skipped: "evolution not configured" });
+  const ensaio = q.get("ensaio") === "1";
+  if (!ensaio) {
+    if (!ligado()) return NextResponse.json({ ok: true, skipped: "FOLLOWUP_AUTO desligado" });
+    if (!horarioComercial()) return NextResponse.json({ ok: true, skipped: "fora do horario comercial" });
+    if (!evolutionConfigured()) return NextResponse.json({ ok: true, skipped: "evolution not configured" });
   }
 
   const supabase = createAdminClient();
-  const agora = new Date();
-  const now = agora.toISOString();
+  const agora = Date.now();
+  // No ensaio da para olhar leads de antes do inicio da regua.
+  const desde = (ensaio && q.get("desde")) || undefined;
 
-  // ---- teto diario ----
-  const inicioDoDia = new Date(agora);
-  inicioDoDia.setUTCHours(0, 0, 0, 0);
+  const candidatos = (await leadsComSituacao(supabase, 15))
+    .filter(({ lead }) => !lead.bot_pausado && lead.whatsapp)
+    .map(({ lead, s }) => ({ lead, s, prox: proximaDaRegua(s, desde) }))
+    .filter(({ prox }) => prox && prox.vence.getTime() <= agora)
+    .filter(({ s }) => !s.ultimaNossa || agora - new Date(s.ultimaNossa.em).getTime() >= RESPIRO_H * 3600_000);
 
+  // Teto diario: conta o que a regua ja mandou hoje.
+  const inicioDoDia = new Date();
+  inicioDoDia.setUTCHours(3, 0, 0, 0);
+  if (inicioDoDia.getTime() > agora) inicioDoDia.setUTCDate(inicioDoDia.getUTCDate() - 1);
   const { count: enviadosHoje } = await supabase
-    .from("follow_ups")
+    .from("lead_messages")
     .select("id", { count: "exact", head: true })
-    .eq("status", "enviado")
-    .gte("sent_at", inicioDoDia.toISOString());
+    .not("raw->>followup", "is", null)
+    .gte("created_at", inicioDoDia.toISOString());
+  const limite = Math.max(0, Math.min(POR_RODADA, TETO_DIARIO - (enviadosHoje ?? 0)));
 
-  if ((enviadosHoje ?? 0) >= TETO_DIARIO) {
+  const plano = [];
+  for (const c of candidatos.slice(0, limite)) {
+    // Mesmo numero cadastrado como cliente em outro card.
+    if (await numeroDeCliente(supabase, c.lead.whatsapp as string)) continue;
+    const passo = REGUA_AUTOMATICA[c.prox!.indice];
+    plano.push({ ...c, passo, texto: passo.texto(primeiroNome(c.lead.nome)) });
+  }
+
+  if (ensaio) {
     return NextResponse.json({
-      ok: true,
-      pausado: "teto diario atingido",
-      enviados_hoje: enviadosHoje,
+      ensaio: true,
+      ligado: ligado(),
+      enviados_hoje: enviadosHoje ?? 0,
+      mandaria: plano.map((p) => ({
+        lead: p.lead.nome,
+        passo: `${p.prox!.indice + 1}/${REGUA_AUTOMATICA.length} ${p.passo.titulo}`,
+        venceu: p.prox!.vence.toISOString(),
+        texto: p.texto,
+      })),
     });
   }
 
-  const restante = TETO_DIARIO - (enviadosHoje ?? 0);
-  const limite = Math.min(POR_RODADA, restante);
-
-  const { data: due, error } = await supabase
-    .from("follow_ups")
-    .select(
-      "id, body, lead_id, scheduled_at, tentativas, leads!inner(whatsapp, bot_pausado, desqualificado, estagio)"
-    )
-    .eq("status", "pendente")
-    .lte("scheduled_at", now)
-    // Sem ordem explicita o Postgres devolve sempre o mesmo punhado quando
-    // ha limite - foi assim que 25 registros viraram 2.400 tentativas/dia.
-    .order("scheduled_at", { ascending: true })
-    .limit(limite);
-
-  if (error) {
-    console.error("[cron/followups]", error);
-    return NextResponse.json({ error: "query failed" }, { status: 500 });
-  }
-
-  const vencidoAntes = new Date(
-    agora.getTime() - VENCIMENTO_DIAS * 24 * 60 * 60 * 1000
-  );
-
   let sent = 0;
-  let skipped = 0;
   let falhou = 0;
-  let vencidos = 0;
-
-  for (const fu of due ?? []) {
-    const lead = (fu as unknown as {
-      leads: {
-        whatsapp: string | null;
-        bot_pausado: boolean;
-        desqualificado: boolean;
-        estagio: string;
-      };
-    }).leads;
-
-    const parar =
-      lead.bot_pausado ||
-      lead.desqualificado ||
-      lead.estagio === "fechado" ||
-      lead.estagio === "perdido" ||
-      !lead.whatsapp;
-
-    if (parar) {
-      await supabase
-        .from("follow_ups")
-        .update({ status: "cancelado" })
-        .eq("id", fu.id);
-      skipped++;
-      continue;
-    }
-
-    // Atrasado demais: cancela em vez de cobrar fora de hora.
-    if (new Date(fu.scheduled_at as string) < vencidoAntes) {
-      await supabase
-        .from("follow_ups")
-        .update({ status: "cancelado", ultimo_erro: "vencido" })
-        .eq("id", fu.id);
-      vencidos++;
-      continue;
-    }
-
-    const result = await sendWhatsAppText(lead.whatsapp!, fu.body);
-
-    if (!result.ok) {
-      const tentativas = ((fu.tentativas as number) ?? 0) + 1;
-      await supabase
-        .from("follow_ups")
-        .update({
-          tentativas,
-          ultimo_erro: (result.error ?? "falha desconhecida").slice(0, 500),
-          // Desiste depois de algumas tentativas em vez de tentar sempre.
-          ...(tentativas >= MAX_TENTATIVAS ? { status: "falhou" } : {}),
-        })
-        .eq("id", fu.id);
+  for (const p of plano) {
+    const envio = await sendWhatsAppText(p.lead.whatsapp as string, p.texto);
+    if (!envio.ok) {
+      // Nao grava nada: a proxima rodada tenta de novo.
+      console.error("[cron/followups]", p.lead.id, envio.error);
       falhou++;
       continue;
     }
-
-    // So grava mensagem quando de fato saiu.
     await supabase.from("lead_messages").insert({
-      lead_id: fu.lead_id,
+      lead_id: p.lead.id,
       direction: "outbound",
-      body: fu.body,
-      wa_message_id: result.waMessageId ?? null,
+      body: p.texto,
+      wa_message_id: envio.waMessageId ?? null,
       status: "sent",
+      raw: { followup: p.passo.key, auto: true },
     });
-
-    await supabase
-      .from("follow_ups")
-      .update({ status: "enviado", sent_at: new Date().toISOString() })
-      .eq("id", fu.id);
     sent++;
   }
 
   return NextResponse.json({
     ok: true,
     sent,
-    skipped,
     falhou,
-    vencidos,
-    total: due?.length ?? 0,
+    candidatos: candidatos.length,
     enviados_hoje: (enviadosHoje ?? 0) + sent,
   });
 }

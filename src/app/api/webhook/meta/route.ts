@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { brCanonical, last8 } from "@/lib/phone";
-import { scheduleFollowUpsForLead } from "@/lib/followups/schedule";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -231,11 +230,6 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      try {
-        await scheduleFollowUpsForLead(supabase, inserted);
-      } catch {
-        /* nao bloqueia */
-      }
       processed++;
     }
   }

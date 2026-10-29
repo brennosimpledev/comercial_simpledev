@@ -61,7 +61,7 @@ const ESTAGIOS_DO_BOT = ["novo", "sdr"];
 // cadastro com este numero ja for cliente, o bot nao fala - inclusive
 // quando o lead foi duplicado e o card fechado nao e o que recebe as
 // mensagens (aconteceu com um cliente fechado em 19/10).
-async function numeroDeCliente(supabase: SupabaseClient, whatsapp: string) {
+export async function numeroDeCliente(supabase: SupabaseClient, whatsapp: string) {
   const { data } = await supabase
     .from("leads")
     .select("whatsapp, estagio, status, ja_cliente, valor_fechado")

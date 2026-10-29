@@ -65,7 +65,9 @@ export function FollowUpPanel({
 
       {pendentes.length === 0 && (
         <p className="text-sm text-slate-400">
-          Nenhum follow-up pendente para este lead.
+          Se o lead nunca responder, o sistema retoma sozinho às 9h e 14h em
+          dia útil (4 tentativas em uma semana). Se ele parar no meio da
+          conversa, aparece na tela Follow-ups com mensagem sugerida.
         </p>
       )}
 
@@ -107,7 +109,7 @@ export function FollowUpPanel({
 
       {botPausado && (
         <p className="mt-3 rounded-lg bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
-          Bot pausado — os follow-ups não serão enviados automaticamente.
+          Bot pausado: o bot não responde e a régua automática não envia para este lead.
         </p>
       )}
     </div>
