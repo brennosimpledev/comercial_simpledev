@@ -368,7 +368,11 @@ export function Conversation({
               >
                 {doBot && (
                   <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-200">
-                    🤖 Bot — fora do horário
+                    {(m.raw as { lembrete?: string }).lembrete
+                      ? "🔔 Lembrete de reunião"
+                      : (m.raw as { reuniao?: string }).reuniao
+                        ? "🤖 Bot — reunião"
+                        : "🤖 Bot — fora do horário"}
                   </div>
                 )}
                 {automatico && (

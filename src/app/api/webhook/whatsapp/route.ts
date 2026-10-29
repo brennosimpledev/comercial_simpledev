@@ -1,6 +1,7 @@
 import { NextResponse, after, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { responderForaDeHorario } from "@/lib/bot/atendente";
+import { atenderReuniao } from "@/lib/bot/reuniao";
 import { entenderMidia } from "@/lib/midia/entender";
 import { brCanonical, last8 } from "@/lib/phone";
 import { mediaKind, messageBody } from "@/lib/whatsapp-message";
@@ -303,7 +304,12 @@ export async function POST(request: NextRequest) {
               .eq("wa_message_id", waMessageId);
           }
         }
-        await responderForaDeHorario(admin, idLead, waMessageId);
+        // Os dois se excluem: o atendente nao fala com quem tem reuniao, e o
+        // bot de reuniao so fala com quem tem.
+        await Promise.all([
+          responderForaDeHorario(admin, idLead, waMessageId),
+          atenderReuniao(admin, idLead, { gatilho: waMessageId, origem: "webhook" }),
+        ]);
       });
     }
 

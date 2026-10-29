@@ -31,6 +31,7 @@ import {
   type MeetingStatus,
   type MeetingWithLead,
 } from "@/types/database";
+import { etiquetaConfirmacao } from "@/components/meetings/confirmacao";
 
 // pill = 1a reuniao. pillFollow = 2a em diante, tom mais fechado da mesma
 // cor: mantem a leitura do status e ainda destaca que e follow-up.
@@ -814,6 +815,7 @@ export function MeetingsCalendar({
                       const n = ordem[m.id] ?? 1;
                       const follow = n > 1;
                       const alerta = textoAlerta(m.id);
+                      const conf = etiquetaConfirmacao(m);
                       return (
                         <button
                           key={m.id}
@@ -821,6 +823,7 @@ export function MeetingsCalendar({
                           title={[
                             follow ? `${ordinalBR(n)} com ${m.leads.nome}` : m.leads.nome,
                             alerta ? `Atenção: ${alerta}` : "",
+                            conf ? conf.texto : "",
                           ]
                             .filter(Boolean)
                             .join(" — ")}
@@ -828,6 +831,7 @@ export function MeetingsCalendar({
                             follow ? sc.pillFollow : sc.pill
                           }`}
                         >
+                          {conf && conf.icone !== "🕒" && <span className="mr-0.5">{conf.icone}</span>}
                           {alerta && <span className="mr-0.5">🔁</span>}
                           {follow && (
                             <span className="mr-1 font-bold opacity-90">
@@ -865,6 +869,7 @@ export function MeetingsCalendar({
           <span className="inline-block h-2.5 w-2.5 rounded-sm bg-emerald-800" />
           Tom escuro = 2ª reunião (apresentação), depois de uma realizada
         </div>
+        <div className="text-xs text-slate-400">✅ confirmada · ⏳ não confirmou · ⚠️ pediu remarcação · ⛔ quer cancelar</div>
         <div className="text-xs text-slate-400">🔁 = cliente já remarcou, faltou ou cancelou</div>
         <div className="text-xs text-slate-400">🚫 = horário bloqueado</div>
       </div>
@@ -895,7 +900,15 @@ export function MeetingsCalendar({
                   {fmtTime(sel.starts_at)} – {fmtTime(sel.ends_at)}
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                {etiquetaConfirmacao(sel) && (
+                  <span
+                    title={etiquetaConfirmacao(sel)!.titulo}
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${etiquetaConfirmacao(sel)!.cls}`}
+                  >
+                    {etiquetaConfirmacao(sel)!.icone} {etiquetaConfirmacao(sel)!.texto}
+                  </span>
+                )}
                 {textoAlerta(sel.id) && (
                   <span
                     className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-xs font-medium text-amber-300"

@@ -15,6 +15,7 @@ import { updateLeadStage } from "@/app/(app)/leads/actions";
 import { ArquivosPanel } from "@/components/leads/ArquivosPanel";
 import { MeetingsPanel } from "@/components/leads/MeetingsPanel";
 import { FollowUpPanel } from "@/components/funil/FollowUpPanel";
+import { etiquetaConfirmacao } from "@/components/meetings/confirmacao";
 import {
   CLOSER_STAGES,
   STAGE_LABELS,
@@ -478,6 +479,14 @@ export function FunilBoard({
                         >
                           {STATUS_REUNIAO[r.status].label}
                         </span>
+                        {etiquetaConfirmacao(r) && (
+                          <span
+                            title={etiquetaConfirmacao(r)!.titulo}
+                            className={"shrink-0 rounded px-1.5 py-0.5 text-[10px] " + etiquetaConfirmacao(r)!.cls}
+                          >
+                            {etiquetaConfirmacao(r)!.icone} {etiquetaConfirmacao(r)!.texto}
+                          </span>
+                        )}
                         <span className="flex-1 truncate text-xs text-slate-500">
                           {r.titulo ?? ""}
                         </span>

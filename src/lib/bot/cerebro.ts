@@ -7,12 +7,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Horario } from "@/lib/agenda";
 
-const MODELO = process.env.BOT_MODELO ?? "claude-opus-5-5";
+export const MODELO = process.env.BOT_MODELO ?? "claude-opus-5-5";
 const MAX_CHARS = 450;
 
 // A reserva automatica (server-side fallback) so existe nestes modelos;
 // mandar o parametro para outro modelo e erro.
-const ACEITA_FALLBACK = ["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"];
+export const ACEITA_FALLBACK = ["claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5"];
 
 export function cerebroAtivo() {
   return Boolean(process.env.ANTHROPIC_API_KEY);
@@ -115,7 +115,7 @@ type Fala = { autor: "cliente" | "nos"; texto: string };
 
 // Falas seguidas do mesmo lado viram uma so, para a conversa alternar
 // entre cliente e assistente como a API espera.
-function agruparFalas(historico: Fala[]): Anthropic.Beta.BetaMessageParam[] {
+export function agruparFalas(historico: Fala[]): Anthropic.Beta.BetaMessageParam[] {
   const saida: { role: "user" | "assistant"; content: string }[] = [];
   for (const f of historico) {
     const role = f.autor === "cliente" ? ("user" as const) : ("assistant" as const);
@@ -126,7 +126,7 @@ function agruparFalas(historico: Fala[]): Anthropic.Beta.BetaMessageParam[] {
   return saida;
 }
 
-function dataHoraBR() {
+export function dataHoraBR() {
   return new Date().toLocaleString("pt-BR", {
     timeZone: "America/Sao_Paulo",
     weekday: "long",

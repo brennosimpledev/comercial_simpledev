@@ -1,7 +1,7 @@
 // Agenda: bloqueios, horarios livres e agendamento pelo bot. SERVER-ONLY.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { createMeetEvent, listarOcupados, type PeriodoOcupado } from "@/lib/google/calendar";
+import { createMeetEvent, listarOcupados, patchEvent, type PeriodoOcupado } from "@/lib/google/calendar";
 import { getTeamAccessToken } from "@/lib/google/tokens";
 
 export function horaBR(iso: string) {
@@ -231,4 +231,78 @@ export async function agendarPeloBot(
   }
 
   return { ok: true, meetLink: evento.meetLink ?? null, inicio };
+}
+
+// Campos de lembrete zerados a cada novo horario: a confirmacao vale para
+// o horario em que foi dada. Update separado para nao falhar sem a 0021.
+export async function zerarConfirmacao(supabase: SupabaseClient, meetingId: string) {
+  await supabase
+    .from("meetings")
+    .update({
+      marcada_em: new Date().toISOString(),
+      confirmacao: null,
+      confirmacao_em: null,
+      lembrete_vespera_em: null,
+      lembrete_1h_em: null,
+    })
+    .eq("id", meetingId);
+}
+
+/**
+ * Remarca uma reuniao existente para o horario que o cliente escolheu.
+ * Confere de novo se o horario continua livre, move o evento no Google
+ * (o link do Meet continua o mesmo) e zera a confirmacao. Nao envia
+ * mensagem: quem chama manda a confirmacao.
+ */
+export async function remarcarPeloBot(
+  supabase: SupabaseClient,
+  meetingId: string,
+  inicioISO: string
+): Promise<{ ok: true; meetLink: string | null; inicio: Date } | { ok: false; motivo: string }> {
+  const inicio = new Date(inicioISO);
+  if (isNaN(inicio.getTime())) return { ok: false, motivo: "horario_invalido" };
+
+  const { data: mtg } = await supabase
+    .from("meetings")
+    .select("id, lead_id, starts_at, ends_at, google_event_id, meet_link, remarcacoes")
+    .eq("id", meetingId)
+    .single();
+  if (!mtg) return { ok: false, motivo: "reuniao_nao_encontrada" };
+
+  const duracao =
+    new Date(mtg.ends_at as string).getTime() - new Date(mtg.starts_at as string).getTime() ||
+    DURACAO_BOT_MIN * 60_000;
+  const fim = new Date(inicio.getTime() + duracao);
+
+  const token = await getTeamAccessToken();
+  if (!token) return { ok: false, motivo: "sem_conta_google" };
+
+  const ocupados = await ocupadosNoPeriodo(supabase, token, inicio, fim);
+  if (ocupados === null) return { ok: false, motivo: "agenda_ilegivel" };
+  // A propria reuniao (no horario antigo) nao conta como ocupado.
+  const antigo = { inicio: mtg.starts_at as string, fim: mtg.ends_at as string };
+  const outros = ocupados.filter((p) => !(p.inicio === antigo.inicio && p.fim === antigo.fim));
+  if (outros.some((p) => sobrepoe(inicio.getTime(), fim.getTime(), p))) {
+    return { ok: false, motivo: "horario_ocupado" };
+  }
+
+  if (mtg.google_event_id) {
+    const movido = await patchEvent(token, mtg.google_event_id as string, {
+      startISO: inicio.toISOString(),
+      endISO: fim.toISOString(),
+    });
+    if (!movido) return { ok: false, motivo: "falha_google" };
+  }
+
+  await supabase
+    .from("meetings")
+    .update({ starts_at: inicio.toISOString(), ends_at: fim.toISOString(), status: "agendada" })
+    .eq("id", meetingId);
+  await supabase
+    .from("meetings")
+    .update({ remarcacoes: (Number(mtg.remarcacoes) || 0) + 1 })
+    .eq("id", meetingId);
+  await zerarConfirmacao(supabase, meetingId);
+
+  return { ok: true, meetLink: (mtg.meet_link as string | null) ?? null, inicio };
 }

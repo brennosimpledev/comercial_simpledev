@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { REGUA_AUTOMATICA, vencimentoDoPasso } from "./cadence";
+import { REGUA_AUTOMATICA, nomeDoFormulario, vencimentoDoPasso } from "./cadence";
 
 // Em que pe esta a conversa de cada lead do SDR. Serve a regua automatica
 // (cron) e a fila do Ronaldo (/followups), para os dois lerem a mesma coisa.
@@ -40,17 +40,6 @@ export type Situacao = {
   /** "Full name" do formulario, quando o lead veio por um. */
   nomeDoFormulario: string | null;
 };
-
-// O nome do cadastro costuma ser o do perfil do WhatsApp, que as vezes e
-// o da empresa ("Rcj imóveis", "Site Arerê"). O do formulario e o da pessoa.
-function nomeDoFormulario(msgs: Linha[]) {
-  for (const m of msgs) {
-    if (m.direction !== "inbound") continue;
-    const achado = (m.body ?? "").match(/(?:full name|nome completo)\s*:\s*([^\n]+)/i);
-    if (achado) return achado[1].trim();
-  }
-  return null;
-}
 
 type Linha = {
   lead_id: string;

@@ -101,6 +101,17 @@ export function horarioComercial(agora = new Date()) {
   return dia !== 0 && dia !== 6 && hora >= 8 && hora < 18;
 }
 
+// O nome do cadastro costuma ser o do perfil do WhatsApp, que as vezes e
+// o da empresa ("Rcj imóveis", "Site Arerê"). O do formulario e o da pessoa.
+export function nomeDoFormulario(msgs: { direction: string; body: string | null }[]) {
+  for (const m of msgs) {
+    if (m.direction !== "inbound") continue;
+    const achado = (m.body ?? "").match(/(?:full name|nome completo)\s*:\s*([^\n]+)/i);
+    if (achado) return achado[1].trim();
+  }
+  return null;
+}
+
 /** Primeiro nome que serve para saudacao ("WhatsApp 1234" nao serve). */
 export function primeiroNome(nome: string | null | undefined) {
   const p = (nome ?? "").trim().split(/\s+/)[0] ?? "";

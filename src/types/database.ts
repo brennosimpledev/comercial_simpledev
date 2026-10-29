@@ -217,6 +217,13 @@ export interface Meeting {
   gravacao: string | null;
   // Vezes que a reuniao foi remarcada (migration 0017).
   remarcacoes?: number;
+  // Confirmacao e lembretes (migration 0021).
+  marcada_em?: string | null;
+  confirmacao?: "confirmada" | "remarcar" | "cancelar" | null;
+  confirmacao_em?: string | null;
+  lembrete_vespera_em?: string | null;
+  lembrete_1h_em?: string | null;
+  aviso_furo_em?: string | null;
 }
 
 export type FollowUpStatus = "pendente" | "enviado" | "cancelado" | "pulado" | "falhou";

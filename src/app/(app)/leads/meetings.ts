@@ -8,7 +8,7 @@ import { sendWhatsAppText } from "@/lib/evolution/client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { findMeetFiles, type DriveFile } from "@/lib/google/drive";
 import { avancarEstagio } from "./actions";
-import { conflitoComBloqueio } from "@/lib/agenda";
+import { conflitoComBloqueio, zerarConfirmacao } from "@/lib/agenda";
 
 function firstName(nome: string) {
   return (nome ?? "").trim().split(/\s+/)[0] || "";
@@ -380,6 +380,8 @@ export async function rescheduleMeeting(
     .from("meetings")
     .update({ remarcacoes: (Number((mtg as { remarcacoes?: number }).remarcacoes) || 0) + 1 })
     .eq("id", meetingId);
+  // Horario novo pede confirmacao nova.
+  await zerarConfirmacao(supabase, meetingId);
 
   revalidatePath("/reunioes");
   revalidatePath(`/leads/${mtg.lead_id}`);
