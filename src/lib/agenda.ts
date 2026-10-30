@@ -3,6 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createMeetEvent, listarOcupados, patchEvent, type PeriodoOcupado } from "@/lib/google/calendar";
 import { getTeamAccessToken } from "@/lib/google/tokens";
+import { reportarEtapa } from "@/lib/conversions/report";
 
 export function horaBR(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", {
@@ -228,6 +229,7 @@ export async function agendarPeloBot(
       .from("leads")
       .update({ estagio: "reuniao_marcada", estagio_em: new Date().toISOString() })
       .eq("id", leadId);
+    await reportarEtapa(leadId, "reuniao_marcada");
   }
 
   return { ok: true, meetLink: evento.meetLink ?? null, inicio };

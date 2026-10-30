@@ -16,6 +16,7 @@ import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 import { after } from "next/server";
 import {
   reportConversion,
+  reportarEtapa,
   enviarFechamentoPendente,
   reenviarPendentes,
 } from "@/lib/conversions/report";
@@ -82,6 +83,8 @@ export async function updateLeadStage(id: string, estagio: LeadStage) {
   if (estagio === "desqualificado" && antes?.estagio !== "desqualificado") {
     after(() => reportConversion(id, "desqualificado"));
   }
+  // Etapa do funil para a Meta (reuniao, escopo, negociacao...).
+  after(() => reportarEtapa(id, estagio));
 
   revalidatePath("/dashboard");
   revalidatePath("/leads");
@@ -108,6 +111,7 @@ export async function avancarEstagio(
     .from("leads")
     .update({ estagio: destino, estagio_em: new Date().toISOString() })
     .eq("id", leadId);
+  after(() => reportarEtapa(leadId, destino));
 
   revalidatePath("/funil");
   revalidatePath("/leads");

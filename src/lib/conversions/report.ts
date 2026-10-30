@@ -11,9 +11,9 @@ import {
   googleConfigurado,
   type TipoIdentificador,
 } from "@/lib/google/ads";
-import { enviarEventoMeta, metaConfigured } from "@/lib/meta/conversions";
+import { enviarEventoMeta, metaConfigured, type ConversionType } from "@/lib/meta/conversions";
 
-export type ConversionType = "qualificado" | "fechado" | "desqualificado";
+export type { ConversionType };
 type Canal = "google" | "meta";
 
 const VALOR_QUALIFICADO = Number(
@@ -47,11 +47,10 @@ function identificadorGoogle(
 }
 
 function valorDe(lead: Lead, tipo: ConversionType) {
-  // Desqualificado e sinal, nao receita: vai sem valor.
-  if (tipo === "desqualificado") return 0;
-  return tipo === "fechado"
-    ? Number(lead.valor_fechado ?? VALOR_FECHADO_PADRAO)
-    : VALOR_QUALIFICADO;
+  if (tipo === "fechado") return Number(lead.valor_fechado ?? VALOR_FECHADO_PADRAO);
+  if (tipo === "qualificado") return VALOR_QUALIFICADO;
+  // Desqualificado e etapas do meio do funil sao sinal, nao receita.
+  return 0;
 }
 
 /**
@@ -127,7 +126,8 @@ async function registrarEEnviar(args: {
 /** Nunca lanca - falha aqui nao pode quebrar a acao do CRM. */
 export async function reportConversion(
   leadId: string,
-  tipo: ConversionType
+  // As etapas do meio do funil vao por reportarEtapa, so para a Meta.
+  tipo: "qualificado" | "fechado" | "desqualificado"
 ): Promise<void> {
   try {
     const admin = createAdminClient();
@@ -245,8 +245,8 @@ export async function reenviarPendentes(leadId: string): Promise<void> {
 
       if (canal === "google" && !idGoogle) continue;
       if (canal === "meta" && !idMeta) continue;
-      // Desqualificado so existe na Meta; no Google viraria conversao.
-      const tipoGoogle = tipo === "desqualificado" ? null : tipo;
+      // No Google so existem qualificado e fechado; o resto viraria conversao.
+      const tipoGoogle = tipo === "qualificado" || tipo === "fechado" ? tipo : null;
       if (canal === "google" && !tipoGoogle) continue;
 
       const agora = new Date();
@@ -366,5 +366,56 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
     }
   } catch (e) {
     console.error("[conv] enviarFechamentoPendente:", e);
+  }
+}
+
+// Estagio do CRM -> etapa do funil que vai para a Meta. "proposta" e o nome
+// antigo de negociacao. Fechado tem caminho proprio (valor, Google).
+const ETAPA_DO_ESTAGIO: Partial<Record<string, ConversionType>> = {
+  reuniao_marcada: "reuniao_marcada",
+  reuniao_feita: "reuniao_realizada",
+  escopo_enviado: "escopo_enviado",
+  apresentacao_marcada: "apresentacao_marcada",
+  negociacao: "negociacao",
+  proposta: "negociacao",
+  interesse: "interesse",
+};
+
+/**
+ * Avisa a Meta que o lead chegou numa etapa do funil. So a Meta, porque o
+ * Google soma cada conversao como resultado e bagunca os lances; e so lead
+ * de formulario, porque o Click-to-WhatsApp aceita apenas os eventos
+ * padronizados. Cada etapa vai uma vez por lead. Nunca lanca.
+ */
+export async function reportarEtapa(leadId: string, estagio: string): Promise<void> {
+  try {
+    const tipo = ETAPA_DO_ESTAGIO[estagio];
+    if (!tipo || !metaConfigured()) return;
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("leads")
+      .select("id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
+      .eq("id", leadId)
+      .single();
+    const lead = data as Lead | null;
+    if (!lead || lead.ja_cliente || !lead.meta_lead_id) return;
+
+    await registrarEEnviar({
+      admin,
+      lead,
+      tipo,
+      canal: "meta",
+      identificador: lead.meta_lead_id,
+      statusSemIdentificador: "sem_lead_id",
+      enviar: (rowId, _valor, quando) =>
+        enviarEventoMeta({
+          tipo,
+          leadId: lead.meta_lead_id,
+          eventTime: quando,
+          eventId: rowId,
+        }),
+    });
+  } catch (e) {
+    console.error("[conv] reportarEtapa:", e);
   }
 }

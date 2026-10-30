@@ -23,7 +23,17 @@ const VERSION = process.env.META_GRAPH_VERSION ?? "v21.0";
 const PAGE_ID = process.env.META_PAGE_ID;
 const WABA_ID = process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID;
 
-export type ConversionType = "qualificado" | "fechado" | "desqualificado";
+export type ConversionType =
+  | "qualificado"
+  | "fechado"
+  | "desqualificado"
+  // Etapas do funil entre o lead e a venda (so pelo caminho do formulario).
+  | "reuniao_marcada"
+  | "reuniao_realizada"
+  | "escopo_enviado"
+  | "apresentacao_marcada"
+  | "negociacao"
+  | "interesse";
 
 // Caminho CRM: nomes livres, entao configuraveis. Precisam bater com o que
 // esta registrado no Gerenciador de Eventos.
@@ -34,6 +44,14 @@ const CRM_EVENT_NAMES: Record<ConversionType, string> = {
   // Gerenciador de Eventos, senao a Meta passa a buscar leads ruins.
   desqualificado:
     process.env.META_EVENT_DESQUALIFICADO ?? "Lead Desqualificado",
+  // Etapas do meio do funil. No Gerenciador de Eventos entram nesta ordem,
+  // entre "Lead Qualificado" e "Venda Fechada".
+  reuniao_marcada: "Reunião Marcada",
+  reuniao_realizada: "Reunião Realizada",
+  escopo_enviado: "Escopo Enviado",
+  apresentacao_marcada: "Apresentação Marcada",
+  negociacao: "Negociação",
+  interesse: "Interesse de Fechamento",
 };
 
 // Caminho Click-to-WhatsApp: conjunto fechado definido pela Meta. Nao e
