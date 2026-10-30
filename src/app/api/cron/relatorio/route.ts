@@ -57,6 +57,23 @@ async function destino(): Promise<string | null> {
   return achado ? (achado.number ?? achado.jid?.split("@")[0] ?? null) : null;
 }
 
+// Aviso avulso para o mesmo numero (ex.: resultado de uma tarefa agendada).
+// So manda para o numero do dono, nunca para outro.
+//   POST { secret, texto }
+export async function POST(request: NextRequest) {
+  const corpo = await request.json().catch(() => ({}));
+  const secret = process.env.CRON_SECRET;
+  if (!secret || corpo.secret !== secret) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+  const texto = String(corpo.texto ?? "").trim().slice(0, 1500);
+  if (!texto) return NextResponse.json({ error: "texto vazio" }, { status: 400 });
+  const numero = await destino();
+  if (!numero) return NextResponse.json({ error: "número do relatório não encontrado no WhatsApp" }, { status: 500 });
+  const envio = await sendWhatsAppText(numero, texto);
+  return NextResponse.json({ enviado: envio.ok, erro: envio.error ?? null });
+}
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   const q = request.nextUrl.searchParams;
