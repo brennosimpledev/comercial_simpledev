@@ -121,7 +121,7 @@ export async function GET(request: NextRequest) {
     };
 
     // Formulario e WhatsApp do mesmo telefone sao a mesma pessoa.
-    const chave = brCanonical(l.whatsapp as string | null) ?? `id:${l.id}`;
+    const chave = brCanonical(l.whatsapp as string | null) || `id:${l.id}`;
     const ja = porTelefone.get(chave);
     if (!ja) {
       porTelefone.set(chave, item);
