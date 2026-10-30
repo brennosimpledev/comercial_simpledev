@@ -20,6 +20,7 @@ import {
   reenviarPendentes,
 } from "@/lib/conversions/report";
 import { CLOSER_STAGES, type LeadStage, type LeadOrigin } from "@/types/database";
+import { parseValor } from "@/lib/valor";
 
 const VALID_STAGES: LeadStage[] = [
   "novo",
@@ -191,13 +192,9 @@ export async function updateLeadInfo(
     return s.length ? s : null;
   };
 
-  // Aceita "12.500,00" ou "12500.00"; vazio vira null.
-  const toMoney = (v?: string) => {
-    const s = (v ?? "").trim();
-    if (!s) return null;
-    const n = Number(s.replace(/./g, "").replace(",", ".").replace(/[^d.-]/g, ""));
-    return Number.isFinite(n) ? n : null;
-  };
+  // Aceita "12.500,00", "12500.00", "12.500", "50k" e "50 mil"; vazio vira
+  // null. Ate 30/10 as barras desta conta tinham sumido e todo valor virava 0.
+  const toMoney = (v?: string) => parseValor(v);
 
   const { error } = await (await createClient())
     .from("leads")

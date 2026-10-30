@@ -15,6 +15,7 @@ import { updateLeadStage } from "@/app/(app)/leads/actions";
 import { ArquivosPanel } from "@/components/leads/ArquivosPanel";
 import { MeetingsPanel } from "@/components/leads/MeetingsPanel";
 import { FollowUpPanel } from "@/components/funil/FollowUpPanel";
+import { FechamentoPanel } from "@/components/funil/FechamentoPanel";
 import { etiquetaConfirmacao } from "@/components/meetings/confirmacao";
 import {
   CLOSER_STAGES,
@@ -146,14 +147,22 @@ function Card({
     >
       <div className="mb-1 flex items-start justify-between gap-2">
         <p className="truncate text-sm font-semibold text-slate-100">{lead.nome}</p>
-        {fmtValor(proposta?.valor) && (
+        {fmtValor(lead.valor_fechado ?? proposta?.valor) && (
           <span className="shrink-0 text-xs font-semibold text-emerald-400">
-            {fmtValor(proposta?.valor)}
+            {fmtValor(lead.valor_fechado ?? proposta?.valor)}
           </span>
         )}
       </div>
 
       <div className="flex flex-wrap gap-1.5">
+        {colunaDoCloser(lead.estagio) === "fechado" && !lead.valor_fechado && (
+          <span
+            title="Sem o valor, o fechamento não chega na Meta nem no Google"
+            className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-400"
+          >
+            sem valor
+          </span>
+        )}
         {escopo && (
           <span className="rounded bg-white/5 px-1.5 py-0.5 text-[10px] text-slate-300">
             escopo v{escopo.versao}
@@ -195,7 +204,7 @@ function Coluna({
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   const total = leads.reduce((soma, l) => {
     const p = arquivos.find((a) => a.lead_id === l.id && a.tipo === "proposta");
-    return soma + (p?.valor ?? 0);
+    return soma + (l.valor_fechado ?? p?.valor ?? 0);
   }, 0);
 
   return (
@@ -322,6 +331,9 @@ export function FunilBoard({
     if (res?.error) {
       setLeads(anterior);
       alert(res.error);
+    } else if (destino === "fechado") {
+      // Abre o card para ja pedir o valor do contrato.
+      setSel({ ...atual, estagio: destino, estagio_em: agora });
     }
   }
 
@@ -437,6 +449,20 @@ export function FunilBoard({
                 Ficha completa
               </Link>
             </div>
+
+            {colunaDoCloser(sel.estagio) === "fechado" && (
+              <div className="sd-card mb-4 p-4">
+                <FechamentoPanel
+                  leadId={sel.id}
+                  valor={sel.valor_fechado}
+                  jaCliente={sel.ja_cliente}
+                  aoSalvar={(valor) => {
+                    setLeads((prev) => prev.map((l) => (l.id === sel.id ? { ...l, valor_fechado: valor } : l)));
+                    setSel((atual) => (atual ? { ...atual, valor_fechado: valor } : atual));
+                  }}
+                />
+              </div>
+            )}
 
             <div className="sd-card mb-4 p-4">
               <FollowUpPanel
