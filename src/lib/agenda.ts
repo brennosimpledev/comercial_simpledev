@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createMeetEvent, listarOcupados, patchEvent, type PeriodoOcupado } from "@/lib/google/calendar";
 import { getTeamAccessToken } from "@/lib/google/tokens";
 import { reportarEtapa } from "@/lib/conversions/report";
+import { ehFeriado } from "@/lib/feriados";
 
 export function horaBR(iso: string) {
   return new Date(iso).toLocaleTimeString("pt-BR", {
@@ -119,6 +120,7 @@ export async function horariosLivres(
     const ymd = `${dia.getFullYear()}-${String(dia.getMonth() + 1).padStart(2, "0")}-${String(
       dia.getDate()
     ).padStart(2, "0")}`;
+    if (ehFeriado(ymd)) continue;
     let temAlgum = false;
     for (const h of HORAS_INICIO) {
       const ini = new Date(`${ymd}T${String(h).padStart(2, "0")}:00:00-03:00`);

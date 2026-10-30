@@ -7,6 +7,7 @@
 // As respostas do cliente vao para o bot de reuniao (lib/bot/reuniao.ts).
 
 import type { Horario } from "@/lib/agenda";
+import { ehFeriado } from "@/lib/feriados";
 
 const BR_MS = 3 * 3600_000;
 export const HORA_VESPERA = Number(process.env.LEMBRETE_HORA_VESPERA ?? 10);
@@ -32,7 +33,7 @@ export function vencimentoVespera(inicio: Date): Date {
   const p = partesBR(inicio);
   const d = new Date(Date.UTC(p.ano, p.mes, p.dia));
   do d.setUTCDate(d.getUTCDate() - 1);
-  while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6 || ehFeriado(d.toISOString().slice(0, 10)));
   return new Date(d.getTime() + HORA_VESPERA * 3600_000 + BR_MS);
 }
 

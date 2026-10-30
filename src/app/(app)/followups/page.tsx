@@ -55,7 +55,7 @@ export default async function FollowUpsPage() {
     if (s.ultimaDirecao === "inbound" && s.ultimaDoCliente && horas(s.ultimaDoCliente.em) >= 1) {
       esperando.push({ ...base, tipo: "esperando" });
     } else if (
-      s.respondeu &&
+      (s.respondeu || s.falouDeVerdade) &&
       s.ultimaDirecao === "outbound" &&
       s.ultimaNossa &&
       horas(s.ultimaNossa.em) >= PARADO_APOS_H

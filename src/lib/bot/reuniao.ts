@@ -9,7 +9,8 @@
 //     time (quem chama e o cron de lembretes).
 // Confirmar e na hora, a qualquer hora. Remarcar em horario comercial
 // espera os 20 min do time, a nao ser que o bot ja esteja no meio da
-// remarcacao (ofereceu horarios, ou mandou o aviso de furo).
+// remarcacao (ofereceu horarios, ou mandou o aviso de furo). Quando nao
+// pode agir, le em silencio e so atualiza o status da reuniao.
 
 import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -105,6 +106,8 @@ O QUE FAZER (sempre use exatamente uma ferramenta)
 COMO FALAR
 - WhatsApp brasileiro, informal e direto. De 1 a 3 linhas. No máximo um emoji. Sem markdown.
 - Nunca fale de preço nem prometa nada sobre o projeto.
+- O time não atende em feriados nacionais. Se o cliente perguntar de feriado ou propor um dia de feriado, diga isso e ofereça os horários da lista (que já não têm feriado).
+- Se o cliente fizer uma pergunta junto com a escolha (por exemplo "é feriado?"), responda a pergunta antes de remarcar.
 - Quando o texto de passar_para_o_time não for vazio e o time estiver fora do expediente, diga quando o time chama (use o momento informado no contexto).`;
 
 type Decisao =
@@ -322,7 +325,10 @@ export async function atenderReuniao(
       respondendoAoBot ||
       (opts.origem === "webhook" && foraDoHorario() && !humanoNaUltimaHora) ||
       (opts.origem === "cron" && minutosSemResposta >= ESPERA_TIME_MIN);
-    if (!podeAgir) return { agiu: false, motivo: "conversa_do_time" };
+    // Com o time na conversa o bot nao fala, mas le: um "vou ter que adiar"
+    // dito ao Ronaldo precisa virar status, senao o lembrete de 1h sai assim
+    // mesmo (aconteceu em 30/10).
+    const silencioso = !podeAgir;
 
     // O bot ja esta conduzindo a remarcacao: continua a qualquer hora.
     const naRemarcacao = Boolean(
@@ -356,10 +362,37 @@ export async function atenderReuniao(
     const horarios = await horariosLivres(supabase);
     const decisao = await decidirSobreReuniao({ nome, historico, reuniao, horarios });
     if (!decisao) return { agiu: false, motivo: "ia_falhou" };
-    if (opts.ensaio) return { agiu: false, motivo: "ensaio", decisao };
+    if (opts.ensaio) return { agiu: false, motivo: silencioso ? "ensaio_silencioso" : "ensaio", decisao };
+
+    const ehRemarcacao = decisao.tipo === "oferecer" || decisao.tipo === "remarcar";
+
+    // So status, sem mensagem: quando o time esta na conversa, e no caminho
+    // dos 20 min para tudo que nao seja remarcar (um "Perfeito, confirmado!"
+    // 20 min depois, no meio da conversa do Ronaldo, so atrapalha).
+    if (silencioso || (opts.origem === "cron" && !ehRemarcacao)) {
+      const estado =
+        decisao.tipo === "confirmar"
+          ? "confirmada"
+          : ehRemarcacao
+            ? "remarcar"
+            : decisao.motivo === "cancelar"
+              ? "cancelar"
+              : null;
+      if (estado && reuniao.status === "agendada") {
+        await supabase
+          .from("meetings")
+          .update({ confirmacao: estado, confirmacao_em: new Date().toISOString() })
+          .eq("id", reuniao.id);
+      }
+      // Pedido de remarcacao fica sem marcar como avaliado: se o time nao
+      // responder em 20 min, o cron de lembretes assume.
+      if (!(silencioso && ehRemarcacao)) {
+        await supabase.from("meetings").update({ bot_ultima_msg: idUltima }).eq("id", reuniao.id);
+      }
+      return { agiu: false, motivo: `so_status_${estado ?? "nada"}`, decisao };
+    }
 
     // Remarcar em horario comercial: o time tem 20 min para assumir.
-    const ehRemarcacao = decisao.tipo === "oferecer" || decisao.tipo === "remarcar";
     if (
       ehRemarcacao &&
       opts.origem === "webhook" &&

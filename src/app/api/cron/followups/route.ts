@@ -1,7 +1,9 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendWhatsAppText, evolutionConfigured } from "@/lib/evolution/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { numeroDeCliente } from "@/lib/bot/atendente";
+import { brCanonical, last8 } from "@/lib/phone";
 import { REGUA_AUTOMATICA, horarioComercial, primeiroNome } from "@/lib/followups/cadence";
 import { erroLeads, leadsComSituacao, proximaDaRegua } from "@/lib/followups/situacao";
 
@@ -23,9 +25,35 @@ export const maxDuration = 60;
 
 const POR_RODADA = 25;
 const TETO_DIARIO = 60;
-// Se alguem do time (ou o bot) falou ha pouco, espera a proxima rodada em
-// vez de empilhar mensagem.
+// Se o bot ou a regua falaram ha pouco, espera a proxima rodada em vez de
+// empilhar mensagem.
 const RESPIRO_H = 5;
+// Se alguem do time falou com o lead, a conversa e dele: nada de regua por
+// um dia. Em 30/10 a regua repetiu as 14h o "passou batida" que o Ronaldo
+// tinha mandado as 9h.
+const RESPIRO_TIME_H = 24;
+
+async function conversaEmOutroCard(supabase: SupabaseClient, leadId: string, whatsapp: string) {
+  const { data: outros } = await supabase
+    .from("leads")
+    .select("id, whatsapp")
+    .like("whatsapp_digits", `%${last8(whatsapp)}`)
+    .neq("id", leadId)
+    .limit(10);
+  const ids = (outros ?? [])
+    .filter((o) => brCanonical(o.whatsapp as string | null) === brCanonical(whatsapp))
+    .map((o) => o.id as string);
+  if (ids.length === 0) return false;
+  const [{ count: reunioes }, { count: recentes }] = await Promise.all([
+    supabase.from("meetings").select("id", { count: "exact", head: true }).in("lead_id", ids),
+    supabase
+      .from("lead_messages")
+      .select("id", { count: "exact", head: true })
+      .in("lead_id", ids)
+      .gte("created_at", new Date(Date.now() - 14 * 86_400_000).toISOString()),
+  ]);
+  return (reunioes ?? 0) > 0 || (recentes ?? 0) > 0;
+}
 
 function ligado() {
   const v = (process.env.FOLLOWUP_AUTO ?? "").toLowerCase();
@@ -60,7 +88,8 @@ export async function GET(request: NextRequest) {
     .filter(({ lead }) => !lead.bot_pausado && lead.whatsapp)
     .map(({ lead, s }) => ({ lead, s, prox: proximaDaRegua(s, desde) }))
     .filter(({ prox }) => prox && prox.vence.getTime() <= agora)
-    .filter(({ s }) => !s.ultimaNossa || agora - new Date(s.ultimaNossa.em).getTime() >= RESPIRO_H * 3600_000);
+    .filter(({ s }) => !s.ultimaNossa || agora - new Date(s.ultimaNossa.em).getTime() >= RESPIRO_H * 3600_000)
+    .filter(({ s }) => !s.ultimaHumana || agora - new Date(s.ultimaHumana).getTime() >= RESPIRO_TIME_H * 3600_000);
 
   // Teto diario: conta o que a regua ja mandou hoje.
   const inicioDoDia = new Date();
@@ -77,6 +106,9 @@ export async function GET(request: NextRequest) {
   for (const c of candidatos.slice(0, limite)) {
     // Mesmo numero cadastrado como cliente em outro card.
     if (await numeroDeCliente(supabase, c.lead.whatsapp as string)) continue;
+    // Mesmo numero em outro card com conversa recente ou reuniao: a conversa
+    // de verdade esta la (aconteceu com o Gustavo em 30/10).
+    if (await conversaEmOutroCard(supabase, c.lead.id, c.lead.whatsapp as string)) continue;
     const passo = REGUA_AUTOMATICA[c.prox!.indice];
     // Sem formulario, vai sem nome: "Oi, tudo bem?" nunca erra.
     plano.push({ ...c, passo, texto: passo.texto(primeiroNome(c.s.nomeDoFormulario)) });

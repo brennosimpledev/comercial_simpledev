@@ -39,7 +39,24 @@ export type Situacao = {
   automaticos: number;
   /** "Full name" do formulario, quando o lead veio por um. */
   nomeDoFormulario: string | null;
+  /** Ultima mensagem de alguem do time (nao automatica). */
+  ultimaHumana: string | null;
+  /** O cliente escreveu algo alem do texto pronto do formulario ou anuncio. */
+  falouDeVerdade: boolean;
 };
+
+// Texto pronto do formulario repassado ou do anuncio: nao e conversa.
+const TEXTO_PRONTO =
+  /preenchi seu formul|posso ter mais informa|gostaria de saber mais|estou no google e gostaria|^link:/i;
+
+function falaDeVerdade(m: Linha) {
+  if (m.direction !== "inbound") return false;
+  const corpo = (m.body ?? "").trim();
+  if (!corpo) return Boolean(m.media_type && m.media_type !== "sticker");
+  return !TEXTO_PRONTO.test(corpo);
+}
+
+const automatica = (m: Linha) => Boolean(m.followup || m.bot || m.lembrete);
 
 type Linha = {
   lead_id: string;
@@ -48,6 +65,8 @@ type Linha = {
   body: string | null;
   media_type: string | null;
   followup: string | null;
+  bot: string | null;
+  lembrete: string | null;
 };
 
 /** Ultimo erro da consulta de leads, para o ensaio mostrar. */
@@ -100,7 +119,9 @@ export async function leadsComSituacao(
     for (let de = 0; ; de += 1000) {
       const { data, error: erroMsgs } = await supabase
         .from("lead_messages")
-        .select("lead_id, direction, created_at, body, media_type, followup:raw->>followup")
+        .select(
+          "lead_id, direction, created_at, body, media_type, followup:raw->>followup, bot:raw->>bot, lembrete:raw->>lembrete"
+        )
         .in("lead_id", lote)
         .order("created_at", { ascending: true })
         .range(de, de + 999);
@@ -133,11 +154,27 @@ export async function leadsComSituacao(
           ultimaDirecao: ultima ? (ultima.direction === "inbound" ? "inbound" : "outbound") : null,
           ultimaNossa: nossa ? { em: nossa.created_at, texto: texto(nossa) } : null,
           ultimaDoCliente: doCliente ? { em: doCliente.created_at, texto: texto(doCliente) } : null,
-          automaticos: msgs.filter((m) => m.followup?.startsWith("auto_")).length,
+          // Tentativa da regua mandada pelo sistema ou copiada a mao pelo
+          // Ronaldo (mesmo texto) conta igual: nao repete a mesma mensagem.
+          automaticos: tentativasFeitas(msgs),
           nomeDoFormulario: nomeDoFormulario(msgs),
+          ultimaHumana:
+            [...msgs].reverse().find((m) => m.direction === "outbound" && !automatica(m))?.created_at ?? null,
+          falouDeVerdade: msgs.some(falaDeVerdade),
         },
       };
     });
+}
+
+// Trecho que identifica cada passo da regua, mandado pelo sistema ou a mao.
+function tentativasFeitas(msgs: Linha[]) {
+  const nossas = msgs.filter((m) => m.direction === "outbound").map((m) => (m.body ?? "").toLowerCase());
+  let feitas = 0;
+  for (const passo of REGUA_AUTOMATICA) {
+    if (nossas.some((t) => t.includes(passo.marca))) feitas++;
+    else break;
+  }
+  return Math.max(feitas, msgs.filter((m) => m.followup?.startsWith("auto_")).length);
 }
 
 /** Proxima tentativa automatica, ou null se o lead nao esta na regua. */
@@ -145,7 +182,9 @@ export function proximaDaRegua(
   s: Situacao,
   desde = REGUA_DESDE
 ): { indice: number; vence: Date } | null {
-  if (!s.primeiraNossa || s.respondeu) return null;
+  // Quem ja conversou de verdade (mesmo antes do nosso primeiro contato) e
+  // conversa do time, nao da regua: vai para a fila de parados.
+  if (!s.primeiraNossa || s.respondeu || s.falouDeVerdade) return null;
   if (new Date(s.primeiraNossa).getTime() < new Date(desde).getTime()) return null;
   if (s.automaticos >= REGUA_AUTOMATICA.length) return null;
   return { indice: s.automaticos, vence: vencimentoDoPasso(new Date(s.primeiraNossa), s.automaticos) };

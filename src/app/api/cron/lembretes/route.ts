@@ -94,6 +94,31 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Movimento recente na conversa: com o time falando (ou o cliente acabando
+  // de escrever), o lembrete automatico atropela. Em 30/10 o lembrete de 1h
+  // saiu 18 min depois de o cliente avisar que ia adiar.
+  const ultimaHumana = new Map<string, number>();
+  const ultimaDoCliente = new Map<string, number>();
+  if (ids.length) {
+    const { data: recentes } = await supabase
+      .from("lead_messages")
+      .select("lead_id, direction, created_at, followup:raw->>followup, bot:raw->>bot, lembrete:raw->>lembrete")
+      .in("lead_id", ids)
+      .gte("created_at", new Date(agora - 12 * H).toISOString());
+    for (const m of recentes ?? []) {
+      const t = new Date(m.created_at as string).getTime();
+      const mapa =
+        m.direction === "inbound"
+          ? ultimaDoCliente
+          : m.followup || m.bot || m.lembrete
+            ? null
+            : ultimaHumana;
+      if (mapa) mapa.set(m.lead_id as string, Math.max(mapa.get(m.lead_id as string) ?? 0, t));
+    }
+  }
+  const timeFalouHa = (id: string) => agora - (ultimaHumana.get(id) ?? 0);
+  const clienteFalouHa = (id: string) => agora - (ultimaDoCliente.get(id) ?? 0);
+
   type Envio = { reuniao: Linha; tipo: "vespera" | "1h" | "furo"; texto: string };
   const envios: Envio[] = [];
   const pode = horaDeMandar();
@@ -112,7 +137,9 @@ export async function GET(request: NextRequest) {
         agora >= vencimentoVespera(inicio).getTime() &&
         falta >= 2 * H &&
         // Recem-marcada ja recebeu a mensagem de agendamento.
-        desdeMarcada >= 4 * H
+        desdeMarcada >= 4 * H &&
+        // O time falou com ele nas ultimas 12h: a confirmacao e com o time.
+        timeFalouHa(r.lead_id) >= 12 * H
       ) {
         envios.push({ reuniao: r, tipo: "vespera", texto: textoVespera(nome, inicio) });
       } else if (
@@ -120,7 +147,9 @@ export async function GET(request: NextRequest) {
         r.confirmacao !== "remarcar" &&
         r.confirmacao !== "cancelar" &&
         falta <= 75 * 60_000 &&
-        falta >= 10 * 60_000
+        falta >= 10 * 60_000 &&
+        timeFalouHa(r.lead_id) >= 3 * H &&
+        clienteFalouHa(r.lead_id) >= 3 * H
       ) {
         envios.push({ reuniao: r, tipo: "1h", texto: texto1h(nome, inicio, r.meet_link) });
       }

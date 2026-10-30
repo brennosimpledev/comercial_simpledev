@@ -1,3 +1,5 @@
+import { ehFeriado } from "@/lib/feriados";
+
 // Regua automatica de follow-up para quem nunca respondeu.
 //
 // Conta a partir do primeiro contato nosso (bot ou time), sempre em dia
@@ -11,6 +13,8 @@ export interface PassoRegua {
   titulo: string;
   dias: number;
   hora: number;
+  /** Trecho que reconhece o passo ja mandado, inclusive a mao pelo time. */
+  marca: string;
   texto: (nome: string) => string;
 }
 
@@ -19,6 +23,7 @@ const oi = (nome: string) => (nome ? `Oi ${nome}, tudo bem?` : "Oi, tudo bem?");
 export const REGUA_AUTOMATICA: PassoRegua[] = [
   {
     key: "auto_1",
+    marca: "passado batida",
     titulo: "Mesmo dia à tarde",
     dias: 0,
     hora: 14,
@@ -27,6 +32,7 @@ export const REGUA_AUTOMATICA: PassoRegua[] = [
   },
   {
     key: "auto_2",
+    marca: "ainda faz sentido avançarmos",
     titulo: "Dia seguinte de manhã",
     dias: 1,
     hora: 9,
@@ -35,6 +41,7 @@ export const REGUA_AUTOMATICA: PassoRegua[] = [
   },
   {
     key: "auto_3",
+    marca: "como a gente estrutura um projeto",
     titulo: "3 dias úteis depois",
     dias: 3,
     hora: 14,
@@ -43,6 +50,7 @@ export const REGUA_AUTOMATICA: PassoRegua[] = [
   },
   {
     key: "auto_4",
+    marca: "não quero ser insistente",
     titulo: "Última tentativa",
     dias: 6,
     hora: 9,
@@ -56,7 +64,7 @@ const BR_MS = 3 * 3600_000;
 
 function ehDiaUtil(diaUtc: Date) {
   const d = diaUtc.getUTCDay();
-  return d !== 0 && d !== 6;
+  return d !== 0 && d !== 6 && !ehFeriado(diaUtc.toISOString().slice(0, 10));
 }
 
 // Meia-noite (como data UTC) do dia de Brasilia em que o instante cai.
@@ -98,7 +106,7 @@ export function horarioComercial(agora = new Date()) {
   const b = new Date(agora.getTime() - BR_MS);
   const dia = b.getUTCDay();
   const hora = b.getUTCHours();
-  return dia !== 0 && dia !== 6 && hora >= 8 && hora < 18;
+  return dia !== 0 && dia !== 6 && !ehFeriado(b.toISOString().slice(0, 10)) && hora >= 8 && hora < 18;
 }
 
 // O nome do cadastro costuma ser o do perfil do WhatsApp, que as vezes e
