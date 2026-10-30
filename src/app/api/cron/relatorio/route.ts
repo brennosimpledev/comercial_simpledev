@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Reunioes: as marcadas na janela e as proximas 72h.
+  // Reunioes: as marcadas na janela e as dos proximos 4 dias.
   const { data: novas } = await admin
     .from("meetings")
     .select("lead_id, starts_at, created_by, status, leads(nome)")
@@ -140,7 +140,7 @@ export async function GET(request: NextRequest) {
     .select("starts_at, status, confirmacao, lembrete_vespera_em, leads(nome)")
     .eq("status", "agendada")
     .gte("starts_at", new Date(agora).toISOString())
-    .lte("starts_at", new Date(agora + 72 * 3600_000).toISOString())
+    .lte("starts_at", new Date(agora + 96 * 3600_000).toISOString())
     .order("starts_at", { ascending: true });
   const nomeReuniao = (r: { leads: unknown }) => (r.leads as { nome?: string } | null)?.nome ?? "?";
   const conf = (r: { confirmacao?: string | null; lembrete_vespera_em?: string | null }) =>
@@ -204,7 +204,7 @@ export async function GET(request: NextRequest) {
     `*Reuniões marcadas no período* (${(novas ?? []).length})`,
     lista((novas ?? []).map((r) => `${nomeReuniao(r)}: ${hora(r.starts_at as string)}${r.created_by ? "" : " (pelo bot)"}`), "nenhuma"),
     "",
-    `*Próximas reuniões (72h)*`,
+    `*Próximas reuniões (4 dias)*`,
     lista((proximas ?? []).map((r) => `${hora(r.starts_at as string)} ${nomeReuniao(r)} ${conf(r)}`), "nenhuma"),
     "",
     `*Bot atendeu* (${atendidos.length})`,
