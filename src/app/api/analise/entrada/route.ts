@@ -49,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   const { data: leads, error } = await admin
     .from("leads")
-    .select("id, nome, whatsapp, origem, created_at, estagio, bot_pausado, ja_cliente, desqualificado")
+    .select("id, nome, whatsapp, origem, created_at, estagio, bot_pausado, ja_cliente, desqualificado, necessidade")
     .gte("created_at", desde)
     .order("created_at", { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -96,6 +96,7 @@ export async function GET(request: NextRequest) {
     return {
       nome: l.nome,
       origem: l.origem,
+      necessidade: l.necessidade,
       chegou: hora(l.created_at as string),
       whatsapp: l.whatsapp ? "sim" : "não",
       estagio: l.estagio,
