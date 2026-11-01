@@ -171,6 +171,31 @@ export async function GET(request: NextRequest) {
             ? "⏳ não confirmou"
             : "🕒";
 
+  // Todos os leads que entraram na janela, nao so os que o bot atendeu. Lead
+  // de formulario que nao chama no WhatsApp fica sem mensagem nenhuma: em
+  // 01/11 o relatorio mostrava 2 ou 3 atendidos e tinham entrado 16.
+  const { data: entraram } = await admin
+    .from("leads")
+    .select("id, nome, origem")
+    .gte("created_at", desde)
+    .eq("ja_cliente", false)
+    .order("created_at", { ascending: true });
+  const idsEntraram = (entraram ?? []).map((l) => l.id as string);
+  const { data: msgsEntraram } = await admin
+    .from("lead_messages")
+    .select("lead_id, direction, raw")
+    .in("lead_id", idsEntraram.length ? idsEntraram : ["00000000-0000-0000-0000-000000000000"]);
+  const entrada = (entraram ?? []).map((l) => {
+    const ms = (msgsEntraram ?? []).filter((m) => m.lead_id === l.id);
+    const nossas = ms.filter((m) => m.direction === "outbound");
+    const respondeu = ms.some((m) => m.direction === "inbound");
+    const quem = nossas.length === 0 ? "" : nossas.some((m) => !(m.raw as { bot?: boolean } | null)?.bot) ? "time" : "bot";
+    const situacao =
+      nossas.length === 0 ? "⚠️ sem contato" : respondeu ? `conversou com o ${quem}` : `${quem} chamou, sem resposta`;
+    return { nome: (l.nome as string) ?? "?", origem: l.origem as string, semContato: nossas.length === 0, situacao };
+  });
+  const semContato = entrada.filter((e) => e.semContato).length;
+
   // Clientes esperando resposta ha mais de 1h (ultima mensagem e dele).
   const { data: recentes } = await admin
     .from("lead_messages")
@@ -217,6 +242,9 @@ export async function GET(request: NextRequest) {
   const lista = (itens: string[], vazio = "nenhum") => (itens.length ? itens.map((i) => `• ${i}`).join("\n") : vazio);
   const texto = [
     `🤖 *Relatório do comercial* (últimas ${horas}h)`,
+    "",
+    `*Leads que entraram* (${entrada.length}${semContato ? `, ${semContato} sem contato` : ""})`,
+    lista(entrada.map((e) => `${e.nome} (${e.origem === "meta_ads" ? "Meta" : e.origem}): ${e.situacao}`), "nenhum"),
     "",
     `*Reuniões marcadas no período* (${(novas ?? []).length})`,
     lista((novas ?? []).map((r) => `${nomeReuniao(r)}: ${hora(r.starts_at as string)}${r.created_by ? "" : " (pelo bot)"}`), "nenhuma"),
