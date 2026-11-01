@@ -1,8 +1,9 @@
 // Atendente de fora de horario - FASE 1.
 //
-// Regra de ouro: o bot so fala DEPOIS que o lead falou. Ele nunca inicia
-// conversa, nunca varre a base, nunca dispara em lote. Se o webhook nao
-// receber mensagem do cliente, nada acontece.
+// Regra de ouro: o bot so fala DEPOIS que o lead falou. Ele nunca varre a
+// base nem dispara em lote. A unica excecao e o primeiro contato com quem
+// preencheu o formulario e nao escreveu (lib/bot/primeiroContato.ts),
+// pedida pelo Brenno em 01/11/2026.
 //
 // E o bot so cuida do PRIMEIRO atendimento: lead que ja conversou com
 // alguem do time, que tem reuniao ou que ja saiu do estagio de SDR e
@@ -23,6 +24,7 @@ import {
 } from "@/lib/bot/cerebro";
 import { agendarPeloBot, horariosLivres, rotuloHorario } from "@/lib/agenda";
 import { brCanonical, last8 } from "@/lib/phone";
+import { formularioParaOBot } from "@/lib/bot/formulario";
 
 const TZ = "America/Sao_Paulo";
 
@@ -147,7 +149,7 @@ export async function responderForaDeHorario(
 
     const { data: lead } = await supabase
       .from("leads")
-      .select("id, nome, whatsapp, bot_pausado, ja_cliente, estagio, status, anotacoes")
+      .select("id, nome, whatsapp, bot_pausado, ja_cliente, estagio, status, anotacoes, necessidade")
       .eq("id", leadId)
       .single();
     if (!lead?.whatsapp) return { enviou: false, motivo: "sem_whatsapp" };
@@ -254,6 +256,15 @@ export async function responderForaDeHorario(
       }))
       .filter((f) => f.texto)
       .slice(-14);
+
+    // Conversa que comecou pelo nosso primeiro contato: a pessoa nao mandou
+    // a mensagem pronta do formulario, entao as respostas dela entram aqui.
+    if (historico[0]?.autor === "nos" && lead.necessidade) {
+      historico.unshift({
+        autor: "cliente",
+        texto: `(Preencheu o formulário do anúncio e não escreveu; mandamos a primeira mensagem.) Respostas do formulário: ${formularioParaOBot(lead.necessidade as string) || lead.necessidade}`,
+      });
+    }
 
     // A conversa precisa terminar com o cliente: se a ultima fala com
     // conteudo e nossa, a API trata como resposta pela metade e recusa.
