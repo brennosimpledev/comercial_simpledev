@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   const { data: leads, error } = await admin
     .from("leads")
     .select(
-      "id, nome, whatsapp, created_at, estagio, status, qualificado, desqualificado, valor_fechado, referral_source, utm_source, meta_lead_id, raw_payload"
+      "id, nome, whatsapp, created_at, estagio, status, qualificado, desqualificado, valor_fechado, referral_source, utm_source, utm_content, meta_lead_id, raw_payload"
     )
     .eq("origem", "meta_ads")
     .eq("ja_cliente", false)
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
       nivel,
       estagio: l.estagio as string,
       campanha: meta.campaign_name ?? null,
-      anuncio: meta.ad_name ?? null,
+      anuncio: meta.ad_name ?? (l.utm_content as string | null) ?? null,
       valor: (l.valor_fechado as number | null) ?? null,
     };
 
@@ -146,10 +146,31 @@ export async function GET(request: NextRequest) {
     r[p.nivel]++;
   }
 
+  // O mesmo funil por anuncio (criativo), para ver qual converte.
+  const porAnuncio: Record<string, Record<string, number>> = {};
+  for (const p of pessoas) {
+    const chave = p.anuncio ?? "sem anúncio gravado";
+    const r = (porAnuncio[chave] ??= { pessoas: 0, desqualificado: 0, qualificado_ou_mais: 0, reuniao_marcada_ou_mais: 0, reuniao_realizada_ou_mais: 0, fechado: 0, valor: 0 });
+    r.pessoas++;
+    const n = ORDEM.indexOf(p.nivel);
+    if (p.nivel === "desqualificado") r.desqualificado++;
+    if (n >= ORDEM.indexOf("qualificado")) r.qualificado_ou_mais++;
+    if (n >= ORDEM.indexOf("reuniao_marcada")) r.reuniao_marcada_ou_mais++;
+    if (n >= ORDEM.indexOf("reuniao_realizada")) r.reuniao_realizada_ou_mais++;
+    if (p.nivel === "fechado") {
+      r.fechado++;
+      r.valor += p.valor ?? 0;
+    }
+  }
+
   return NextResponse.json({
     dias,
     consultados_na_graph: consultar.length,
     resumo,
+    por_anuncio: porAnuncio,
+    funil_avancado: pessoas
+      .filter((p) => ORDEM.indexOf(p.nivel) >= ORDEM.indexOf("reuniao_realizada"))
+      .map((p) => ({ nome: p.nome, anuncio: p.anuncio, plataforma: p.plataforma, estagio: p.estagio, valor: p.valor })),
     // Do Facebook, quem passou de "nenhum": qualificado, reuniao ou fechado.
     facebook_bons: pessoas.filter(
       (p) => p.plataforma === "facebook" && ORDEM.indexOf(p.nivel) >= ORDEM.indexOf("qualificado")
