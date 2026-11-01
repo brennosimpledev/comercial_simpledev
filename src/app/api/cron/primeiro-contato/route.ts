@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       enviaria_agora: !bloqueio,
       bloqueio,
       pulados,
-      mandaria: plano.map((p) => ({ lead: p.lead.nome, chegou: p.lead.created_at, texto: p.texto })),
+      mandaria: plano.map((p) => ({ lead: p.lead.nome, chegou: p.lead.created_at, final: p.destino.slice(-4), texto: p.texto })),
     });
   }
 

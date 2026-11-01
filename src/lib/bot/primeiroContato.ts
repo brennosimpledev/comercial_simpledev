@@ -12,7 +12,7 @@
 // do WhatsApp, em 30/10). Por isso confere telefone E e-mail antes.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendWhatsAppText } from "@/lib/evolution/client";
+import { consultarNumeros, sendWhatsAppText, variantesBR } from "@/lib/evolution/client";
 import { botAtivo, foraDoHorario, numeroDeCliente } from "@/lib/bot/atendente";
 import { primeiroNome } from "@/lib/followups/cadence";
 import { brCanonical, last8 } from "@/lib/phone";
@@ -108,7 +108,7 @@ async function conversaEmOutroLugar(supabase: SupabaseClient, lead: Lead) {
   return (count ?? 0) > 0 ? "conversa_em_outro_card" : null;
 }
 
-export type Plano = { lead: Lead; texto: string };
+export type Plano = { lead: Lead; destino: string; texto: string };
 
 // Quem recebe o primeiro contato agora. Nao envia nada.
 export async function quemChamar(supabase: SupabaseClient, agora = new Date()) {
@@ -151,7 +151,16 @@ export async function quemChamar(supabase: SupabaseClient, agora = new Date()) {
       pulados.push({ nome: lead.nome, motivo: outro });
       continue;
     }
-    plano.push({ lead, texto: textoPrimeiroContato(primeiroNome(lead.nome), lead.necessidade, agora) });
+    // Numero digitado no formulario as vezes vem sem o 9 ou nem tem
+    // WhatsApp. Sem a consulta (Evolution fora), tenta o numero como veio.
+    const consulta = await consultarNumeros(variantesBR(lead.whatsapp as string));
+    const achado = consulta?.find((n) => n.exists);
+    if (consulta && !achado) {
+      pulados.push({ nome: lead.nome, motivo: "numero_sem_whatsapp" });
+      continue;
+    }
+    const destino = achado ? (achado.number ?? achado.jid?.split("@")[0] ?? (lead.whatsapp as string)) : (lead.whatsapp as string);
+    plano.push({ lead, destino, texto: textoPrimeiroContato(primeiroNome(lead.nome), lead.necessidade, agora) });
   }
   return { plano, pulados };
 }
@@ -172,7 +181,7 @@ export async function enviarPrimeiroContato(supabase: SupabaseClient, p: Plano) 
     .eq("lead_id", p.lead.id);
   if ((count ?? 0) > 0) return { ok: false, motivo: "ja_tem_mensagem" };
 
-  const envio = await sendWhatsAppText(p.lead.whatsapp as string, p.texto);
+  const envio = await sendWhatsAppText(p.destino, p.texto);
   if (!envio.ok) return { ok: false, motivo: envio.error ?? "falha_envio" };
   await supabase.from("lead_messages").insert({
     lead_id: p.lead.id,
