@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { brCanonical } from "@/lib/phone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,6 +66,16 @@ export async function GET(request: NextRequest) {
     .select("lead_id, starts_at, status")
     .in("lead_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
 
+  // Mesmo numero em outro card (formulario + WhatsApp viram dois cards).
+  const { data: gemeos } = await admin
+    .from("leads")
+    .select("id, nome, whatsapp, created_at")
+    .gte("created_at", new Date(new Date(desde).getTime() - 60 * 86_400_000).toISOString());
+  const gemeoDe = (l: { id: unknown; whatsapp: unknown }) =>
+    (gemeos ?? [])
+      .filter((g) => g.id !== l.id && brCanonical(g.whatsapp as string | null) === brCanonical(l.whatsapp as string | null))
+      .map((g) => `${g.nome} (${hora(g.created_at as string)})`);
+
   const porLead = new Map<string, Msg[]>();
   for (const m of (msgs ?? []) as Msg[]) porLead.set(m.lead_id, [...(porLead.get(m.lead_id) ?? []), m]);
 
@@ -91,7 +102,8 @@ export async function GET(request: NextRequest) {
       pausado: l.bot_pausado,
       msgs: `${nossas.length} nossas / ${dele.length} dele`,
       primeira_nossa: primeira ? `${hora(primeira.created_at)} (${quem(primeira)})` : null,
-      reuniao: reuniao ? `${hora(reuniao.starts_at as string)} ${reuniao.status}` : null,
+      outro_card: l.whatsapp ? gemeoDe(l) : [],
+      reuniao: reuniao ?`${hora(reuniao.starts_at as string)} ${reuniao.status}` : null,
       conversa: ms.slice(0, 8).map((m) => `${hora(m.created_at)} ${quem(m)}: ${(m.body ?? "").replace(/\s+/g, " ").slice(0, 90)}`),
     };
   });
