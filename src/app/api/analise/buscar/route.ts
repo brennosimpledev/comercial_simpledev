@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await admin
     .from("leads")
-    .select("id, nome, origem, estagio, status, valor_fechado, ja_cliente, meta_lead_id, ctwa_clid, gclid, created_at, updated_at")
+    .select("id, nome, origem, estagio, status, valor_fechado, ja_cliente, meta_lead_id, ctwa_clid, gclid, utm_source, utm_campaign, utm_content, form_id, created_at, updated_at")
     .or(
       [`nome.ilike.%${nome}%`, `email.ilike.%${nome}%`, ...(porMensagem.length ? [`id.in.(${porMensagem.join(",")})`] : [])].join(",")
     )
@@ -74,11 +74,26 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // &anuncio=1: pergunta a Meta de qual anuncio veio cada lead de formulario
+  // (os leads antigos nao tem utm_content gravado).
+  const anuncio: Record<string, unknown> = {};
+  if (q.get("anuncio") === "1" && token) {
+    const graph = `https://graph.facebook.com/${process.env.META_GRAPH_VERSION ?? "v21.0"}`;
+    for (const l of data ?? []) {
+      if (!l.meta_lead_id) continue;
+      const r = await fetch(
+        `${graph}/${l.meta_lead_id}?fields=ad_id,ad_name,adset_name,campaign_name,platform,created_time&access_token=${encodeURIComponent(token)}`
+      );
+      anuncio[l.id as string] = r.ok ? await r.json() : { erro: r.status, detalhe: (await r.text()).slice(0, 200) };
+    }
+  }
+
   return NextResponse.json({
     ...(naMeta ? { na_meta: naMeta } : {}),
     leads: (data ?? []).map((l) => ({
       ...l,
       meta_lead_id: Boolean(l.meta_lead_id),
+      ...(anuncio[l.id as string] ? { anuncio: anuncio[l.id as string] } : {}),
       ctwa_clid: Boolean(l.ctwa_clid),
       gclid: Boolean(l.gclid),
       reunioes: (reunioes ?? []).filter((r) => r.lead_id === l.id).map((r) => `${r.status} ${String(r.starts_at).slice(0, 10)}`),
