@@ -2,10 +2,10 @@
 // WhatsApp. No feriado de Finados 2026, de 16 leads de formulario so 6
 // escreveram; os outros ficaram sem conversa nenhuma ate o time voltar.
 //
-// So fora do horario do time (em horario comercial quem chama e o Ronaldo),
-// so das 7h as 22h, e so depois de alguns minutos: a mensagem pronta do
+// So das 7h as 22h, e so depois de alguns minutos: a mensagem pronta do
 // formulario costuma chegar em menos de um minuto, e quem escreve e
-// atendido pelo bot de sempre.
+// atendido pelo bot de sempre. Em horario comercial quem chama e o Ronaldo;
+// o bot so entra se ninguem chamou em meia hora, e a resposta fica com ele.
 //
 // A conversa pode estar em outro card: a pessoa preenche com um numero e
 // escreve de outro (o Christian Silva do formulario era o "Cristiano brisa"
@@ -22,6 +22,8 @@ const TZ = "America/Sao_Paulo";
 
 // Quanto esperar a pessoa escrever sozinha antes de chamarmos.
 export const ESPERA_MIN = Number(process.env.PRIMEIRO_CONTATO_ESPERA_MIN ?? 5);
+// Em horario comercial, quanto esperar o Ronaldo chamar antes do bot.
+export const ESPERA_COMERCIAL_MIN = Number(process.env.PRIMEIRO_CONTATO_ESPERA_COMERCIAL_MIN ?? 30);
 // Lead mais velho que isso ja e caso do time, nao de primeiro contato.
 const JANELA_H = 16;
 const HORA_DE = 7;
@@ -50,13 +52,21 @@ const SITUACAO: Record<string, string> = {
   "tentei_outras_soluções_que_não_funcionaram": " e já tentou outras soluções que não funcionaram",
 };
 
+export function esperaAgora(agora = new Date()) {
+  return foraDoHorario(agora) ? ESPERA_MIN : ESPERA_COMERCIAL_MIN;
+}
+
 export function textoPrimeiroContato(nome: string, necessidade: string | null | undefined, agora = new Date()) {
   const h = horaLocal(agora);
   const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
   const situacao = SITUACAO[resposta(respostasDoFormulario(necessidade), "qual_dessas_situa")] ?? "";
+  // Em horario comercial o bot nao responde; quem continua e o time.
+  const adianto = foraDoHorario(agora)
+    ? "O time comercial está fora do expediente agora, mas eu já adianto o seu atendimento pra você não ficar esperando."
+    : "Pra já adiantar o seu atendimento com o time comercial:";
   return (
     `${saudacao}${nome ? `, ${nome}` : ""}! Aqui é o assistente da SimpleDEV 👋\n` +
-    `Vi que você preencheu nosso formulário${situacao}. O time comercial está fora do expediente agora, mas eu já adianto o seu atendimento pra você não ficar esperando.\n\n` +
+    `Vi que você preencheu nosso formulário${situacao}. ${adianto}\n\n` +
     `Me conta em poucas palavras: o que você quer desenvolver?`
   );
 }
@@ -112,7 +122,7 @@ export type Plano = { lead: Lead; destino: string; texto: string };
 
 // Quem recebe o primeiro contato agora. Nao envia nada.
 export async function quemChamar(supabase: SupabaseClient, agora = new Date()) {
-  const ate = new Date(agora.getTime() - ESPERA_MIN * 60_000).toISOString();
+  const ate = new Date(agora.getTime() - esperaAgora(agora) * 60_000).toISOString();
   const de = new Date(agora.getTime() - JANELA_H * 3600_000).toISOString();
   const { data: leads } = await supabase
     .from("leads")
@@ -168,7 +178,6 @@ export async function quemChamar(supabase: SupabaseClient, agora = new Date()) {
 export function podeChamarAgora(agora = new Date()) {
   if (!primeiroContatoLigado()) return "desligado";
   if (!botAtivo()) return "bot_desligado";
-  if (!foraDoHorario(agora)) return "horario_comercial";
   if (!horaDeChamar(agora)) return "fora_da_janela_7h_22h";
   return null;
 }

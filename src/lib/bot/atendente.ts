@@ -3,7 +3,8 @@
 // Regra de ouro: o bot so fala DEPOIS que o lead falou. Ele nunca varre a
 // base nem dispara em lote. A unica excecao e o primeiro contato com quem
 // preencheu o formulario e nao escreveu (lib/bot/primeiroContato.ts),
-// pedida pelo Brenno em 01/11/2026.
+// pedida pelo Brenno em 01/11/2026 - em horario comercial, so se o time
+// nao chamou em meia hora.
 //
 // E o bot so cuida do PRIMEIRO atendimento: lead que ja conversou com
 // alguem do time, que tem reuniao ou que ja saiu do estagio de SDR e
