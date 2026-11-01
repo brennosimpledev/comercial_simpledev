@@ -61,13 +61,13 @@ export function textoPrimeiroContato(nome: string, necessidade: string | null | 
   const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
   const situacao = SITUACAO[resposta(respostasDoFormulario(necessidade), "qual_dessas_situa")] ?? "";
   // Em horario comercial o bot nao responde; quem continua e o time.
-  const adianto = foraDoHorario(agora)
-    ? "O time comercial está fora do expediente agora, mas eu já adianto o seu atendimento pra você não ficar esperando."
-    : "Pra já adiantar o seu atendimento com o time comercial:";
+  const pedido = foraDoHorario(agora)
+    ? "O time comercial está fora do expediente agora, mas eu já adianto o seu atendimento pra você não ficar esperando.\n\n" +
+      "Me conta em poucas palavras: o que você quer desenvolver?"
+    : "Pra adiantar o seu atendimento com o time comercial, me conta em poucas palavras: o que você quer desenvolver?";
   return (
     `${saudacao}${nome ? `, ${nome}` : ""}! Aqui é o assistente da SimpleDEV 👋\n` +
-    `Vi que você preencheu nosso formulário${situacao}. ${adianto}\n\n` +
-    `Me conta em poucas palavras: o que você quer desenvolver?`
+    `Vi que você preencheu nosso formulário${situacao}. ${pedido}`
   );
 }
 
