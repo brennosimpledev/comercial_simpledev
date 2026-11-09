@@ -39,7 +39,7 @@ type Linha = {
   lembrete_1h_em: string | null;
   aviso_furo_em: string | null;
   bot_ultima_msg: string | null;
-  leads: { nome: string; whatsapp: string | null; bot_pausado: boolean } | null;
+  leads: { nome: string; whatsapp: string | null; bot_pausado: boolean; desqualificado: boolean } | null;
 };
 
 const H = 3600_000;
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
   const { data, error } = await supabase
     .from("meetings")
     .select(
-      "id, lead_id, starts_at, status, meet_link, marcada_em, confirmacao, lembrete_vespera_em, lembrete_1h_em, aviso_furo_em, bot_ultima_msg, leads(nome, whatsapp, bot_pausado)"
+      "id, lead_id, starts_at, status, meet_link, marcada_em, confirmacao, lembrete_vespera_em, lembrete_1h_em, aviso_furo_em, bot_ultima_msg, leads(nome, whatsapp, bot_pausado, desqualificado)"
     )
     .in("status", ["agendada", "furada"])
     .gte("starts_at", new Date(agora - 4 * 86_400_000).toISOString())
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message, dica: "Rode a migration 0021 no Supabase." }, { status: 500 });
   }
   const reunioes = ((data ?? []) as unknown as Linha[]).filter(
-    (r) => r.leads?.whatsapp && !r.leads.bot_pausado
+    (r) => r.leads?.whatsapp && !r.leads.bot_pausado && !r.leads.desqualificado
   );
 
   // Nome do formulario de cada lead: o do cadastro as vezes e da empresa.

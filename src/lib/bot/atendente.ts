@@ -26,6 +26,7 @@ import {
 import { agendarPeloBot, horariosLivres, rotuloHorario } from "@/lib/agenda";
 import { brCanonical, last8 } from "@/lib/phone";
 import { formularioParaOBot } from "@/lib/bot/formulario";
+import { qualificarAutomaticamente } from "@/lib/conversions/report";
 
 const TZ = "America/Sao_Paulo";
 
@@ -46,6 +47,10 @@ const MAX_MENSAGENS = Number(process.env.BOT_MAX_MENSAGENS ?? 8);
 
 // Nome do arquivo, legenda ou descricao da foto que indica pagamento.
 const COMPROVANTE = /comprovante|recibo|\bpix\b|pagamento|transfer[eê]ncia|boleto/i;
+// Cartaz de campanha traz dados bancarios e nao e pagamento para a gente:
+// em 08/11/2026 um lead novo mandou o de uma vaquinha e o bot se pausou
+// achando que era cliente.
+const PEDIDO_DE_DOACAO = /doa[çc][ãa]o|doa[çc][õo]es|\bdoe\b|contribu|arrecada|vaquinha|campanha/i;
 
 // Quanto esperar o cliente terminar de escrever antes de responder. Quem
 // manda tres mensagens seguidas recebe uma resposta so, para as tres.
@@ -280,7 +285,10 @@ export async function responderForaDeHorario(
     const iNossa = lista.findIndex((m) => m.direction === "outbound");
     const turno = iNossa === -1 ? lista : lista.slice(0, iNossa);
     const temArquivo = turno.some((m) => m.media_type === "document" || m.media_type === "image");
-    const comprovante = temArquivo && turno.some((m) => COMPROVANTE.test(m.body ?? ""));
+    const comprovante =
+      temArquivo &&
+      turno.some((m) => COMPROVANTE.test(m.body ?? "")) &&
+      !turno.some((m) => PEDIDO_DE_DOACAO.test(m.body ?? ""));
     const soArquivo = turno.length > 0 && turno.every((m) => m.media_type === "document");
 
     let texto: string | null = null;
@@ -447,4 +455,6 @@ async function gravarBloco(
   if (codigo) {
     await supabase.from("leads").update({ bot_avaliacao: codigo }).eq("id", leadId);
   }
+  // Aceitou os R$ 20 mil (ou marcou reuniao): ja vale "Lead Qualificado".
+  if (codigo === "qualificado" || codigo === "agendado") await qualificarAutomaticamente(leadId);
 }

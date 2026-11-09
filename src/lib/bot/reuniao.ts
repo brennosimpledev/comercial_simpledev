@@ -287,11 +287,13 @@ export async function atenderReuniao(
 
     const { data: lead } = await supabase
       .from("leads")
-      .select("id, nome, whatsapp, bot_pausado")
+      .select("id, nome, whatsapp, bot_pausado, desqualificado")
       .eq("id", leadId)
       .single();
     if (!lead?.whatsapp) return { agiu: false, motivo: "sem_whatsapp" };
     if (lead.bot_pausado) return { agiu: false, motivo: "bot_pausado" };
+    // Desqualificado pelo time nao remarca sozinho pelo bot.
+    if (lead.desqualificado) return { agiu: false, motivo: "desqualificado" };
 
     if (opts.origem === "webhook") await espera(ESPERA_MS);
 

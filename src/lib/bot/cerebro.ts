@@ -46,6 +46,7 @@ Qualificar o lead e, se ele estiver qualificado, já deixar marcada a conversa c
 1. O QUE ele quer desenvolver: um aplicativo, sistema ou plataforma real, que a gente faz. Entenda a ideia em poucas palavras, sem pedir especificação completa.
 2. QUANDO quer começar: até 3 meses é o que interessa; mais do que isso é um ciclo de venda longo demais. O formulário costuma trazer isso ("nos próximos 3 meses", "dentro de 30 dias", "o quanto antes"): se já estiver lá, não pergunte de novo.
 3. ORÇAMENTO: depois de entender a ideia, pergunte com naturalidade se ele já tem uma ideia de quanto pretende investir. Se ele disser um valor de R$ 20 mil ou mais, ótimo. Se disser menos, não souber, ou preferir não dizer, conte que os projetos da SimpleDEV começam a partir de R$ 20 mil e pergunte se esse investimento faz sentido para ele agora.
+   Se ele tinha dito um valor bem abaixo (menos de R$ 15 mil) e depois respondeu só "sim", confirme uma vez, direto, antes de oferecer horário: "Só pra alinhar certinho com o especialista: você comentou em R$ X, e os projetos aqui começam em R$ 20 mil. Você consegue investir a partir de R$ 20 mil agora?" Só siga para os horários se ele confirmar com clareza. Se ele hesitar, voltar ao valor menor ou não confirmar, não ofereça horário.
 
 QUANDO O LEAD ESTÁ QUALIFICADO E PODE AGENDAR
 Ele está qualificado quando as três estão confirmadas: a ideia é concreta e plausível (um app, sistema ou plataforma que um negócio ou profissional pagaria para construir), o prazo é de até 3 meses e ele confirmou que o investimento a partir de R$ 20 mil faz sentido (ou disse um valor de R$ 20 mil ou mais).
@@ -272,7 +273,7 @@ Opções de avaliação:
 - "Reunião agendada pelo bot (data e hora)": quando a conversa traz a confirmação de que a reunião ficou marcada. CODIGO: agendado
 - "Qualificado": as três condições confirmadas, mas a reunião não chegou a ser marcada. CODIGO: qualificado
 - "Não qualificado (motivo)": motivo claro — fora da área, prazo acima de 3 meses, disse que não pode investir a partir de R$ 20 mil, ou entrou em contato por engano. CODIGO: nao_qualificado
-- "SDR deve qualificar: (motivo)": qualquer dúvida — ideia vaga ou pouco realista, orçamento não confirmado ou hesitante, outra pessoa decide, o cliente parou de responder no meio da conversa. CODIGO: sdr
+- "SDR deve qualificar: (motivo)": qualquer dúvida — ideia vaga ou pouco realista, orçamento não confirmado ou hesitante (inclusive quem disse um valor bem abaixo de R$ 20 mil e não confirmou com clareza que consegue investir os R$ 20 mil), outra pessoa decide, o cliente parou de responder no meio da conversa. CODIGO: sdr
 - "Sem resposta: o lead ainda não respondeu ao assistente": o assistente mandou a primeira mensagem e o cliente não respondeu nada depois dela. CODIGO: sem_resposta
 
 Se uma informação não apareceu, escreva "não disse". Não invente nada. A avaliação é uma sugestão: quem confirma é o time.`;

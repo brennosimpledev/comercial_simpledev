@@ -12,6 +12,7 @@ import {
   type TipoIdentificador,
 } from "@/lib/google/ads";
 import { enviarEventoMeta, metaConfigured, type ConversionType } from "@/lib/meta/conversions";
+import { leadIdDoGemeo } from "@/lib/conversions/gemeo";
 
 export type { ConversionType };
 type Canal = "google" | "meta";
@@ -83,6 +84,10 @@ async function registrarEEnviar(args: {
   // impede corrigir depois, entao um zero enviado agora seria permanente.
   const semValor = tipo === "fechado" && !(valor > 0);
 
+  // O lead_id pode ser emprestado do card gemeo do formulario: se o gemeo
+  // ja mandou este evento, a Meta somaria duas vezes a mesma pessoa.
+  if (canal === "meta" && identificador && (await jaFoiPorOutroCard(admin, lead.id, tipo, identificador))) return;
+
   const { data: row, error: insErr } = await admin
     .from("ads_conversions")
     .insert({
@@ -121,6 +126,23 @@ async function registrarEEnviar(args: {
     .eq("id", row.id);
 
   if (!r.ok) console.error(`[conv:${canal}] falhou:`, r.error);
+}
+
+async function jaFoiPorOutroCard(admin: SupabaseClient, leadId: string, tipo: ConversionType, identificador: string) {
+  const { count } = await admin
+    .from("ads_conversions")
+    .select("id", { count: "exact", head: true })
+    .eq("canal", "meta")
+    .eq("tipo", tipo)
+    .eq("gclid", identificador)
+    .neq("lead_id", leadId)
+    .in("status", ["enviado", "pendente", "aguardando_valor"]);
+  return (count ?? 0) > 0;
+}
+
+// lead_id do formulario: o do proprio card ou o do gemeo (gemeo.ts).
+async function leadIdDoFormulario(admin: SupabaseClient, lead: Lead) {
+  return lead.meta_lead_id ?? (await leadIdDoGemeo(admin, lead.id));
 }
 
 /** Nunca lanca - falha aqui nao pode quebrar a acao do CRM. */
@@ -177,6 +199,7 @@ export async function reportConversion(
     }
 
     if (metaConfigured()) {
+      const metaLeadId = await leadIdDoFormulario(admin, lead);
       tarefas.push(
         registrarEEnviar({
           admin,
@@ -185,12 +208,12 @@ export async function reportConversion(
           canal: "meta",
           // Formulario instantaneo tem lead_id; Click-to-WhatsApp tem
           // ctwa_clid. Qualquer um dos dois serve para atribuir.
-          identificador: lead.meta_lead_id ?? lead.ctwa_clid,
+          identificador: metaLeadId ?? lead.ctwa_clid,
           statusSemIdentificador: "sem_lead_id",
           enviar: (rowId, valor, quando) =>
             enviarEventoMeta({
               tipo,
-              leadId: lead.meta_lead_id,
+              leadId: metaLeadId,
               ctwaClid: lead.ctwa_clid,
               eventTime: quando,
               value: valor,
@@ -237,7 +260,8 @@ export async function reenviarPendentes(leadId: string): Promise<void> {
       .in("status", ["sem_gclid", "sem_lead_id", "erro"]);
 
     const idGoogle = identificadorGoogle(lead);
-    const idMeta = lead.meta_lead_id ?? lead.ctwa_clid;
+    const metaLeadId = await leadIdDoFormulario(admin, lead);
+    const idMeta = metaLeadId ?? lead.ctwa_clid;
 
     for (const linha of linhas ?? []) {
       const canal = linha.canal as Canal;
@@ -245,6 +269,7 @@ export async function reenviarPendentes(leadId: string): Promise<void> {
 
       if (canal === "google" && !idGoogle) continue;
       if (canal === "meta" && !idMeta) continue;
+      if (canal === "meta" && (await jaFoiPorOutroCard(admin, lead.id, tipo, idMeta!))) continue;
       // No Google so existem qualificado e fechado; o resto viraria conversao.
       const tipoGoogle = tipo === "qualificado" || tipo === "fechado" ? tipo : null;
       if (canal === "google" && !tipoGoogle) continue;
@@ -256,7 +281,7 @@ export async function reenviarPendentes(leadId: string): Promise<void> {
         canal === "meta"
           ? await enviarEventoMeta({
               tipo,
-              leadId: lead.meta_lead_id,
+              leadId: metaLeadId,
               ctwaClid: lead.ctwa_clid,
               eventTime: agora,
               value: valor,
@@ -323,6 +348,8 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
       .eq("tipo", "fechado")
       .eq("status", "aguardando_valor");
 
+    const metaLeadId = lead ? await leadIdDoFormulario(admin, lead as Lead) : null;
+
     for (const row of rows ?? []) {
       const agora = new Date();
       // Anotado porque so o Google devolve requestId; a uniao dos dois
@@ -331,7 +358,7 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
         row.canal === "meta"
           ? await enviarEventoMeta({
               tipo: "fechado",
-              leadId: (lead as Lead | null)?.meta_lead_id,
+              leadId: metaLeadId,
               ctwaClid: (lead as Lead | null)?.ctwa_clid,
               eventTime: agora,
               value: valor,
@@ -398,24 +425,49 @@ export async function reportarEtapa(leadId: string, estagio: string): Promise<vo
       .eq("id", leadId)
       .single();
     const lead = data as Lead | null;
-    if (!lead || lead.ja_cliente || !lead.meta_lead_id) return;
+    if (!lead || lead.ja_cliente) return;
+    const metaLeadId = await leadIdDoFormulario(admin, lead);
+    if (!metaLeadId) return;
 
     await registrarEEnviar({
       admin,
       lead,
       tipo,
       canal: "meta",
-      identificador: lead.meta_lead_id,
+      identificador: metaLeadId,
       statusSemIdentificador: "sem_lead_id",
       enviar: (rowId, _valor, quando) =>
         enviarEventoMeta({
           tipo,
-          leadId: lead.meta_lead_id,
+          leadId: metaLeadId,
           eventTime: quando,
           eventId: rowId,
         }),
     });
   } catch (e) {
     console.error("[conv] reportarEtapa:", e);
+  }
+}
+
+/**
+ * Marca o lead como qualificado e avisa as plataformas sem depender de
+ * alguem clicar: vale para quem aceitou os R$ 20 mil ou marcou reuniao
+ * (pedido do Brenno em 09/11/2026 - o melhor lead do fim de semana ficou
+ * sem "Lead Qualificado" na Meta). Lead que o time ja desqualificou fica
+ * como esta. Nunca lanca.
+ */
+export async function qualificarAutomaticamente(leadId: string): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("leads")
+      .select("qualificado, desqualificado, ja_cliente")
+      .eq("id", leadId)
+      .single();
+    if (!data || data.desqualificado || data.ja_cliente) return;
+    if (!data.qualificado) await admin.from("leads").update({ qualificado: true }).eq("id", leadId);
+    await reportConversion(leadId, "qualificado");
+  } catch (e) {
+    console.error("[conv] qualificarAutomaticamente:", e);
   }
 }
