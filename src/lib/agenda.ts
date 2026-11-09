@@ -183,6 +183,8 @@ export async function agendarPeloBot(
 ): Promise<{ ok: true; meetLink: string | null; inicio: Date } | { ok: false; motivo: string }> {
   const inicio = new Date(inicioISO);
   if (isNaN(inicio.getTime())) return { ok: false, motivo: "horario_invalido" };
+  // So hora cheia, como no CRM (o fuso de Brasilia e hora inteira).
+  if (inicio.getUTCMinutes() !== 0) return { ok: false, motivo: "horario_quebrado" };
   const fim = new Date(inicio.getTime() + DURACAO_BOT_MIN * 60_000);
 
   const token = await getTeamAccessToken();
@@ -266,6 +268,8 @@ export async function remarcarPeloBot(
 ): Promise<{ ok: true; meetLink: string | null; inicio: Date } | { ok: false; motivo: string }> {
   const inicio = new Date(inicioISO);
   if (isNaN(inicio.getTime())) return { ok: false, motivo: "horario_invalido" };
+  // So hora cheia, como no CRM (o fuso de Brasilia e hora inteira).
+  if (inicio.getUTCMinutes() !== 0) return { ok: false, motivo: "horario_quebrado" };
 
   const { data: mtg } = await supabase
     .from("meetings")

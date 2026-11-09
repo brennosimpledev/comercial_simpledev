@@ -83,6 +83,7 @@ export async function scheduleMeeting(
   if (!inMorning && !inAfternoon) {
     return { error: "Horário fora do comercial (9h–12h ou 14h–18h)." };
   }
+  if (brM !== 0) return { error: "Reuniões só em hora cheia (9h, 10h, 11h...)." };
 
   const datePart = opts.startLocal.split("T")[0];
   const [y, mo, da] = datePart.split("-").map(Number);
@@ -360,6 +361,7 @@ export async function rescheduleMeeting(
   if (!inMorning && !inAfternoon) {
     return { error: "Horário fora do comercial (9h–12h ou 14h–18h)." };
   }
+  if (brM !== 0) return { error: "Reuniões só em hora cheia (9h, 10h, 11h...)." };
 
   const datePart = startLocal.split("T")[0];
   const [y, mo, da] = datePart.split("-").map(Number);

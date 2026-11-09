@@ -205,11 +205,8 @@ function fileNameFromUrl(url: string) {
 
 function genSlots(startH: number, endH: number) {
   const slots: string[] = [];
-  for (let h = startH; h < endH; h++) {
-    for (let m = 0; m < 60; m += 10) {
-      slots.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    }
-  }
+  // So hora cheia: reuniao as 9h30 ou 10h10 baguncava a agenda do time.
+  for (let h = startH; h < endH; h++) slots.push(`${String(h).padStart(2, "0")}:00`);
   return slots;
 }
 

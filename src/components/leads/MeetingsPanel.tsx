@@ -36,7 +36,8 @@ function buildSlots(durMin: number) {
   const make = (start: number, end: number) => {
     const arr: string[] = [];
     const last = end - durMin;
-    for (let m = start; m <= last; m += 10) {
+    // So hora cheia: reuniao as 9h30 ou 10h10 baguncava a agenda do time.
+    for (let m = start; m <= last; m += 60) {
       const h = Math.floor(m / 60);
       const min = m % 60;
       arr.push(
