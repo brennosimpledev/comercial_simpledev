@@ -27,6 +27,70 @@ export async function projectAccess(projectId: string, userId: string) {
   }
   return p;
 }
+export async function listProjects(userId: string) {
+  const db = createAdminClient();
+  const [{ data: owned, error: ownedError }, { data: memberships, error: memberError }] =
+    await Promise.all([
+      db.from("delivery_projects").select("*").eq("owner_id", userId),
+      db.from("delivery_members").select("project_id").eq("user_id", userId),
+    ]);
+  if (ownedError || memberError) throw Error("Falha ao listar projetos");
+  const memberIds = (memberships ?? []).map((m) => m.project_id);
+  const { data: shared, error: sharedError } = memberIds.length
+    ? await db.from("delivery_projects").select("*").in("id", memberIds)
+    : { data: [], error: null };
+  if (sharedError) throw Error("Falha ao listar projetos");
+  const projects = [...(owned ?? []), ...(shared ?? [])];
+  return projects.filter(
+    (project, index) => projects.findIndex((item) => item.id === project.id) === index,
+  );
+}
+export async function searchLeads(query: string) {
+  const term = z.string().trim().min(2).max(120).parse(query).replace(/[%_]/g, "");
+  const { data, error } = await createAdminClient()
+    .from("leads")
+    .select("id,nome,estagio,status")
+    .ilike("nome", `%${term}%`)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) throw Error("Falha ao buscar leads");
+  return data ?? [];
+}
+export async function createProjectForUser(
+  userId: string,
+  input: { name: string; leadId: string },
+) {
+  const name = z.string().trim().min(3).max(200).parse(input.name);
+  const leadId = z.string().uuid().parse(input.leadId);
+  const db = createAdminClient();
+  // CRM lead access is team-wide for authenticated staff. Verify the lead before
+  // creating the project; the MCP token never receives the service key.
+  const { data: lead, error: leadError } = await db
+    .from("leads")
+    .select("id")
+    .eq("id", leadId)
+    .maybeSingle();
+  if (leadError || !lead) throw Error("Lead indisponível");
+  const { data, error } = await db
+    .from("delivery_projects")
+    .insert({ name, lead_id: leadId, owner_id: userId })
+    .select("id,name,lead_id,owner_id,revision,scope_status,created_at")
+    .single();
+  if (error || !data) throw Error("Falha ao criar projeto");
+  return data;
+}
+export async function renameProject(projectId: string, userId: string, name: string) {
+  await projectAccess(projectId, userId);
+  const cleanName = z.string().trim().min(3).max(200).parse(name);
+  const { data, error } = await createAdminClient()
+    .from("delivery_projects")
+    .update({ name: cleanName })
+    .eq("id", projectId)
+    .select("id,name,lead_id,owner_id,revision,scope_status")
+    .single();
+  if (error || !data) throw Error("Falha ao atualizar projeto");
+  return data;
+}
 export async function projectBundle(projectId: string, userId: string) {
   const project = await projectAccess(projectId, userId),
     db = createAdminClient();
@@ -55,9 +119,9 @@ export async function projectBundle(projectId: string, userId: string) {
     db.from("delivery_members").select("user_id").eq("project_id", projectId),
     db
       .from("delivery_tokens")
-      .select("id,created_at,expires_at,revoked_at")
-      .eq("project_id", projectId)
-      .eq("user_id", userId),
+      .select("id,created_at,expires_at,revoked_at,project_id")
+      .eq("user_id", userId)
+      .or(`project_id.is.null,project_id.eq.${projectId}`),
   ]);
   for (const r of results)
     if (r.error) throw Error("Falha ao carregar projeto");
