@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
   const desde = q.get("desde") ?? new Date(Date.now() - 7 * 86_400_000).toISOString();
   const ate = q.get("ate") ?? new Date().toISOString();
   const comTexto = q.get("texto") === "1";
-  const max = Math.min(Number(q.get("max") ?? 6000), 40000);
+  const max = Math.min(Number(q.get("max") ?? 6000), 300000);
   const admin = createAdminClient();
 
   const { data: reunioes, error } = await admin
