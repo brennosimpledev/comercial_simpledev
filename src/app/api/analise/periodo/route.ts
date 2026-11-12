@@ -84,6 +84,7 @@ export async function GET(request: NextRequest) {
   ]);
 
   const lista = (leads ?? []).map((l) => ({
+    id: l.id,
     nome: l.nome,
     origem: l.origem,
     anuncio: l.utm_content,
