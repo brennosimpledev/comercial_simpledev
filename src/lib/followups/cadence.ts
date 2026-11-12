@@ -42,17 +42,74 @@ export const REGUA_AUTOMATICA: PassoRegua[] = [
   {
     key: "auto_3",
     marca: "como a gente estrutura um projeto",
-    titulo: "3 dias úteis depois",
-    dias: 3,
+    titulo: "Dia seguinte à tarde",
+    dias: 1,
     hora: 14,
     texto: (n) =>
       `Olá${n ? ` ${n}` : ""}! Consigo te mostrar rapidamente como a gente estrutura um projeto como o seu. Prefere que eu te ligue ou seguimos por aqui mesmo?`,
+  },
+  // Do 5 ao 10, pedido do Brenno em 12/11/2026: no minimo dois toques por
+  // dia. Puxar o lead parado do funil para a conversa deu reuniao no mesmo
+  // dia. As perguntas tambem qualificam (empresa operando, investimento).
+  {
+    key: "auto_5",
+    marca: "empresa que já está operando ou é uma ideia nova",
+    titulo: "2 dias úteis depois, manhã",
+    dias: 2,
+    hora: 9,
+    texto: (n) =>
+      `${oi(n)} Pra eu já adiantar seu atendimento: o projeto é pra uma empresa que já está operando ou é uma ideia nova?`,
+  },
+  {
+    key: "auto_6",
+    marca: "me manda um áudio rapidinho",
+    titulo: "2 dias úteis depois, tarde",
+    dias: 2,
+    hora: 14,
+    texto: (n) =>
+      `${n ? `${n}, se` : "Se"} ficar mais fácil, me manda um áudio rapidinho contando a ideia, que eu já te devolvo com os próximos passos 🙂`,
+  },
+  {
+    key: "auto_7",
+    marca: "já tiramos do papel mais de 200 projetos",
+    titulo: "3 dias úteis depois, manhã",
+    dias: 3,
+    hora: 9,
+    texto: (n) =>
+      `Oi${n ? ` ${n}` : ""}! Só pra você ter uma referência: já tiramos do papel mais de 200 projetos, de app de logística a sistema de gestão. Me conta qual é o seu?`,
+  },
+  {
+    key: "auto_8",
+    marca: "faixa de investimento em mente",
+    titulo: "3 dias úteis depois, tarde",
+    dias: 3,
+    hora: 14,
+    texto: (n) =>
+      `${n ? `${n}, uma` : "Uma"} pergunta rápida pra eu te direcionar melhor: você já tem uma faixa de investimento em mente pro projeto?`,
+  },
+  {
+    key: "auto_9",
+    marca: "ainda tá de pé",
+    titulo: "4 dias úteis depois, manhã",
+    dias: 4,
+    hora: 9,
+    texto: (n) =>
+      `Oi${n ? ` ${n}` : ""}! A ideia do seu projeto ainda tá de pé? Se mudou alguma coisa, me conta que eu ajusto por aqui.`,
+  },
+  {
+    key: "auto_10",
+    marca: "te ligo rapidinho",
+    titulo: "4 dias úteis depois, tarde",
+    dias: 4,
+    hora: 14,
+    texto: (n) =>
+      `Se preferir, te ligo rapidinho, uns 5 minutos, pra entender o projeto. Qual o melhor horário pra você${n ? `, ${n}` : ""}?`,
   },
   {
     key: "auto_4",
     marca: "não quero ser insistente",
     titulo: "Última tentativa",
-    dias: 6,
+    dias: 5,
     hora: 9,
     texto: (n) =>
       `${n ? `${n}, não` : "Não"} quero ser insistente 🙂. Se agora não for o momento ideal, sem problema, me avisa que eu te procuro mais pra frente. Fico à disposição!`,

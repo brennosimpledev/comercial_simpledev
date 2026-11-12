@@ -23,11 +23,14 @@ export const maxDuration = 60;
 // horario comercial, nada para quem respondeu, tem reuniao, e cliente ou
 // esta pausado, e nada em cima de uma mensagem nossa recente.
 
-const POR_RODADA = 25;
-const TETO_DIARIO = 60;
+// Com dois passos por dia (12/11/2026) o volume dobra; o teto segue
+// existindo pela Evolution.
+const POR_RODADA = 40;
+const TETO_DIARIO = 90;
 // Se o bot ou a regua falaram ha pouco, espera a proxima rodada em vez de
-// empilhar mensagem.
-const RESPIRO_H = 5;
+// empilhar mensagem. Menos que as 5h entre a rodada das 9h e a das 14h,
+// senao o passo da tarde nunca sai.
+const RESPIRO_H = 4;
 // Se alguem do time falou com o lead, a conversa e dele: nada de regua por
 // um dia. Em 30/10 a regua repetiu as 14h o "passou batida" que o Ronaldo
 // tinha mandado as 9h.

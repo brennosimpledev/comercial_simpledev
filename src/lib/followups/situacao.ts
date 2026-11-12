@@ -11,8 +11,9 @@ export const ESTAGIOS_SDR = ["novo", "sdr"];
 export const REGUA_DESDE = process.env.FOLLOWUP_DESDE ?? "2026-10-29T03:00:00.000Z";
 
 // Quanto tempo sem resposta, depois da nossa ultima mensagem, para o lead
-// que ja conversou entrar na fila de "parados".
-export const PARADO_APOS_H = 20;
+// que ja conversou entrar na fila de "parados". 4h da dois toques por dia:
+// a mensagem da manha volta para a fila a tarde (era 20h ate 12/11/2026).
+export const PARADO_APOS_H = 4;
 
 export type LeadDaFila = {
   id: string;
@@ -169,6 +170,10 @@ export async function leadsComSituacao(
 // Trecho que identifica cada passo da regua, mandado pelo sistema ou a mao.
 function tentativasFeitas(msgs: Linha[]) {
   const nossas = msgs.filter((m) => m.direction === "outbound").map((m) => (m.body ?? "").toLowerCase());
+  // Quem ja recebeu a ultima tentativa terminou a regua, inclusive na antiga
+  // de 4 passos: nada de voltar a mandar depois do "nao quero ser insistente".
+  const ultima = REGUA_AUTOMATICA[REGUA_AUTOMATICA.length - 1];
+  if (nossas.some((t) => t.includes(ultima.marca))) return REGUA_AUTOMATICA.length;
   let feitas = 0;
   for (const passo of REGUA_AUTOMATICA) {
     if (nossas.some((t) => t.includes(passo.marca))) feitas++;
