@@ -16,7 +16,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { findMeetFiles, type DriveFile } from "@/lib/google/drive";
 import { avancarEstagio } from "./actions";
 import { conflitoComBloqueio, zerarConfirmacao } from "@/lib/agenda";
-import { qualificarAutomaticamente, reportarEtapa } from "@/lib/conversions/report";
+import { reportarEtapa } from "@/lib/conversions/report";
 import { after } from "next/server";
 
 // "a@x.com, b@y.com" ou um por linha. Devolve os validos sem repetir e os
@@ -147,7 +147,6 @@ export async function scheduleMeeting(
       .eq("id", leadId);
     after(() => reportarEtapa(leadId, "reuniao_marcada"));
   }
-  after(() => qualificarAutomaticamente(leadId));
 
   if (opts.notifyWhatsapp && lead.whatsapp && result.meetLink) {
     const msg =

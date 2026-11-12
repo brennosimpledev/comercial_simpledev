@@ -451,10 +451,13 @@ export async function reportarEtapa(leadId: string, estagio: string): Promise<vo
 
 /**
  * Marca o lead como qualificado e avisa as plataformas sem depender de
- * alguem clicar: vale para quem aceitou os R$ 20 mil ou marcou reuniao
- * (pedido do Brenno em 09/11/2026 - o melhor lead do fim de semana ficou
- * sem "Lead Qualificado" na Meta). Lead que o time ja desqualificou fica
- * como esta. Nunca lanca.
+ * alguem clicar. So o bot chama, quando o lead passa na regra dele (valor
+ * natural e dinheiro com origem): "Lead Qualificado" e o evento que a
+ * campanha otimiza. Reuniao marcada a mao no CRM nao qualifica sozinha
+ * desde 12/11/2026 - em novembro, reuniao empurrada sem orcamento
+ * confirmado virou "Lead Qualificado" e a Meta aprendeu a trazer quem
+ * marca e falta. Lead que o time ja desqualificou fica como esta. Nunca
+ * lanca.
  */
 export async function qualificarAutomaticamente(leadId: string): Promise<void> {
   try {
