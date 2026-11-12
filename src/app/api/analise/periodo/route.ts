@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
   const { data: leads, error } = await admin
     .from("leads")
     .select(
-      "id, nome, origem, estagio, status, qualificado, desqualificado, bot_avaliacao, bot_pausado, ja_cliente, necessidade, anotacoes, utm_content, meta_lead_id, ctwa_clid, created_at"
+      "id, nome, whatsapp, origem, estagio, status, qualificado, desqualificado, bot_avaliacao, bot_pausado, ja_cliente, necessidade, anotacoes, utm_content, meta_lead_id, ctwa_clid, created_at"
     )
     .gte("created_at", desde)
     .lte("created_at", ate)
@@ -85,6 +85,7 @@ export async function GET(request: NextRequest) {
 
   const lista = (leads ?? []).map((l) => ({
     id: l.id,
+    whatsapp: l.whatsapp,
     nome: l.nome,
     origem: l.origem,
     anuncio: l.utm_content,
