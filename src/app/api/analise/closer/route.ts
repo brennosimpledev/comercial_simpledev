@@ -66,7 +66,49 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Formato (so nomes de campos e dominio dos jids, sem conteudo).
+  const forma = (o: unknown, prof = 0): unknown => {
+    if (o === null || typeof o !== "object" || prof > 2) {
+      if (typeof o === "string" && o.includes("@")) return "…@" + o.split("@")[1];
+      return typeof o;
+    }
+    if (Array.isArray(o)) return [forma(o[0], prof + 1)];
+    return Object.fromEntries(Object.entries(o as Record<string, unknown>).map(([k, v]) => [k, forma(v, prof + 1)]));
+  };
+  const umaMsg = ((geral.dados as { messages?: { records?: unknown[] } })?.messages?.records ?? [])[0];
+  const contatos = await post("/chat/findContacts", {});
+  const listaC = Array.isArray(contatos.dados) ? (contatos.dados as unknown[]) : [];
+  const fim8 = numero.replace(/\D/g, "").slice(-8);
+
+  // Varre as mensagens procurando o numero em qualquer campo (remoteJidAlt,
+  // senderPn...).
+  let achadas = 0;
+  const camposComNumero = new Set<string>();
+  if (fim8) {
+    for (let page = 1; page <= 10; page++) {
+      const r = await post("/chat/findMessages", { where: {}, page, offset: 250 });
+      const recs = ((r.dados as { messages?: { records?: Record<string, unknown>[] } })?.messages?.records ?? []);
+      for (const m of recs) {
+        const key = (m.key ?? {}) as Record<string, unknown>;
+        for (const [k, v] of Object.entries(key)) {
+          if (typeof v === "string" && v.includes(fim8)) {
+            achadas++;
+            camposComNumero.add(`key.${k}=…@${v.split("@")[1] ?? ""}`);
+          }
+        }
+      }
+      if (recs.length < 250) break;
+    }
+  }
+
   return NextResponse.json({
+    forma_chat: forma(lista[0]),
+    forma_msg: forma(umaMsg),
+    contatos: listaC.length,
+    forma_contato: forma(listaC.find((c) => JSON.stringify(c).includes("@lid")) ?? listaC[0]),
+    contatos_que_citam_o_numero: fim8 ? listaC.filter((c) => JSON.stringify(c).includes(fim8)).length : null,
+    msgs_com_numero_na_key: achadas,
+    campos_com_numero: Array.from(camposComNumero),
     instancia: NOME_DA_INSTANCIA.closer,
     status_mensagens: geral.status,
     mensagens_no_servidor: total(geral.dados),
