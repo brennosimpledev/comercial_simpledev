@@ -5,6 +5,8 @@ import { CLOSER_STAGES, type Lead, type LeadArquivo } from "@/types/database";
 import type { ReuniaoResumo } from "@/components/funil/FunilBoard";
 
 export const dynamic = "force-dynamic";
+// A analise da IA (server action do card) le conversa e transcricao.
+export const maxDuration = 120;
 
 export default async function FunilPage() {
   const supabase = await createClient();

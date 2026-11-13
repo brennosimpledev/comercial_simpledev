@@ -17,6 +17,7 @@ import { MeetingsPanel } from "@/components/leads/MeetingsPanel";
 import { FollowUpPanel } from "@/components/funil/FollowUpPanel";
 import { FechamentoPanel } from "@/components/funil/FechamentoPanel";
 import { CloserChat } from "@/components/funil/CloserChat";
+import { ProximoPassoIA } from "@/components/funil/ProximoPassoIA";
 import { etiquetaConfirmacao } from "@/components/meetings/confirmacao";
 import {
   CLOSER_STAGES,
@@ -246,6 +247,13 @@ export function FunilBoard({
 }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [sel, setSel] = useState<Lead | null>(null);
+  const [rascunho, setRascunho] = useState<{ texto: string; n: number; leadId: string } | null>(null);
+  const [versaoFollowup, setVersaoFollowup] = useState(0);
+
+  function mudarRetorno(leadId: string, proximo: string | null) {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, proximo_contato: proximo } : l)));
+    setSel((atual) => (atual && atual.id === leadId ? { ...atual, proximo_contato: proximo } : atual));
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
@@ -445,10 +453,21 @@ export function FunilBoard({
             {/* Conversa a esquerda, o resto a direita, cada lado com a sua rolagem. */}
             <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:overflow-hidden">
               <div className="h-[65vh] lg:h-full lg:min-h-0">
-                <CloserChat key={sel.id} leadId={sel.id} nome={sel.nome} temWhatsapp={Boolean(sel.whatsapp)} />
+                <CloserChat key={sel.id} leadId={sel.id} nome={sel.nome} temWhatsapp={Boolean(sel.whatsapp)} rascunho={rascunho} />
               </div>
 
               <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+                <ProximoPassoIA
+                  key={sel.id}
+                  leadId={sel.id}
+                  proximoContato={sel.proximo_contato}
+                  aoSalvarFollowup={(data) => {
+                    mudarRetorno(sel.id, data);
+                    setVersaoFollowup((v) => v + 1);
+                  }}
+                  aoUsarMensagem={(texto) => setRascunho({ texto, n: Date.now(), leadId: sel.id })}
+                />
+
                 {colunaDoCloser(sel.estagio) === "fechado" && (
                   <div className="sd-card p-4">
                     <FechamentoPanel
@@ -465,6 +484,7 @@ export function FunilBoard({
 
                 <div className="sd-card p-4">
                   <FollowUpPanel
+                    key={`${sel.id}-${versaoFollowup}`}
                     leadId={sel.id}
                     proximoContato={sel.proximo_contato}
                     aoMudar={(proximo) => {

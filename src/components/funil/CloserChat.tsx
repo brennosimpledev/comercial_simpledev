@@ -57,7 +57,18 @@ function paraBase64(blob: Blob): Promise<string> {
   });
 }
 
-export function CloserChat({ leadId, nome, temWhatsapp }: { leadId: string; nome: string; temWhatsapp: boolean }) {
+export function CloserChat({
+  leadId,
+  nome,
+  temWhatsapp,
+  rascunho,
+}: {
+  leadId: string;
+  nome: string;
+  temWhatsapp: boolean;
+  // Texto vindo de fora (ex.: mensagem sugerida pela IA). "n" muda a cada uso.
+  rascunho?: { texto: string; n: number; leadId: string } | null;
+}) {
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [carregou, setCarregou] = useState(false);
   const [texto, setTexto] = useState("");
@@ -111,6 +122,12 @@ export function CloserChat({ leadId, nome, temWhatsapp }: { leadId: string; nome
   useEffect(() => {
     fimRef.current?.scrollIntoView({ block: "end" });
   }, [mensagens.length]);
+
+  useEffect(() => {
+    if (!rascunho || rascunho.leadId !== leadId) return;
+    setTexto(rascunho.texto);
+    requestAnimationFrame(() => campoRef.current?.focus());
+  }, [rascunho, leadId]);
 
   async function executar(fn: () => Promise<{ error?: string; aviso?: string }>) {
     setErro(null);
