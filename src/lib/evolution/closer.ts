@@ -88,6 +88,32 @@ export async function midiaDoCloser(waMessageId: string): Promise<{ base64: stri
 
 const POR_PAGINA = 50;
 
+// O WhatsApp novo guarda a maioria das conversas com um id "@lid", sem o
+// numero. A Evolution nao grava o par lid/numero, mas tem os dois contatos:
+// o do numero (da agenda) e o @lid, com o mesmo nome de perfil. So aceita
+// quando ha exatamente um @lid com esse nome, para nao misturar conversas.
+async function lidDoNumero(numero: string): Promise<string | null> {
+  try {
+    const r = await post("/chat/findContacts", {});
+    const contatos = Array.isArray(r.dados) ? (r.dados as unknown as { remoteJid?: string; pushName?: string | null }[]) : [];
+    const doNumero = new Set(variantesBR(numero).map((n) => `${n}@s.whatsapp.net`));
+    const nomes = new Set(
+      contatos
+        .filter((c) => c.remoteJid && doNumero.has(c.remoteJid) && c.pushName?.trim())
+        .map((c) => c.pushName!.trim())
+    );
+    if (nomes.size === 0) return null;
+    const lids = new Set(
+      contatos
+        .filter((c) => c.remoteJid?.endsWith("@lid") && c.pushName && nomes.has(c.pushName.trim()))
+        .map((c) => c.remoteJid!)
+    );
+    return lids.size === 1 ? Array.from(lids)[0] : null;
+  } catch {
+    return null;
+  }
+}
+
 // Historico da conversa com o numero no WhatsApp do closer. Usa o primeiro
 // jid que tiver mensagem (com ou sem o nono digito) para nao misturar
 // conversas de numeros parecidos.
@@ -105,6 +131,9 @@ export async function historicoDoCloser(numero: string, maxPaginas = 4): Promise
       return { registros: [] as EvoHistMessage[], paginas: 0 };
     }
   };
+
+  const lid = await lidDoNumero(numero);
+  if (lid) jids.push(lid);
 
   for (const jid of jids) {
     const primeira = await pagina(jid, 1);
