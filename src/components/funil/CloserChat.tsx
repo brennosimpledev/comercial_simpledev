@@ -7,6 +7,7 @@ import {
   enviarMidiaDoCloser,
   importarHistoricoCloser,
 } from "@/app/(app)/funil/closer";
+import { mensagensProntas } from "@/components/funil/mensagensProntas";
 
 // Chat do lead no WhatsApp do closer. Igual ao do SDR na ficha do lead, mas
 // lendo e enviando pela instancia do closer.
@@ -56,7 +57,7 @@ function paraBase64(blob: Blob): Promise<string> {
   });
 }
 
-export function CloserChat({ leadId, temWhatsapp }: { leadId: string; temWhatsapp: boolean }) {
+export function CloserChat({ leadId, nome, temWhatsapp }: { leadId: string; nome: string; temWhatsapp: boolean }) {
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [carregou, setCarregou] = useState(false);
   const [texto, setTexto] = useState("");
@@ -66,6 +67,7 @@ export function CloserChat({ leadId, temWhatsapp }: { leadId: string; temWhatsap
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
+  const campoRef = useRef<HTMLTextAreaElement>(null);
   const arquivoRef = useRef<HTMLInputElement>(null);
   const gravadorRef = useRef<MediaRecorder | null>(null);
   const pedacosRef = useRef<Blob[]>([]);
@@ -192,7 +194,7 @@ export function CloserChat({ leadId, temWhatsapp }: { leadId: string; temWhatsap
         const f = e.dataTransfer.files?.[0];
         if (f && temWhatsapp && !ocupado) anexar(f);
       }}
-      className="flex h-[60vh] flex-col overflow-hidden rounded-xl border border-white/10 bg-navy-mid"
+      className="flex h-full min-h-[420px] flex-col overflow-hidden rounded-xl border border-white/10 bg-navy-mid"
     >
       <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
         <span className="text-xs font-semibold text-slate-300">WhatsApp do closer</span>
@@ -242,7 +244,26 @@ export function CloserChat({ leadId, temWhatsapp }: { leadId: string; temWhatsap
         </p>
       )}
 
-      <div className="flex items-center gap-2 border-t border-slate-800 p-2">
+      {temWhatsapp && (
+        <div className="flex gap-1.5 overflow-x-auto border-t border-slate-800 px-2 pt-2">
+          {mensagensProntas(nome).map((m) => (
+            <button
+              key={m.rotulo}
+              type="button"
+              onClick={() => {
+                setTexto(m.texto);
+                requestAnimationFrame(() => campoRef.current?.focus());
+              }}
+              title={m.texto}
+              className="shrink-0 rounded-full border border-sky-500/30 px-2.5 py-1 text-[11px] text-sky-200 hover:bg-sky-500/10"
+            >
+              {m.rotulo}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-end gap-2 p-2">
         <input
           ref={arquivoRef}
           type="file"
@@ -271,7 +292,9 @@ export function CloserChat({ leadId, temWhatsapp }: { leadId: string; temWhatsap
         >
           {gravando ? "⏺" : "🎤"}
         </button>
-        <input
+        <textarea
+          ref={campoRef}
+          rows={texto.length > 70 || texto.includes(String.fromCharCode(10)) ? 3 : 1}
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           onKeyDown={(e) => {
@@ -282,7 +305,7 @@ export function CloserChat({ leadId, temWhatsapp }: { leadId: string; temWhatsap
           }}
           placeholder={!temWhatsapp ? "Lead sem WhatsApp cadastrado" : gravando ? "Gravando áudio…" : "Mensagem pelo seu WhatsApp…"}
           disabled={bloqueado}
-          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0b2a49] px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-500 disabled:opacity-50"
+          className="min-w-0 flex-1 resize-none rounded-lg border border-white/10 bg-[#0b2a49] px-3 py-2 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-500 disabled:opacity-50"
         />
         <button
           onClick={enviar}

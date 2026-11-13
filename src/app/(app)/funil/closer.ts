@@ -80,6 +80,41 @@ export async function enviarAudioDoCloser(leadId: string, base64: string) {
   return registrar(leadId, await enviarAudioCloser(l.lead.whatsapp, base64), "", "audio");
 }
 
+// Manda o escopo ou a proposta salvos no CRM pelo WhatsApp do closer: o
+// arquivo e, em seguida, a mensagem (o jeito que o Brenno ja faz a mao).
+export async function enviarArquivoCloser(leadId: string, arquivoId: string, texto: string) {
+  const l = await leadDoUsuario(leadId);
+  if ("error" in l) return l;
+
+  const admin = createAdminClient();
+  const { data: arq } = await admin
+    .from("lead_arquivos")
+    .select("lead_id, nome, path")
+    .eq("id", arquivoId)
+    .maybeSingle();
+  if (!arq || arq.lead_id !== leadId) return { error: "Arquivo não encontrado." };
+
+  const { data: blob, error } = await admin.storage.from("leads").download(arq.path as string);
+  if (error || !blob) return { error: "Não foi possível ler o arquivo salvo." };
+
+  const nome = arq.nome as string;
+  const mimetype = blob.type || (nome.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
+  const base64 = Buffer.from(await blob.arrayBuffer()).toString("base64");
+  const mediatype = mimetype.startsWith("image/") ? "image" : "document";
+
+  const r1 = await registrar(
+    leadId,
+    await enviarMidiaCloser(l.lead.whatsapp, { mediatype, base64, mimetype, fileName: nome }),
+    mediatype === "document" ? nome : "",
+    mediatype
+  );
+  if ("error" in r1) return r1;
+
+  const body = texto.trim();
+  if (!body) return r1;
+  return registrar(leadId, await enviarTextoCloser(l.lead.whatsapp, body), body, null);
+}
+
 // Traz o que ja foi conversado no WhatsApp do closer antes de ele estar
 // conectado ao CRM (ou que o webhook perdeu).
 export async function importarHistoricoCloser(leadId: string) {

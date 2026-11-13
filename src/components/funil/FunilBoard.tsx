@@ -38,15 +38,6 @@ const STATUS_REUNIAO: Record<MeetingStatus, { label: string; cls: string }> = {
   cancelada: { label: "Cancelada", cls: "bg-red-500/15 text-red-400" },
 };
 
-// O Drive so embute video pela rota /preview.
-function drivePreview(url: string): string | null {
-  const marcador = "/file/d/";
-  const i = url.indexOf(marcador);
-  if (i === -1) return null;
-  const id = url.slice(i + marcador.length).split("/")[0].split("?")[0];
-  return id ? `https://drive.google.com/file/d/${id}/preview` : null;
-}
-
 function fmtReuniao(iso: string) {
   return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
@@ -380,33 +371,49 @@ export function FunilBoard({
 
       {sel && (
         <div
-          className="fixed inset-0 z-20 flex justify-end bg-black/50"
+          className="fixed inset-0 z-20 flex items-center justify-center bg-black/60 p-2 sm:p-4"
           onClick={() => setSel(null)}
         >
           <div
-            className="h-full w-full max-w-xl overflow-y-auto border-l border-white/10 bg-navy p-5"
+            className="flex h-full max-h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-white/10 bg-navy shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-white">{sel.nome}</h2>
-                <p className="text-xs text-slate-400">
-                  {STAGE_LABELS[colunaDoCloser(sel.estagio) ?? sel.estagio]} ·{" "}
-                  {diasParado(sel) === 0 ? "hoje" : `parado há ${diasParado(sel)}d`}
-                </p>
+            <div className="border-b border-white/10 px-5 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <h2 className="truncate text-lg font-semibold text-white">{sel.nome}</h2>
+                  <p className="text-xs text-slate-400">
+                    {STAGE_LABELS[colunaDoCloser(sel.estagio) ?? sel.estagio]} ·{" "}
+                    {diasParado(sel) === 0 ? "hoje" : `parado há ${diasParado(sel)}d`}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2 text-xs">
+                  {sel.whatsapp && (
+                    <a
+                      href={`https://wa.me/${sel.whatsapp.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="sd-btn-ghost px-2 py-1"
+                    >
+                      Abrir no WhatsApp
+                    </a>
+                  )}
+                  <Link href={`/leads/${sel.id}`} className="sd-btn-ghost px-2 py-1">
+                    Ficha completa
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setSel(null)}
+                    className="px-1 text-base text-slate-400 hover:text-white"
+                    aria-label="Fechar"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setSel(null)}
-                className="text-slate-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
 
-            <div className="mb-4">
-              <p className="sd-label">Mover para</p>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-[11px] uppercase tracking-wide text-slate-500">Mover para</span>
                 {CLOSER_STAGES.map((stage) => {
                   const aqui = colunaDoCloser(sel.estagio) === stage;
                   const cor =
@@ -435,176 +442,153 @@ export function FunilBoard({
               </div>
             </div>
 
-            <div className="mb-4 flex flex-wrap gap-2 text-xs">
-              {sel.whatsapp && (
-                <a
-                  href={`https://wa.me/${sel.whatsapp.replace(/\D/g, "")}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="sd-btn-ghost px-2 py-1"
-                >
-                  WhatsApp
-                </a>
-              )}
-              <Link href={`/leads/${sel.id}`} className="sd-btn-ghost px-2 py-1">
-                Ficha completa
-              </Link>
-            </div>
-
-            <div className="mb-4">
-              <CloserChat key={sel.id} leadId={sel.id} temWhatsapp={Boolean(sel.whatsapp)} />
-            </div>
-
-            {colunaDoCloser(sel.estagio) === "fechado" && (
-              <div className="sd-card mb-4 p-4">
-                <FechamentoPanel
-                  leadId={sel.id}
-                  valor={sel.valor_fechado}
-                  jaCliente={sel.ja_cliente}
-                  aoSalvar={(valor) => {
-                    setLeads((prev) => prev.map((l) => (l.id === sel.id ? { ...l, valor_fechado: valor } : l)));
-                    setSel((atual) => (atual ? { ...atual, valor_fechado: valor } : atual));
-                  }}
-                />
+            {/* Conversa a esquerda, o resto a direita, cada lado com a sua rolagem. */}
+            <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto p-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:overflow-hidden">
+              <div className="h-[65vh] lg:h-full lg:min-h-0">
+                <CloserChat key={sel.id} leadId={sel.id} nome={sel.nome} temWhatsapp={Boolean(sel.whatsapp)} />
               </div>
-            )}
 
-            <div className="sd-card mb-4 p-4">
-              <FollowUpPanel
-                leadId={sel.id}
-                proximoContato={sel.proximo_contato}
-                aoMudar={(proximo) => {
-                  setLeads((prev) =>
-                    prev.map((l) =>
-                      l.id === sel.id ? { ...l, proximo_contato: proximo } : l
-                    )
-                  );
-                  setSel((atual) =>
-                    atual ? { ...atual, proximo_contato: proximo } : atual
-                  );
-                }}
-              />
-            </div>
-
-            <div className="sd-card mb-4 p-4">
-              <h3 className="mb-2 text-sm font-semibold text-slate-200">Reuniões</h3>
-              {reunioes.filter((r) => r.lead_id === sel.id).length === 0 ? (
-                <p className="text-xs text-slate-500">Nenhuma reunião registrada.</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {reunioes
-                    .filter((r) => r.lead_id === sel.id)
-                    .map((r) => (
-                      <li
-                        key={r.id}
-                        className="flex items-center gap-2 rounded-lg border border-white/5 bg-navy-mid px-3 py-2"
-                      >
-                        <span className="shrink-0 text-xs text-slate-300">
-                          {fmtReuniao(r.starts_at)}
-                        </span>
-                        <span
-                          className={
-                            "shrink-0 rounded px-1.5 py-0.5 text-[10px] " +
-                            STATUS_REUNIAO[r.status].cls
-                          }
-                        >
-                          {STATUS_REUNIAO[r.status].label}
-                        </span>
-                        {etiquetaConfirmacao(r) && (
-                          <span
-                            title={etiquetaConfirmacao(r)!.titulo}
-                            className={"shrink-0 rounded px-1.5 py-0.5 text-[10px] " + etiquetaConfirmacao(r)!.cls}
-                          >
-                            {etiquetaConfirmacao(r)!.icone} {etiquetaConfirmacao(r)!.texto}
-                          </span>
-                        )}
-                        <span className="flex-1 truncate text-xs text-slate-500">
-                          {r.titulo ?? ""}
-                        </span>
-                        {r.transcricao && (
-                          <a
-                            href={r.transcricao}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="shrink-0 text-[11px] text-slate-300 hover:text-brand"
-                          >
-                            Transcrição
-                          </a>
-                        )}
-                        {r.gravacao && (
-                          <a
-                            href={r.gravacao}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="shrink-0 text-[11px] text-emerald-400 hover:underline"
-                          >
-                            Gravação
-                          </a>
-                        )}
-                        {r.meet_link && (
-                          <a
-                            href={r.meet_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="shrink-0 text-[11px] text-brand hover:underline"
-                          >
-                            Meet
-                          </a>
-                        )}
-                        <Link
-                          href={`/reunioes?m=${r.id}`}
-                          className="shrink-0 text-[11px] text-slate-400 hover:text-brand"
-                          title="Abrir na agenda"
-                        >
-                          Agenda
-                        </Link>
-                      </li>
-                    ))}
-                </ul>
-              )}
-
-              {(() => {
-                // Video da primeira reuniao que tiver gravacao, ja embutido.
-                const comVideo = reunioes
-                  .filter((r) => r.lead_id === sel.id && r.gravacao)
-                  .map((r) => drivePreview(r.gravacao as string))
-                  .find(Boolean);
-                return comVideo ? (
-                  <div className="mt-3 overflow-hidden rounded-lg border border-white/10">
-                    <iframe
-                      src={comVideo}
-                      className="aspect-video w-full"
-                      allow="autoplay"
-                      title="Gravação da reunião"
+              <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+                {colunaDoCloser(sel.estagio) === "fechado" && (
+                  <div className="sd-card p-4">
+                    <FechamentoPanel
+                      leadId={sel.id}
+                      valor={sel.valor_fechado}
+                      jaCliente={sel.ja_cliente}
+                      aoSalvar={(valor) => {
+                        setLeads((prev) => prev.map((l) => (l.id === sel.id ? { ...l, valor_fechado: valor } : l)));
+                        setSel((atual) => (atual ? { ...atual, valor_fechado: valor } : atual));
+                      }}
                     />
                   </div>
-                ) : null;
-              })()}
+                )}
 
-              <div className="mt-3 border-t border-white/5 pt-3">
-                <MeetingsPanel
-                  leadId={sel.id}
-                  meetings={reunioes.filter((r) => r.lead_id === sel.id)}
-                  googleConnected={googleConnected}
-                  hasWhatsapp={Boolean(sel.whatsapp)}
-                  leadName={sel.nome}
-                  leadEmail={sel.email}
-                />
+                <div className="sd-card p-4">
+                  <FollowUpPanel
+                    leadId={sel.id}
+                    proximoContato={sel.proximo_contato}
+                    aoMudar={(proximo) => {
+                      setLeads((prev) =>
+                        prev.map((l) =>
+                          l.id === sel.id ? { ...l, proximo_contato: proximo } : l
+                        )
+                      );
+                      setSel((atual) =>
+                        atual ? { ...atual, proximo_contato: proximo } : atual
+                      );
+                    }}
+                  />
+                </div>
+
+                <div className="sd-card p-4">
+                  <h3 className="mb-2 text-sm font-semibold text-slate-200">Reuniões</h3>
+                  {reunioes.filter((r) => r.lead_id === sel.id).length === 0 ? (
+                    <p className="text-xs text-slate-500">Nenhuma reunião registrada.</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {reunioes
+                        .filter((r) => r.lead_id === sel.id)
+                        .map((r) => (
+                          <li
+                            key={r.id}
+                            className="flex items-center gap-2 rounded-lg border border-white/5 bg-navy-mid px-3 py-2"
+                          >
+                            <span className="shrink-0 text-xs text-slate-300">
+                              {fmtReuniao(r.starts_at)}
+                            </span>
+                            <span
+                              className={
+                                "shrink-0 rounded px-1.5 py-0.5 text-[10px] " +
+                                STATUS_REUNIAO[r.status].cls
+                              }
+                            >
+                              {STATUS_REUNIAO[r.status].label}
+                            </span>
+                            {etiquetaConfirmacao(r) && (
+                              <span
+                                title={etiquetaConfirmacao(r)!.titulo}
+                                className={"shrink-0 rounded px-1.5 py-0.5 text-[10px] " + etiquetaConfirmacao(r)!.cls}
+                              >
+                                {etiquetaConfirmacao(r)!.icone} {etiquetaConfirmacao(r)!.texto}
+                              </span>
+                            )}
+                            <span className="flex-1 truncate text-xs text-slate-500">
+                              {r.titulo ?? ""}
+                            </span>
+                            {r.transcricao && (
+                              <a
+                                href={r.transcricao}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="shrink-0 text-[11px] text-slate-300 hover:text-brand"
+                              >
+                                Transcrição
+                              </a>
+                            )}
+                            {r.gravacao && (
+                              <a
+                                href={r.gravacao}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="shrink-0 text-[11px] text-emerald-400 hover:underline"
+                              >
+                                Gravação
+                              </a>
+                            )}
+                            {r.meet_link && (
+                              <a
+                                href={r.meet_link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="shrink-0 text-[11px] text-brand hover:underline"
+                              >
+                                Meet
+                              </a>
+                            )}
+                            <Link
+                              href={`/reunioes?m=${r.id}`}
+                              className="shrink-0 text-[11px] text-slate-400 hover:text-brand"
+                              title="Abrir na agenda"
+                            >
+                              Agenda
+                            </Link>
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+
+                  <div className="mt-3 border-t border-white/5 pt-3">
+                    <MeetingsPanel
+                      leadId={sel.id}
+                      meetings={reunioes.filter((r) => r.lead_id === sel.id)}
+                      googleConnected={googleConnected}
+                      hasWhatsapp={Boolean(sel.whatsapp)}
+                      leadName={sel.nome}
+                      leadEmail={sel.email}
+                    />
+                  </div>
+                </div>
+
+                <div className="sd-card p-4">
+                  <ArquivosPanel
+                    key={sel.id}
+                    leadId={sel.id}
+                    whatsapp={{ nome: sel.nome, temNumero: Boolean(sel.whatsapp) }}
+                  />
+                </div>
+
+                {sel.anotacoes && (
+                  <div className="sd-card p-4">
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      Anotações
+                    </h3>
+                    <div className="max-h-56 overflow-y-auto pr-1">
+                      <p className="whitespace-pre-wrap text-sm text-slate-300">{sel.anotacoes}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-
-            <div className="sd-card p-4">
-              <ArquivosPanel leadId={sel.id} />
-            </div>
-
-            {sel.anotacoes && (
-              <div className="sd-card mt-4 p-4">
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Anotações
-                </h3>
-                <p className="whitespace-pre-wrap text-sm text-slate-300">{sel.anotacoes}</p>
-              </div>
-            )}
           </div>
         </div>
       )}

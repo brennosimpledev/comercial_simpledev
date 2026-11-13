@@ -11,6 +11,8 @@ import {
 } from "@/app/(app)/leads/arquivos";
 import type { ArquivoTipo } from "@/types/database";
 import { DropZone } from "@/components/ui/DropZone";
+import { enviarArquivoCloser } from "@/app/(app)/funil/closer";
+import { textoDoDocumento } from "@/components/funil/mensagensProntas";
 
 const ABAS: { tipo: ArquivoTipo; label: string }[] = [
   { tipo: "escopo", label: "Escopos" },
@@ -33,16 +35,45 @@ function fmtValor(v: number | null) {
   return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-export function ArquivosPanel({ leadId }: { leadId: string }) {
+// whatsapp: so no Funil. Liga o envio do documento pelo WhatsApp do closer.
+export function ArquivosPanel({
+  leadId,
+  whatsapp,
+}: {
+  leadId: string;
+  whatsapp?: { nome: string; temNumero: boolean };
+}) {
   const router = useRouter();
   const [aba, setAba] = useState<ArquivoTipo>("escopo");
   const [arquivos, setArquivos] = useState<ArquivoComLink[] | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [valor, setValor] = useState("");
+  const [compor, setCompor] = useState<{ id: string; nome: string } | null>(null);
+  const [textoEnvio, setTextoEnvio] = useState("");
+  const [mandando, setMandando] = useState(false);
+  const [retorno, setRetorno] = useState<{ ok: boolean; texto: string } | null>(null);
+
+  function abrirEnvio(a: { id: string; nome: string; tipo: ArquivoTipo }) {
+    if (!whatsapp?.temNumero) return;
+    setRetorno(null);
+    setCompor({ id: a.id, nome: a.nome });
+    setTextoEnvio(textoDoDocumento(a.tipo === "proposta" ? "proposta" : "escopo", whatsapp.nome));
+  }
+
+  async function mandarNoWhatsApp() {
+    if (!compor) return;
+    setMandando(true);
+    const r = await enviarArquivoCloser(leadId, compor.id, textoEnvio);
+    setMandando(false);
+    if ("error" in r && r.error) return setRetorno({ ok: false, texto: r.error });
+    setCompor(null);
+    setRetorno({ ok: true, texto: "Enviado pelo seu WhatsApp ✓" });
+  }
 
   async function recarregar() {
     const r = await listarArquivos(leadId);
     setArquivos(r.arquivos);
+    return r.arquivos;
   }
 
   useEffect(() => {
@@ -68,8 +99,11 @@ export function ArquivosPanel({ leadId }: { leadId: string }) {
       return;
     }
     setValor("");
-    await recarregar();
+    const lista = await recarregar();
     router.refresh();
+    // Acabou de salvar: ja oferece mandar para o cliente.
+    const novo = lista.find((a) => a.tipo === aba && a.atual);
+    if (novo) abrirEnvio(novo);
   }
 
   async function tornarAtual(id: string) {
@@ -135,7 +169,57 @@ export function ArquivosPanel({ leadId }: { leadId: string }) {
               </span>
             )}
           </div>
+          {whatsapp && compor?.id !== atual.id && (
+            <button
+              type="button"
+              onClick={() => abrirEnvio(atual)}
+              disabled={!whatsapp.temNumero}
+              title={whatsapp.temNumero ? "Manda o arquivo e uma mensagem pelo seu WhatsApp" : "Lead sem WhatsApp cadastrado"}
+              className="mt-2 rounded-lg border border-sky-500/40 px-2.5 py-1 text-xs text-sky-200 hover:bg-sky-500/10 disabled:opacity-50"
+            >
+              Enviar no WhatsApp
+            </button>
+          )}
         </div>
+      )}
+
+      {compor && (
+        <div className="mb-3 rounded-lg border border-sky-500/30 bg-sky-500/5 p-3">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-sky-200">
+            Enviar no seu WhatsApp
+          </p>
+          <p className="mb-2 truncate text-xs text-slate-300" title={compor.nome}>
+            📎 {compor.nome}
+          </p>
+          <textarea
+            value={textoEnvio}
+            onChange={(e) => setTextoEnvio(e.target.value)}
+            rows={4}
+            className="mb-2 w-full rounded-lg border border-white/10 bg-[#0b2a49] px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-500"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={mandarNoWhatsApp}
+              disabled={mandando}
+              className="rounded-lg bg-sky-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+            >
+              {mandando ? "Enviando…" : "Enviar arquivo e mensagem"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCompor(null)}
+              disabled={mandando}
+              className="rounded-lg px-3 py-1.5 text-sm text-slate-400 hover:text-slate-200"
+            >
+              Agora não
+            </button>
+          </div>
+        </div>
+      )}
+
+      {retorno && (
+        <p className={"mb-3 text-xs " + (retorno.ok ? "text-emerald-300" : "text-red-300")}>{retorno.texto}</p>
       )}
 
       {arquivos === null ? (
