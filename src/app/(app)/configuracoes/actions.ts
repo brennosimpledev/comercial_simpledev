@@ -14,7 +14,6 @@ import {
   qrParaConectar,
   webhookDaInstancia,
   type Estado,
-  type Instancia,
   type Papel,
 } from "@/lib/evolution/instancias";
 
@@ -33,7 +32,6 @@ export type CartaoWhatsApp = {
 
 export type PainelWhatsApp = {
   cartoes: CartaoWhatsApp[];
-  outras: Instancia[];
   erroLista: string | null;
 };
 
@@ -100,8 +98,8 @@ export async function carregarWhatsApp(): Promise<PainelWhatsApp | { error: stri
     });
   }
 
-  const nomes = new Set(cartoes.map((c) => c.nome));
-  return { cartoes, outras: instancias.filter((i) => !nomes.has(i.nome)), erroLista: erro ?? null };
+  // As outras instancias do servidor (de outros clientes) nao vao para a tela.
+  return { cartoes, erroLista: erro ?? null };
 }
 
 export async function estadoAtual(papel: Papel): Promise<Estado> {

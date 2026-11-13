@@ -260,22 +260,6 @@ export function WhatsAppConfig({ inicial }: { inicial: PainelWhatsApp }) {
         ))}
       </div>
 
-      {painel.outras.length > 0 && (
-        <div className="sd-card mt-4 p-4">
-          <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Outras instâncias no servidor</h3>
-          <ul className="space-y-1.5 text-sm">
-            {painel.outras.map((i) => (
-              <li key={i.nome} className="flex items-center justify-between gap-3">
-                <span className="font-mono text-slate-200">{i.nome}</span>
-                <span className="flex items-center gap-3 text-slate-400">
-                  {telefone(i.numero)}
-                  <Chip estado={i.estado} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </section>
   );
 }
