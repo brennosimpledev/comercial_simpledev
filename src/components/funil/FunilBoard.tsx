@@ -16,6 +16,7 @@ import { ArquivosPanel } from "@/components/leads/ArquivosPanel";
 import { MeetingsPanel } from "@/components/leads/MeetingsPanel";
 import { FollowUpPanel } from "@/components/funil/FollowUpPanel";
 import { FechamentoPanel } from "@/components/funil/FechamentoPanel";
+import { CloserChat } from "@/components/funil/CloserChat";
 import { etiquetaConfirmacao } from "@/components/meetings/confirmacao";
 import {
   CLOSER_STAGES,
@@ -383,7 +384,7 @@ export function FunilBoard({
           onClick={() => setSel(null)}
         >
           <div
-            className="h-full w-full max-w-md overflow-y-auto border-l border-white/10 bg-navy p-5"
+            className="h-full w-full max-w-xl overflow-y-auto border-l border-white/10 bg-navy p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between gap-3">
@@ -448,6 +449,10 @@ export function FunilBoard({
               <Link href={`/leads/${sel.id}`} className="sd-btn-ghost px-2 py-1">
                 Ficha completa
               </Link>
+            </div>
+
+            <div className="mb-4">
+              <CloserChat key={sel.id} leadId={sel.id} temWhatsapp={Boolean(sel.whatsapp)} />
             </div>
 
             {colunaDoCloser(sel.estagio) === "fechado" && (
