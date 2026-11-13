@@ -101,7 +101,28 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // O WhatsApp devolve o @lid do numero? E o contato do numero tem o mesmo
+  // nome de algum contato @lid?
+  const wn = fim8 ? await post("/chat/whatsappNumbers", { numbers: [numero.replace(/\D/g, "")] }) : null;
+  const contatoDoNumero = fim8
+    ? (listaC.find((c) => JSON.stringify(c).includes(fim8)) as Record<string, unknown> | undefined)
+    : undefined;
+  const nome = contatoDoNumero?.pushName as string | undefined;
+  const lidsMesmoNome = nome
+    ? (listaC as Record<string, unknown>[]).filter((c) => c.pushName === nome && String(c.remoteJid).endsWith("@lid"))
+    : [];
+  const msgsDoLid: Record<string, number> = {};
+  for (const c of lidsMesmoNome.slice(0, 3)) {
+    const r = await post("/chat/findMessages", { where: { key: { remoteJid: String(c.remoteJid) } }, page: 1, offset: 5 });
+    msgsDoLid[`lid_${Object.keys(msgsDoLid).length + 1}`] = total(r.dados);
+  }
+
   return NextResponse.json({
+    whatsapp_numbers: wn ? forma(wn.dados) : null,
+    contato_do_numero: forma(contatoDoNumero),
+    contato_tem_nome: Boolean(nome),
+    lids_com_mesmo_nome: lidsMesmoNome.length,
+    msgs_do_lid: msgsDoLid,
     forma_chat: forma(lista[0]),
     forma_msg: forma(umaMsg),
     contatos: listaC.length,
