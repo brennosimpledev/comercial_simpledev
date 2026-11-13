@@ -16,7 +16,7 @@ const TITULO = { sdr: "WhatsApp do SDR", closer: "WhatsApp do Closer" } as const
 const DESCRICAO = {
   sdr: "Linha do Ronaldo. Recebe os leads, o bot responde fora do expediente e a régua de follow-up sai por aqui.",
   closer:
-    "Seu WhatsApp. Só leitura: o CRM guarda as conversas com quem já é lead, para analisar o que acontece entre as reuniões. Não cria lead, não responde e não aciona o bot.",
+    "Seu WhatsApp. O CRM guarda só as conversas com quem já é lead e você responde pelo chat do Funil. Não cria lead e não aciona o bot nem a régua.",
 } as const;
 
 const ESTADO: Record<string, { rotulo: string; cor: string }> = {
