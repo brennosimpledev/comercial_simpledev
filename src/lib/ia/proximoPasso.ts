@@ -351,6 +351,18 @@ export async function guardar(admin: SupabaseClient, leadId: string, chave: stri
   if (error) console.error("[proximoPasso] guardar", error.message);
 }
 
+// So le a ultima analise guardada, sem chamar a IA. "novidade" diz se
+// chegou coisa nova (mensagem, reuniao, follow-up...) depois dela.
+export async function ultimaAnaliseDoLead(
+  admin: SupabaseClient,
+  leadId: string
+): Promise<{ sugestao?: ProximoPasso; gerado_em?: string; novidade?: boolean }> {
+  const salvo = await lerGuardado(admin, leadId);
+  if (!salvo) return {};
+  const ctx = await montarContexto(admin, leadId);
+  return { sugestao: salvo.sugestao, gerado_em: salvo.gerado_em, novidade: Boolean(ctx && ctx.chave !== salvo.chave) };
+}
+
 // Analise atual do lead: a guardada, se nada mudou e e de hoje; senao gera.
 export async function proximoPassoDoLead(
   admin: SupabaseClient,

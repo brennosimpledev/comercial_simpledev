@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { proximoPasso } from "@/app/(app)/funil/ia";
+import { proximoPasso, ultimaAnalise } from "@/app/(app)/funil/ia";
 import { registrarContato } from "@/app/(app)/leads/contatos";
 import type { ProximoPasso } from "@/lib/ia/proximoPasso";
 
@@ -40,7 +40,9 @@ export function ProximoPassoIA({
 }) {
   const [sugestao, setSugestao] = useState<ProximoPasso | null>(null);
   const [geradoEm, setGeradoEm] = useState<string | null>(null);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState(false);
+  const [lendoSalvo, setLendoSalvo] = useState(true);
+  const [novidade, setNovidade] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
 
@@ -53,21 +55,25 @@ export function ProximoPassoIA({
     if (r.sugestao) {
       setSugestao(r.sugestao);
       setGeradoEm(r.gerado_em ?? null);
+      setNovidade(false);
     }
   }
 
+  // Abrir o card nao chama a IA: so mostra a ultima analise guardada.
   useEffect(() => {
     let vivo = true;
     setSugestao(null);
-    setCarregando(true);
+    setLendoSalvo(true);
+    setNovidade(false);
     setErro(null);
-    proximoPasso(leadId, false).then((r) => {
+    ultimaAnalise(leadId).then((r) => {
       if (!vivo) return;
-      setCarregando(false);
-      if (r.error) setErro(r.error);
-      if (r.sugestao) {
+      setLendoSalvo(false);
+      if ("error" in r && r.error) return setErro(r.error);
+      if ("sugestao" in r && r.sugestao) {
         setSugestao(r.sugestao);
         setGeradoEm(r.gerado_em ?? null);
+        setNovidade(Boolean(r.novidade));
       }
     });
     return () => {
@@ -94,22 +100,38 @@ export function ProximoPassoIA({
         <h3 className="text-sm font-semibold text-violet-100">Próximo passo · IA</h3>
         <div className="flex items-center gap-2">
           {geradoEm && !carregando && <span className="text-[10px] text-slate-500">lido em {hora(geradoEm)}</span>}
-          <button
-            type="button"
-            onClick={() => carregar(true)}
-            disabled={carregando}
-            title="Lê tudo de novo agora"
-            className="rounded border border-violet-400/30 px-2 py-0.5 text-[11px] text-violet-200 hover:bg-violet-500/10 disabled:opacity-50"
-          >
-            {carregando ? "Lendo…" : "Refazer"}
-          </button>
+          {sugestao && (
+            <button
+              type="button"
+              onClick={() => carregar(true)}
+              disabled={carregando}
+              title="Lê tudo de novo agora (usa a IA)"
+              className="rounded border border-violet-400/30 px-2 py-0.5 text-[11px] text-violet-200 hover:bg-violet-500/10 disabled:opacity-50"
+            >
+              {carregando ? "Lendo…" : "Atualizar"}
+            </button>
+          )}
         </div>
       </div>
 
-      {carregando && !sugestao && (
-        <p className="py-3 text-xs text-slate-400">
-          Lendo a conversa, os follow-ups e a transcrição da última reunião… (até 1 minuto na primeira vez)
-        </p>
+      {!sugestao && !lendoSalvo && (
+        <div className="py-2">
+          <p className="mb-2 text-xs text-slate-400">
+            A IA lê a conversa, os follow-ups e a transcrição da última reunião e sugere o próximo passo.
+          </p>
+          <button
+            type="button"
+            onClick={() => carregar(false)}
+            disabled={carregando}
+            className="rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-700 disabled:opacity-50"
+          >
+            {carregando ? "Lendo… (até 1 minuto)" : "Analisar com IA"}
+          </button>
+        </div>
+      )}
+
+      {sugestao && novidade && !carregando && (
+        <p className="mb-2 text-[11px] text-amber-300">Tem novidade desde esta análise. Clique em Atualizar se quiser reler.</p>
       )}
 
       {erro && <p className="mb-2 text-xs text-red-300">{erro}</p>}

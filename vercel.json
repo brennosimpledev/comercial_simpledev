@@ -4,7 +4,6 @@
     { "path": "/api/cron/followups", "schedule": "0 17 * * 1-5" },
     { "path": "/api/cron/lembretes", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/primeiro-contato", "schedule": "*/5 * * * *" },
-    { "path": "/api/cron/cutucada", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/ia-funil", "schedule": "*/30 11-22 * * 1-6" }
+    { "path": "/api/cron/cutucada", "schedule": "*/15 * * * *" }
   ]
 }

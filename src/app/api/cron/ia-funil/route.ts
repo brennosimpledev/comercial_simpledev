@@ -21,7 +21,8 @@ export const maxDuration = 300;
 // Follow-up criado pela IA comeca com "🤖" no registro.
 //
 //   GET ?secret=...&ensaio=1  -> mostra o que faria, sem gravar
-//   IA_FUNIL_AUTO=0           -> desliga
+//   Desligado por padrao (custo): so roda com IA_FUNIL_AUTO=1 e precisa
+//   voltar ao vercel.json para ter agenda.
 
 const ATIVOS = ["reuniao_feita", "escopo_enviado", "apresentacao_marcada", "negociacao", "proposta", "interesse"];
 const POR_RODADA = 5;
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
   }
-  if (process.env.IA_FUNIL_AUTO === "0") return NextResponse.json({ ok: true, skipped: "IA_FUNIL_AUTO=0" });
+  if (process.env.IA_FUNIL_AUTO !== "1") return NextResponse.json({ ok: true, skipped: "IA_FUNIL_AUTO desligado" });
   const ensaio = q.get("ensaio") === "1";
 
   const admin = createAdminClient();
