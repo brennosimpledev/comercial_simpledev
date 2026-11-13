@@ -30,6 +30,7 @@ export default async function AppLayout({
               <NavLink href="/funil">Funil</NavLink>
               <NavLink href="/clientes">Clientes</NavLink>
               <NavLink href="/projetos">Projetos</NavLink>
+              <NavLink href="/configuracoes">Configurações</NavLink>
             </nav>
           </div>
 
