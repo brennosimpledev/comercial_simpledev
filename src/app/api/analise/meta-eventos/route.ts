@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   // O que o CRM registrou no mesmo periodo.
   const { data: crm } = await createAdminClient()
     .from("ads_conversions")
-    .select("tipo, canal, status, erro, created_at, leads!inner(nome)")
+    .select("tipo, canal, status, erro, created_at, gclid, conversion_at, uploaded_at, request_id, leads!inner(nome, meta_lead_id, ctwa_clid, created_at)")
     .gte("created_at", desde)
     .eq("canal", "meta")
     .order("created_at", { ascending: true });
@@ -48,8 +48,27 @@ export async function GET(request: NextRequest) {
     desde,
     meta_erro: erroMeta,
     meta,
-    crm: ((crm ?? []) as unknown as { tipo: string; status: string; erro: string | null; created_at: string; leads: { nome: string } }[]).map(
-      (c) => `${new Date(c.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })} · ${c.leads.nome} · ${c.tipo} · ${c.status}${c.erro ? ` (${c.erro.slice(0, 120)})` : ""}`
-    ),
+    crm: ((crm ?? []) as unknown as {
+      tipo: string;
+      status: string;
+      erro: string | null;
+      created_at: string;
+      gclid: string | null;
+      conversion_at: string | null;
+      uploaded_at: string | null;
+      leads: { nome: string; meta_lead_id: string | null; ctwa_clid: string | null; created_at: string };
+    }[]).map((c) => ({
+      quando: new Date(c.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" }),
+      lead: c.leads.nome,
+      lead_criado: c.leads.created_at,
+      tipo: c.tipo,
+      status: c.status,
+      erro: c.erro,
+      // Qual identificador foi: o lead_id do proprio card, de um gemeo, ou ctwa.
+      identificador: c.gclid ? `${c.gclid.slice(0, 4)}…${c.gclid.slice(-4)} (${c.gclid.length} car.)` : null,
+      origem_id: !c.gclid ? null : c.gclid === c.leads.meta_lead_id ? "lead_id do card" : c.gclid === c.leads.ctwa_clid ? "ctwa_clid" : "lead_id de outro card",
+      conversion_at: c.conversion_at,
+      uploaded_at: c.uploaded_at,
+    })),
   });
 }
