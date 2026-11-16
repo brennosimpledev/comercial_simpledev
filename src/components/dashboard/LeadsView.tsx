@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LeadsChart } from "./LeadsChart";
+import { MarketingPanel } from "./MarketingPanel";
 import { TrackingCell } from "./TrackingCell";
 import { deleteLead } from "@/app/(app)/leads/actions";
 import {
@@ -169,6 +170,8 @@ export function LeadsView({
         <Kpi label="Qualificados" value={kpis.qualificados} />
         <Kpi label="Reuniões" value={kpis.reunioes} />
       </div>
+
+      <MarketingPanel de={from} ate={to} />
 
 
       <div className="flex flex-wrap items-center justify-end gap-2">
