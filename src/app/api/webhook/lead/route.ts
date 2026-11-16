@@ -1,12 +1,6 @@
-import { NextResponse, after, type NextRequest } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  mapWebhookToLead,
-  rastreioOpenAI,
-  type LpWebhookPayload,
-} from "@/lib/mappers/webhook-lead";
-import { reportarLeadOpenAI } from "@/lib/conversions/report";
-import { brCanonical, last8 } from "@/lib/phone";
+import { NextResponse, type NextRequest } from "next/server";
+import { type LpWebhookPayload } from "@/lib/mappers/webhook-lead";
+import { entrarLeadDoSite } from "@/lib/leads/entradaSite";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,96 +54,9 @@ export async function POST(request: NextRequest) {
     return json({ ok: true, ignorado: "lead de teste da Meta" });
   }
 
-  const lead = mapWebhookToLead(payload);
-  const openai = rastreioOpenAI(payload);
-  const doChatgpt = Boolean(openai.openai_oppref) || lead.origem === "chatgpt_ads";
-
-  // Grava oppref/obref e avisa a OpenAI da entrada do lead (o pixel da LP
-  // manda o mesmo evento com o mesmo id; a OpenAI conta uma vez).
-  async function registrarChatgpt(id: string) {
-    if (!doChatgpt) return;
-    const campos: Record<string, string> = {};
-    if (openai.openai_oppref) campos.openai_oppref = openai.openai_oppref;
-    if (openai.openai_obref) campos.openai_obref = openai.openai_obref;
-    if (Object.keys(campos).length) {
-      const { error: e } = await supabase.from("leads").update(campos).eq("id", id);
-      if (e) console.error("[webhook/lead] openai:", e.message);
-    }
-    after(() => reportarLeadOpenAI(id, openai.eventId));
-  }
-
-  const supabase = createAdminClient();
-
-  // Procura lead existente pelo telefone antes de inserir.
-  //
-  // Sem isto, uma automacao reprocessando o historico cria uma copia de
-  // cada lead que ja estava na base - foi o que aconteceu em 01/09/2026,
-  // quando uma re-execucao gerou 40 duplicatas em um minuto. Mesmo criterio
-  // dos webhooks da Meta e do WhatsApp: canonico BR, DDD + 8 digitos.
-  const digitos = String(lead.whatsapp ?? "").replace(/[^0-9]/g, "");
-  let existente: string | undefined;
-
-  if (digitos.length >= 10) {
-    const canon = brCanonical(digitos);
-    const { data: candidatos } = await supabase
-      .from("leads")
-      .select("id, whatsapp")
-      .like("whatsapp_digits", `%${last8(digitos)}`)
-      .limit(10);
-    existente = (candidatos ?? []).find(
-      (c) => brCanonical(c.whatsapp) === canon
-    )?.id;
-  }
-
-  if (existente) {
-    // Completa so o rastreio que estiver faltando. Nunca toca em nome,
-    // estagio, anotacoes ou valor: o SDR pode ja ter trabalhado o lead.
-    const rastreio: Record<string, unknown> = {};
-    for (const campo of [
-      "gclid",
-      "gbraid",
-      "wbraid",
-      "utm_source",
-      "utm_medium",
-      "utm_campaign",
-      "utm_term",
-      "utm_content",
-    ] as const) {
-      const v = (lead as Record<string, unknown>)[campo];
-      if (v) rastreio[campo] = v;
-    }
-
-    if (Object.keys(rastreio).length) {
-      await supabase.from("leads").update(rastreio).eq("id", existente);
-    }
-    await registrarChatgpt(existente);
-
-    return json({ ok: true, id: existente, acao: "atualizado" });
-  }
-
-  let { data, error } = await supabase
-    .from("leads")
-    .insert(lead)
-    .select("id, nome, created_at")
-    .single();
-
-  // Sem a migration 0024 a origem "chatgpt_ads" nao existe no banco: entra
-  // como "outro" (as UTMs mostram de onde veio) em vez de perder o lead.
-  if (error && lead.origem === "chatgpt_ads") {
-    ({ data, error } = await supabase
-      .from("leads")
-      .insert({ ...lead, origem: "outro" as const })
-      .select("id, nome, created_at")
-      .single());
-  }
-
-  if (error || !data) {
-    console.error("[webhook/lead] insert error:", error);
-    return json({ error: "could not save lead" }, 500);
-  }
-
-  await registrarChatgpt(data.id as string);
-  return json({ ok: true, id: data.id }, 201);
+  const r = await entrarLeadDoSite(payload);
+  if ("error" in r) return json({ error: r.error }, 500);
+  return json({ ok: true, id: r.id, ...(r.acao === "atualizado" ? { acao: r.acao } : {}) }, r.acao === "criado" ? 201 : 200);
 }
 
 // Health-check simples (GET) para testar se a rota esta no ar.
