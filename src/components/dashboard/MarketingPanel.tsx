@@ -116,6 +116,20 @@ export function MarketingPanel({ de, ate }: { de: string; ate: string }) {
   const [dados, setDados] = useState<Marketing | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  // Detalhe por anuncio fechado por padrao; lembra a escolha no navegador.
+  const [porAnuncio, setPorAnuncio] = useState(false);
+  useEffect(() => {
+    try {
+      setPorAnuncio(localStorage.getItem("sd_marketing_por_anuncio") === "1");
+    } catch {}
+  }, []);
+  function alternarPorAnuncio() {
+    const novo = !porAnuncio;
+    setPorAnuncio(novo);
+    try {
+      localStorage.setItem("sd_marketing_por_anuncio", novo ? "1" : "0");
+    } catch {}
+  }
 
   useEffect(() => {
     let vivo = true;
@@ -164,7 +178,19 @@ export function MarketingPanel({ de, ate }: { de: string; ate: string }) {
             ))}
           </div>
 
-          <div className="mt-4 overflow-x-auto">
+          <button
+            type="button"
+            onClick={alternarPorAnuncio}
+            aria-expanded={porAnuncio}
+            className="mt-4 flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-400 transition hover:bg-white/5 hover:text-slate-200"
+          >
+            <span className={"inline-block transition-transform " + (porAnuncio ? "rotate-90" : "")}>▸</span>
+            {porAnuncio ? "Ocultar detalhe por anúncio" : `Ver detalhe por anúncio (${dados.anuncios.length})`}
+          </button>
+
+          {porAnuncio && (
+            <>
+          <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[1100px] text-xs tabular-nums">
               <thead>
                 <tr className="border-b border-white/10 text-slate-400">
@@ -211,6 +237,8 @@ export function MarketingPanel({ de, ate }: { de: string; ate: string }) {
             Gasto, impressões e cliques vêm da Meta. Leads e o resto do funil vêm do CRM, pelo anúncio de origem de cada lead; a mesma pessoa com dois cards conta uma vez.
             {dados.sem_anuncio > 0 && ` ${dados.sem_anuncio} leads da Meta sem anúncio identificado entram só no total.`}
           </p>
+            </>
+          )}
         </div>
       )}
     </section>
