@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { entrarLeadDoSite } from "@/lib/leads/entradaSite";
-import { desqualificarLead } from "@/lib/conversions/report";
+import { desqualificarLead, qualificarAutomaticamente } from "@/lib/conversions/report";
 import type { LpWebhookPayload } from "@/lib/mappers/webhook-lead";
 
 export const runtime = "nodejs";
@@ -9,12 +9,16 @@ export const dynamic = "force-dynamic";
 
 // Formulario com caminhos do site (lp.simpledev.com.br/formulario).
 //
-//   etapa "contato": a pessoa deu nome e WhatsApp. O lead ja entra no CRM
-//     (lead parcial: se ela desistir depois, o time ainda chama).
+//   etapa "contato": a pessoa deu nome, WhatsApp e e-mail. O lead ja entra
+//     no CRM marcado "formulario incompleto"; o bot chama quem nao chegar no
+//     WhatsApp (lib/bot/primeiroContato.ts) e termina a qualificacao la.
+//   etapa "parcial": a cada clique depois do contato, grava as respostas ate
+//     ali e em que pergunta a pessoa esta (parou_em).
 //   etapa "final":   respostas completas. Grava no lead e aplica a regra:
 //     sem o investimento (abaixo de R$ 20 mil, "agora nao", ou empresa que
 //     fatura ate R$ 20 mil e nao confirmou que R$ 20 mil cabem) entra
-//     desqualificado, e Meta/OpenAI recebem o sinal na hora.
+//     desqualificado, e Meta/OpenAI recebem o sinal na hora. Quem passa
+//     vira qualificado (lead_qualificado) na hora tambem.
 //
 // Mesmo segredo do webhook da LP (?token=).
 
@@ -82,7 +86,7 @@ export async function POST(request: NextRequest) {
     return json({ error: "unauthorized" }, 401);
   }
 
-  let body: LpWebhookPayload & { etapa?: string; respostas?: Respostas };
+  let body: LpWebhookPayload & { etapa?: string; respostas?: Respostas; parou_em?: string };
   try {
     body = await request.json();
   } catch {
@@ -122,14 +126,17 @@ export async function POST(request: NextRequest) {
   if ("error" in entrada) return json({ error: entrada.error }, 500);
   const id = entrada.id;
 
-  if (body.etapa !== "final") return json({ ok: true, id });
-
-  const resultado = avaliar(r);
+  const final = body.etapa === "final";
+  const resultado = final ? avaliar(r) : null;
 
   // Respostas num bloco proprio das anotacoes (o resto o time escreve).
   const linhas = (Object.keys(ROTULO) as (keyof Respostas)[])
     .filter((k) => r[k])
     .map((k) => `${ROTULO[k]}: ${r[k]}`);
+  if (!final) {
+    const parou = ROTULO[body.parou_em as keyof Respostas];
+    linhas.unshift(`⏸️ Formulário incompleto${parou ? ` (parou em: ${parou})` : " (deu só o contato)"}. Terminar a qualificação no WhatsApp.`);
+  }
   if (r.decisor === "Outra pessoa") linhas.push("⚠️ Quem decide é outra pessoa: trazer o decisor para a reunião.");
   if (resultado === "longo_prazo") linhas.push("⏳ Longo prazo: quer começar daqui a mais de 3 meses.");
   if (resultado === "desqualificado") linhas.push("👎 Desqualificado pelo formulário (sem o investimento mínimo).");
@@ -154,7 +161,12 @@ export async function POST(request: NextRequest) {
     })
     .eq("id", id);
 
+  if (!final) return json({ ok: true, id });
+
   if (resultado === "desqualificado") await desqualificarLead(id);
+  // Passou na regra do valor: sinal forte para as plataformas ja na hora.
+  // Longo prazo fica de fora (tem o valor, mas nao e para agora).
+  if (resultado === "qualificado") await qualificarAutomaticamente(id);
 
   return json({ ok: true, id, resultado });
 }

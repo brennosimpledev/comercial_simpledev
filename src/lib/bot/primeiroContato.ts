@@ -1,5 +1,7 @@
-// Primeiro contato com quem preencheu o formulario da Meta e nao chamou no
-// WhatsApp. No feriado de Finados 2026, de 16 leads de formulario so 6
+// Primeiro contato com quem preencheu o formulario da Meta, ou o do site
+// (lp.simpledev.com.br/formulario, form_id "formulario_site_v1"), e nao
+// chamou no WhatsApp. No do site entra tambem quem parou no meio: o lead
+// nasce quando a pessoa da o contato, e a qualificacao termina na conversa. No feriado de Finados 2026, de 16 leads de formulario so 6
 // escreveram; os outros ficaram sem conversa nenhuma ate o time voltar.
 //
 // So das 7h as 22h, e so depois de alguns minutos: a mensagem pronta do
@@ -56,10 +58,26 @@ export function esperaAgora(agora = new Date()) {
   return foraDoHorario(agora) ? ESPERA_MIN : ESPERA_COMERCIAL_MIN;
 }
 
-export function textoPrimeiroContato(nome: string, necessidade: string | null | undefined, agora = new Date()) {
+export const FORM_SITE = "formulario_site_v1";
+
+export function textoPrimeiroContato(nome: string, necessidade: string | null | undefined, agora = new Date(), formId?: string | null) {
   const h = horaLocal(agora);
   const saudacao = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
-  const situacao = SITUACAO[resposta(respostasDoFormulario(necessidade), "qual_dessas_situa")] ?? "";
+  const respostas = respostasDoFormulario(necessidade);
+  const oQue = formId === FORM_SITE ? resposta(respostas, "o_que_quer_desenvolver") : "";
+  // Formulario do site: a pessoa ja disse o tipo de projeto (clique); a
+  // pergunta aberta que tiramos de la entra aqui.
+  if (oQue && oQue !== "Outro") {
+    const pedidoSite = foraDoHorario(agora)
+      ? "O time comercial está fora do expediente agora, mas eu já adianto o seu atendimento pra você não ficar esperando.\n\n" +
+        "Me conta em poucas palavras: o que esse projeto precisa fazer?"
+      : "Pra adiantar o seu atendimento com o time comercial, me conta em poucas palavras: o que esse projeto precisa fazer?";
+    return (
+      `${saudacao}${nome ? `, ${nome}` : ""}! Aqui é o assistente da SimpleDEV 👋\n` +
+      `Vi que você preencheu nosso formulário sobre ${oQue.charAt(0).toLowerCase() + oQue.slice(1)}. ${pedidoSite}`
+    );
+  }
+  const situacao = SITUACAO[resposta(respostas, "qual_dessas_situa")] ?? "";
   // Em horario comercial o bot nao responde; quem continua e o time.
   const pedido = foraDoHorario(agora)
     ? "O time comercial está fora do expediente agora, mas eu já adianto o seu atendimento pra você não ficar esperando.\n\n" +
@@ -78,6 +96,7 @@ type Lead = {
   email: string | null;
   necessidade: string | null;
   created_at: string;
+  form_id: string | null;
 };
 
 // A pessoa ja esta conversando em outro card (mesmo telefone ou mesmo
@@ -126,8 +145,8 @@ export async function quemChamar(supabase: SupabaseClient, agora = new Date()) {
   const de = new Date(agora.getTime() - JANELA_H * 3600_000).toISOString();
   const { data: leads } = await supabase
     .from("leads")
-    .select("id, nome, whatsapp, email, necessidade, created_at")
-    .eq("origem", "meta_ads")
+    .select("id, nome, whatsapp, email, necessidade, created_at, form_id")
+    .or(`origem.eq.meta_ads,form_id.eq.${FORM_SITE}`)
     .in("estagio", ["novo", "sdr"])
     .eq("status", "ativo")
     .eq("ja_cliente", false)
@@ -170,7 +189,7 @@ export async function quemChamar(supabase: SupabaseClient, agora = new Date()) {
       continue;
     }
     const destino = achado ? (achado.number ?? achado.jid?.split("@")[0] ?? (lead.whatsapp as string)) : (lead.whatsapp as string);
-    plano.push({ lead, destino, texto: textoPrimeiroContato(primeiroNome(lead.nome), lead.necessidade, agora) });
+    plano.push({ lead, destino, texto: textoPrimeiroContato(primeiroNome(lead.nome), lead.necessidade, agora, lead.form_id) });
   }
   return { plano, pulados };
 }
