@@ -91,7 +91,26 @@ export async function POST(request: NextRequest) {
   const r = body.respostas ?? {};
   if (!String(body.whatsapp ?? "").replace(/\D/g, "")) return json({ error: "sem whatsapp" }, 400);
 
-  const necessidade = [r.o_que, r.descricao].filter(Boolean).join(" — ") || null;
+  // Mesmo formato do formulario instantaneo da Meta ("pergunta: resposta |
+  // ..."): o bot le daqui o que a pessoa ja respondeu e nao pergunta de novo.
+  const CHAVE: Record<keyof Respostas, string> = {
+    para_quem: "para_quem_e_o_projeto",
+    o_que: "o_que_quer_desenvolver",
+    descricao: "o_que_precisa_fazer",
+    segmento: "segmento",
+    faturamento: "faturamento_mensal",
+    pessoas: "pessoas_na_empresa",
+    financiamento: "de_onde_vem_o_investimento",
+    decisor: "quem_decide",
+    investimento: "investimento_previsto",
+    cabe_20k: "projetos_a_partir_de_20_mil_cabem",
+    prazo: "quando_pretende_comecar",
+  };
+  const necessidade =
+    (Object.keys(CHAVE) as (keyof Respostas)[])
+      .filter((k) => r[k])
+      .map((k) => `${CHAVE[k]}: ${String(r[k]).replace(/[|\r\n]+/g, " ").slice(0, 300)}`)
+      .join(" | ") || null;
   const entrada = await entrarLeadDoSite({
     ...body,
     necessidade: necessidade ?? undefined,
