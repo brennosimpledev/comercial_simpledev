@@ -15,6 +15,8 @@ export type Funil = {
   cliques: number;
   leads_meta: number;
   pessoas: number;
+  // Responderam depois da nossa primeira mensagem (formulario nao conta).
+  conversaram: number;
   qualificados: number;
   desqualificados: number;
   reunioes: number;
@@ -25,7 +27,14 @@ export type Funil = {
 
 export type LinhaAnuncio = Funil & { anuncio: string; campanha: string };
 
-export type Marketing = { total: Funil; anuncios: LinhaAnuncio[]; sem_anuncio: number; erro?: string };
+export type Marketing = {
+  total: Funil;
+  anuncios: LinhaAnuncio[];
+  sem_anuncio: number;
+  // Leads do periodo que nao vieram da Meta (organico, indicacao...).
+  outras_origens: number;
+  erro?: string;
+};
 
 const vazio = (): Funil => ({
   gasto: 0,
@@ -33,6 +42,7 @@ const vazio = (): Funil => ({
   cliques: 0,
   leads_meta: 0,
   pessoas: 0,
+  conversaram: 0,
   qualificados: 0,
   desqualificados: 0,
   reunioes: 0,
@@ -83,6 +93,30 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
   const { data: reunioes } = ids.length
     ? await admin.from("meetings").select("lead_id, status").in("lead_id", ids)
     : { data: [] as { lead_id: string; status: string }[] };
+  // Quem respondeu depois da nossa primeira mensagem. Pagina de 1000 em
+  // 1000 (limite do Supabase).
+  const msgs: { lead_id: string; direction: string; created_at: string }[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const lote = ids.slice(i, i + 200);
+    for (let de = 0; ; de += 1000) {
+      const { data } = await admin
+        .from("lead_messages")
+        .select("lead_id, direction, created_at")
+        .in("lead_id", lote)
+        .order("created_at", { ascending: true })
+        .range(de, de + 999);
+      msgs.push(...((data ?? []) as typeof msgs));
+      if (!data || data.length < 1000) break;
+    }
+  }
+  const primeiraNossa = new Map<string, string>();
+  for (const m of msgs) if (m.direction === "outbound" && !primeiraNossa.has(m.lead_id)) primeiraNossa.set(m.lead_id, m.created_at);
+  const respondeu = new Set(
+    msgs
+      .filter((m) => m.direction === "inbound" && primeiraNossa.has(m.lead_id) && m.created_at > primeiraNossa.get(m.lead_id)!)
+      .map((m) => m.lead_id)
+  );
+
   const reuniaoDe = new Map<string, Set<string>>();
   for (const r of reunioes ?? []) {
     const s = reuniaoDe.get(r.lead_id as string) ?? new Set<string>();
@@ -105,6 +139,7 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
   const total = vazio();
   const porAnuncio = new Map<string, Funil>();
   let semAnuncio = 0;
+  let outrasOrigens = 0;
 
   for (const cards of pessoas.values()) {
     const anuncio =
@@ -112,10 +147,14 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
       cards.map((c) => (c.meta_ad_id ? nomePorId.get(c.meta_ad_id) ?? null : null)).find(Boolean) ??
       null;
     const daMeta = Boolean(anuncio) || cards.some((c) => c.origem === "meta_ads");
-    if (!daMeta) continue;
+    if (!daMeta) {
+      outrasOrigens++;
+      continue;
+    }
 
     const statusReuniao = new Set(cards.flatMap((c) => [...(reuniaoDe.get(c.id) ?? [])]));
     const r = {
+      conversou: cards.some((c) => respondeu.has(c.id)),
       qualificado: cards.some((c) => c.qualificado),
       desqualificado: cards.some((c) => c.desqualificado),
       reuniao: [...statusReuniao].some((s) => s !== "cancelada"),
@@ -126,6 +165,7 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
 
     const somar = (f: Funil) => {
       f.pessoas++;
+      if (r.conversou) f.conversaram++;
       if (r.qualificado) f.qualificados++;
       if (r.desqualificado) f.desqualificados++;
       if (r.reuniao) f.reunioes++;
@@ -164,5 +204,11 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
     .filter((a) => a.gasto > 0 || a.pessoas > 0)
     .sort((a, b) => b.gasto - a.gasto || b.pessoas - a.pessoas);
 
-  return { total, anuncios, sem_anuncio: semAnuncio, ...(meta.erro ? { erro: meta.erro } : {}) };
+  return {
+    total,
+    anuncios,
+    sem_anuncio: semAnuncio,
+    outras_origens: outrasOrigens,
+    ...(meta.erro ? { erro: meta.erro } : {}),
+  };
 }

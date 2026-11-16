@@ -30,15 +30,6 @@ function fmtDateTime(iso: string) {
   });
 }
 
-function Kpi({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="flex-1 rounded-xl bg-brand px-4 py-3 text-center text-white">
-      <div className="text-lg font-semibold">{value}</div>
-      <div className="text-xs opacity-90">{label}</div>
-    </div>
-  );
-}
-
 function StatusIcon({ lead }: { lead: Lead }) {
   if (lead.desqualificado)
     return <span title="Desqualificado">👎</span>;
@@ -49,10 +40,8 @@ function StatusIcon({ lead }: { lead: Lead }) {
 
 export function LeadsView({
   leads,
-  respondedIds,
 }: {
   leads: Lead[];
-  respondedIds: string[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -83,7 +72,6 @@ export function LeadsView({
     );
   }, [from, to, origem]);
 
-  const responded = useMemo(() => new Set(respondedIds), [respondedIds]);
 
   const filtered = useMemo(() => {
     const start = new Date(from + "T00:00:00Z");
@@ -98,16 +86,6 @@ export function LeadsView({
     });
   }, [leads, from, to, origem]);
 
-  const kpis = useMemo(() => {
-    return {
-      leads: filtered.length,
-      sdr: filtered.filter((l) => l.estagio === "sdr").length,
-      respondido: filtered.filter((l) => responded.has(l.id)).length,
-      qualificados: filtered.filter((l) => l.qualificado).length,
-      reunioes: filtered.filter((l) => l.estagio === "reuniao_marcada").length,
-      clientes: filtered.length - filtered.length,
-    };
-  }, [filtered, responded]);
 
   const chartPoints = useMemo(() => {
     const start = new Date(from + "T00:00:00Z");
@@ -163,14 +141,7 @@ export function LeadsView({
         <LeadsChart points={chartPoints} />
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Kpi label="Leads" value={kpis.leads} />
-        <Kpi label="SDR" value={kpis.sdr} />
-        <Kpi label="Respondido" value={kpis.respondido} />
-        <Kpi label="Qualificados" value={kpis.qualificados} />
-        <Kpi label="Reuniões" value={kpis.reunioes} />
-      </div>
-
+      {/* Funil completo (Meta + CRM) no lugar da antiga faixa de numeros. */}
       <MarketingPanel de={from} ate={to} />
 
 
