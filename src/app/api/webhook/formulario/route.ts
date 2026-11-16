@@ -13,8 +13,8 @@ export const dynamic = "force-dynamic";
 //     (lead parcial: se ela desistir depois, o time ainda chama).
 //   etapa "final":   respostas completas. Grava no lead e aplica a regra:
 //     sem o investimento (abaixo de R$ 20 mil, "agora nao", ou empresa que
-//     fatura ate R$ 20 mil sem investimento definido) entra desqualificado,
-//     e Meta/OpenAI recebem o sinal na hora.
+//     fatura ate R$ 20 mil e nao confirmou que R$ 20 mil cabem) entra
+//     desqualificado, e Meta/OpenAI recebem o sinal na hora.
 //
 // Mesmo segredo do webhook da LP (?token=).
 
@@ -67,7 +67,7 @@ function avaliar(r: Respostas): "qualificado" | "desqualificado" | "longo_prazo"
   const semValor =
     ABAIXO_DO_PISO.includes(r.investimento ?? "") ||
     r.cabe_20k === "Agora não" ||
-    (r.faturamento === "Até R$ 20 mil" && (r.investimento === "Ainda não sei" || !r.investimento));
+    (r.faturamento === "Até R$ 20 mil" && (r.investimento === "Ainda não sei" || !r.investimento) && r.cabe_20k !== "Sim, cabe");
   if (semValor) return "desqualificado";
   if (r.prazo === "Mais de 3 meses") return "longo_prazo";
   return "qualificado";
