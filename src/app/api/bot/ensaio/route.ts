@@ -140,6 +140,7 @@ export async function GET(request: NextRequest) {
     falas_no_trecho_do_bot: historico.length,
     rodadas,
     resumo_hoje: resumo ? `${resumo.resumo}
-CODIGO: ${resumo.codigo ?? "?"}` : null,
+CODIGO: ${resumo.codigo ?? "?"}
+SEM_DINHEIRO: ${resumo.semDinheiro ? "sim (o bot desqualificaria)" : "nao"}` : null,
   });
 }
