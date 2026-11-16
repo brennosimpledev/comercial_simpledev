@@ -42,7 +42,23 @@ export async function GET(request: NextRequest) {
   }
 
   // Tenta os tokens que o CRM ja tem; o primeiro que ler a conta vale.
-  const tokens = [process.env.META_CRM_ACCESS_TOKEN, process.env.META_PAGE_ACCESS_TOKEN].filter(Boolean) as string[];
+  const tokens = [
+    process.env.META_ADS_ACCESS_TOKEN,
+    process.env.META_CRM_ACCESS_TOKEN,
+    process.env.META_PAGE_ACCESS_TOKEN,
+  ].filter(Boolean) as string[];
+
+  // ?contas=1: lista as contas de anuncio que o token de leitura enxerga.
+  if (q.get("contas") === "1") {
+    const token = process.env.META_ADS_ACCESS_TOKEN;
+    if (!token) return NextResponse.json({ error: "META_ADS_ACCESS_TOKEN não configurado" });
+    const r = await fetch(
+      `${GRAPH}/me/adaccounts?fields=id,name,account_status,currency,amount_spent&limit=50&access_token=${encodeURIComponent(token)}`,
+      { cache: "no-store" }
+    );
+    const j = await r.json();
+    return NextResponse.json(r.ok ? { contas: j.data, padrao: CONTA } : { erro: j?.error?.message ?? r.status });
+  }
   const erros: string[] = [];
   for (const token of tokens) {
     const campos = [
