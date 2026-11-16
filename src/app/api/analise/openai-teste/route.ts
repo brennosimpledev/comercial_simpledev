@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { enviarEventoOpenAI, openaiConfigurado } from "@/lib/openai/conversions";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,5 +32,15 @@ export async function GET(request: NextRequest) {
     email: "teste@simpledev.com.br",
     soValidar: true,
   });
-  return NextResponse.json({ validacao: r });
+  // Migration 0024: colunas do oppref e a origem chatgpt_ads.
+  const admin = createAdminClient();
+  const colunas = await admin.from("leads").select("openai_oppref, openai_obref").limit(1);
+  const origem = await admin.from("leads").select("id", { count: "exact", head: true }).eq("origem", "chatgpt_ads");
+  return NextResponse.json({
+    validacao: r,
+    migration_0024: {
+      colunas: colunas.error ? `faltando (${colunas.error.message})` : "ok",
+      origem_chatgpt_ads: origem.error ? `faltando (${origem.error.message})` : `ok (${origem.count ?? 0} leads)`,
+    },
+  });
 }
