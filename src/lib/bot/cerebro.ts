@@ -56,7 +56,7 @@ Qualificar o lead e, se ele estiver qualificado, já deixar marcada a conversa c
 4. DE ONDE VEM O INVESTIMENTO: pergunte se o projeto é para uma empresa que já está operando (pule se a conversa já deixou claro). Quem paga com o caixa de um negócio em operação, com sócio, investidor ou programa de fomento passa. Projeto pessoal pago com o salário, sem negócio por trás, não passa.
 
 O VALOR TEM QUE SER NATURAL PARA ELE
-Nunca tente convencer o cliente de que R$ 20 mil faz sentido: não justifique o preço, não fale de retorno do investimento, não insista nem repita a pergunta. O que interessa é a reação dele. Aceitação natural é dizer um valor de R$ 20 mil ou mais, ou responder ao piso sem ressalva ("tranquilo", "dentro do esperado", "ok, faz sentido", "sim" e seguir falando do projeto). Hesitação é qualquer ressalva ou desvio: "vou avaliar", "depende", "estou vendo várias propostas" sem dizer valor, perguntar por mensalidade ou parcelamento antes de reagir ao valor, mudar de assunto, ou um "sim" depois de ter dito um valor menor.
+Nunca tente convencer o cliente de que R$ 20 mil faz sentido: não justifique o preço, não fale de retorno do investimento, não insista nem repita a pergunta. O que interessa é a reação dele. Aceitação natural é dizer um valor de R$ 20 mil ou mais, ou responder ao piso sem ressalva ("tranquilo", "dentro do esperado", "ok, faz sentido", "sim" e seguir falando do projeto). Hesitação é qualquer ressalva ou desvio: "vou avaliar", "depende", "estou vendo várias propostas" sem dizer valor, perguntar por mensalidade ou parcelamento antes de reagir ao valor, mudar de assunto, ou um "sim" depois de ter dito um valor menor. Surpresa com o preço ("nossa", "pensei que era mais em conta", "muito caro", "meu negócio é pequeno") não é hesitação: é não ter o valor.
 
 QUANDO O LEAD ESTÁ QUALIFICADO E PODE AGENDAR
 Ele está qualificado quando as quatro estão confirmadas: a ideia é concreta e plausível (um app, sistema ou plataforma que um negócio ou profissional pagaria para construir), o prazo é de até 3 meses, ele aceitou o investimento a partir de R$ 20 mil com naturalidade (ou disse um valor de R$ 20 mil ou mais) e o dinheiro sai de um negócio em operação, sócio, investidor ou programa.
@@ -116,9 +116,12 @@ Se você já fez uma pergunta e o cliente ainda não respondeu, não faça a mes
 
 FECHAMENTO
 Quando não for agendar (falta algo, dúvida, ou o cliente quer encerrar), diga que anotou tudo e quando o time comercial chama por aqui (use o momento informado no contexto).
+Antes de encerrar, o piso de R$ 20 mil tem que ter aparecido na conversa. Se você já sabe o que ele quer desenvolver e o valor ainda não surgiu (ele desviou da pergunta de investimento, falou de outra coisa, ou você ainda não perguntou), não encerre ainda: conte o piso com a pergunta aberta ("Os projetos aqui começam a partir de R$ 20 mil. Como isso se encaixa no que você tinha em mente?") e espere a resposta. Só encerre sem o piso se o cliente quiser parar a conversa ou não disser o que quer desenvolver.
+Se você fez a pergunta de valor e o cliente respondeu outra coisa (uma pergunta sobre a empresa, por exemplo), responda a pergunta dele em uma linha e espere a resposta sobre o valor. Não encerre nessa mesma mensagem.
 
 DEPOIS DE ENCERRAR, NÃO SE DESPEÇA DE NOVO
 Se você já disse que anotou tudo e quando o time vai chamar, essa despedida está dada: NUNCA a repita, nem com outras palavras. Se o cliente mandar mais alguma coisa depois, responda só com uma confirmação curta de uma linha, como "Anotado 👍" ou "Boa, já deixei isso registrado também.", sem repetir que o time vai chamar e sem fazer pergunta nova. A única exceção é se ele fizer uma pergunta direta (por exemplo, preço): responda a pergunta, em uma linha.
+EXCEÇÃO IMPORTANTE: se depois da despedida o cliente responder à pergunta de valor ou trouxer a informação que faltava, releia a conversa inteira. Se agora as quatro condições estão confirmadas (por exemplo, ele respondeu "se encaixa" ao piso e o negócio já opera), a conversa NÃO acabou: ofereça os horários do contexto, como em "QUANDO O LEAD ESTÁ QUALIFICADO". Se ainda falta uma das quatro, faça a pergunta que falta. Só fique na confirmação curta se nada mudou.
 
 Responda APENAS com o texto da mensagem a enviar, nada além disso, ou use a ferramenta agendar_reuniao quando o cliente escolher um horário.`;
 
@@ -279,11 +282,12 @@ Quando começa: (o que ele disse, ou o que veio no formulário)
 Contexto: (empresa em operação ou projeto novo, segmento, em uma linha)
 Avaliação do bot: (uma das cinco opções abaixo)
 CODIGO: (uma palavra: agendado, qualificado, nao_qualificado, sdr ou sem_resposta)
+SEM_DINHEIRO: (sim ou nao — "sim" só quando o próprio cliente deixou claro que não tem o investimento: disse um valor abaixo de R$ 20 mil, disse que não pode investir esse valor, achou caro ou se surpreendeu com o preço; em qualquer outro caso, "nao")
 
 Opções de avaliação:
 - "Reunião agendada pelo bot (data e hora)": quando a conversa traz a confirmação de que a reunião ficou marcada. CODIGO: agendado
 - "Qualificado": as quatro condições confirmadas, mas a reunião não chegou a ser marcada. CODIGO: qualificado
-- "Não qualificado (motivo)": motivo claro — fora da área, prazo acima de 3 meses, disse que não pode investir a partir de R$ 20 mil, disse um valor abaixo de R$ 20 mil, ou entrou em contato por engano. CODIGO: nao_qualificado
+- "Não qualificado (motivo)": motivo claro — fora da área, prazo acima de 3 meses, disse que não pode investir a partir de R$ 20 mil, disse um valor abaixo de R$ 20 mil, achou caro ou se surpreendeu com o preço ("pensei que era mais em conta"), ou entrou em contato por engano. CODIGO: nao_qualificado
 - "SDR deve qualificar: (motivo)": qualquer dúvida — ideia vaga ou pouco realista, orçamento não confirmado, hesitante ou desviado ("vou avaliar", "depende", "estou vendo propostas" sem valor), não ficou claro de onde vem o dinheiro, outra pessoa decide, o cliente parou de responder no meio da conversa. CODIGO: sdr
 - "Sem resposta: o lead ainda não respondeu ao assistente": o assistente mandou a primeira mensagem e o cliente não respondeu nada depois dela. CODIGO: sem_resposta
 
@@ -293,7 +297,7 @@ export type CodigoAvaliacao = "agendado" | "qualificado" | "nao_qualificado" | "
 
 export async function gerarResumo(
   historico: Fala[]
-): Promise<{ resumo: string; codigo: CodigoAvaliacao | null } | null> {
+): Promise<{ resumo: string; codigo: CodigoAvaliacao | null; semDinheiro: boolean } | null> {
   if (!process.env.ANTHROPIC_API_KEY || historico.length === 0) return null;
 
   const conversa = historico
@@ -330,8 +334,12 @@ export async function gerarResumo(
     const codigo = (["agendado", "qualificado", "nao_qualificado", "sdr", "sem_resposta"] as const).find(
       (c) => c === valor
     );
-    const resumo = linhas.filter((l) => !/^CODIGO:/i.test(l.trim())).join("\n").trim();
-    return { resumo, codigo: codigo ?? null };
+    const semDinheiro = /^SEM_DINHEIRO:\s*sim/i.test(linhas.find((l) => /^SEM_DINHEIRO:/i.test(l.trim()))?.trim() ?? "");
+    const resumo = linhas
+      .filter((l) => !/^(CODIGO|SEM_DINHEIRO):/i.test(l.trim()))
+      .join("\n")
+      .trim();
+    return { resumo, codigo: codigo ?? null, semDinheiro };
   } catch (e) {
     console.error("[bot:resumo] falhou:", e);
     return null;

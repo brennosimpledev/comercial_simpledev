@@ -26,7 +26,7 @@ import {
 import { agendarPeloBot, horariosLivres, rotuloHorario } from "@/lib/agenda";
 import { brCanonical, last8 } from "@/lib/phone";
 import { formularioParaOBot } from "@/lib/bot/formulario";
-import { qualificarAutomaticamente } from "@/lib/conversions/report";
+import { desqualificarLead, qualificarAutomaticamente } from "@/lib/conversions/report";
 
 const TZ = "America/Sao_Paulo";
 
@@ -420,6 +420,11 @@ async function atualizarResumo(
   const codigo = respondeu ? gerado.codigo : "sem_resposta";
 
   await gravarBloco(supabase, leadId, anotacoes, gerado.resumo, codigo);
+
+  // O proprio cliente disse que nao tem o investimento: o bot desqualifica
+  // na hora, e a Meta recebe o sinal no mesmo dia (antes ficava esperando
+  // o Ronaldo mover o card na segunda).
+  if (codigo === "nao_qualificado" && gerado.semDinheiro) await desqualificarLead(leadId);
 }
 
 async function gravarBloco(

@@ -474,3 +474,38 @@ export async function qualificarAutomaticamente(leadId: string): Promise<void> {
     console.error("[conv] qualificarAutomaticamente:", e);
   }
 }
+
+// Desqualifica um lead e avisa a Meta/Google (mesmo efeito do botao no
+// CRM). Quem ja passou pela reuniao vai para a coluna Desqualificado do
+// closer; antes disso, para Perdido. Usado pelo bot quando o proprio
+// cliente diz que nao tem o investimento (decisao do Brenno em 16/11/2026:
+// "se o cara nao tem dinheiro, e desqualificado").
+export async function desqualificarLead(leadId: string): Promise<boolean> {
+  try {
+    const admin = createAdminClient();
+    const { data: l } = await admin
+      .from("leads")
+      .select("estagio, desqualificado, ja_cliente")
+      .eq("id", leadId)
+      .single();
+    if (!l || l.desqualificado || l.ja_cliente) return false;
+    const doCloser = [
+      "reuniao_feita",
+      "escopo_enviado",
+      "apresentacao_marcada",
+      "negociacao",
+      "proposta",
+      "interesse",
+      "fechado",
+    ].includes(l.estagio as string);
+    await admin
+      .from("leads")
+      .update({ desqualificado: true, qualificado: false, status: "perdido", estagio: doCloser ? "desqualificado" : "perdido" })
+      .eq("id", leadId);
+    await reportConversion(leadId, "desqualificado");
+    return true;
+  } catch (e) {
+    console.error("[conv] desqualificarLead:", e);
+    return false;
+  }
+}

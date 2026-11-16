@@ -172,7 +172,14 @@ export function nomeDoFormulario(msgs: { direction: string; body: string | null 
   for (const m of msgs) {
     if (m.direction !== "inbound") continue;
     const achado = (m.body ?? "").match(/(?:full name|nome completo)\s*:\s*([^\n]+)/i);
-    if (achado) return achado[1].trim();
+    if (!achado) continue;
+    // O formulario chega numa linha so: corta no proximo campo.
+    let nome = achado[1]
+      .split(/\s+(?:phone number|work email|e-?mail|telefone|qual dessas|em qual|quando voc|este projeto)/i)[0]
+      .trim();
+    // "CoreFit | Bruna Ferreira": empresa antes, pessoa depois.
+    if (nome.includes("|")) nome = nome.split("|").pop()!.trim() || nome;
+    return nome || null;
   }
   return null;
 }

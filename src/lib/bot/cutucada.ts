@@ -12,7 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppText } from "@/lib/evolution/client";
 import { botAtivo, foraDoHorario, numeroDeCliente } from "@/lib/bot/atendente";
 import { horaDeChamar } from "@/lib/bot/primeiroContato";
-import { primeiroNome } from "@/lib/followups/cadence";
+import { nomeDoFormulario, primeiroNome } from "@/lib/followups/cadence";
 
 const ESPERA_H = Number(process.env.CUTUCADA_ESPERA_H ?? 3);
 // Conversa parada ha mais tempo que isso fica com o time e a regua.
@@ -113,7 +113,13 @@ export async function quemCutucar(supabase: SupabaseClient, agora = new Date()) 
       nome: lead.nome as string | null,
       whatsapp: lead.whatsapp as string,
       ultimaNossa: texto,
-      texto: textoCutucada(primeiroNome(lead.nome as string | null), texto, respondeuAlgo),
+      // Nome do formulario primeiro: o do cadastro costuma ser o do perfil
+      // do WhatsApp ("Oi, Corefit!" em vez de "Oi, Bruna!").
+      texto: textoCutucada(
+        primeiroNome(nomeDoFormulario(conversa)) || primeiroNome(lead.nome as string | null),
+        texto,
+        respondeuAlgo
+      ),
     });
   }
   return { plano, pulados };
