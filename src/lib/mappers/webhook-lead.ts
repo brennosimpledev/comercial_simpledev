@@ -28,6 +28,12 @@ export interface LpWebhookPayload {
   // iOS 14.5+ manda um destes dois no lugar do gclid.
   gbraid?: string;
   wbraid?: string;
+  // ChatGPT Ads: id do clique (?oppref=) e do navegador (cookie __obref), e
+  // o id do evento lead_created que o pixel disparou (para nao contar duas
+  // vezes quando o CRM manda o mesmo evento pelo servidor).
+  oppref?: string;
+  obref?: string;
+  openai_event_id?: string;
   Id_da_pagina?: string | number;
   [key: string]: unknown;
 }
@@ -46,6 +52,7 @@ const VALID_ORIGINS: LeadOrigin[] = [
   "organico",
   "whatsapp",
   "workana",
+  "chatgpt_ads",
   "outro",
 ];
 
@@ -63,6 +70,8 @@ export function deriveOrigin(payload: LpWebhookPayload): LeadOrigin {
     return "google_ads";
 
   const src = (clean(payload.utm_source) ?? "").toLowerCase();
+  // Antes da Meta: "chatgpt" nao pode cair em nenhuma regra abaixo.
+  if (clean(payload.oppref) || src.includes("chatgpt") || src.includes("openai")) return "chatgpt_ads";
   if (!src) return "organico";
 
   if (src.includes("google")) return "google_ads";
@@ -125,5 +134,15 @@ export function mapWebhookToLead(payload: LpWebhookPayload) {
     page_id: clean(payload.Id_da_pagina),
 
     raw_payload: payload as Record<string, unknown>,
+  };
+}
+
+// Campos do ChatGPT Ads, gravados a parte: sem a migration 0024 as colunas
+// nao existem e o lead nao pode deixar de entrar por causa disso.
+export function rastreioOpenAI(payload: LpWebhookPayload) {
+  return {
+    openai_oppref: clean(payload.oppref),
+    openai_obref: clean(payload.obref),
+    eventId: clean(payload.openai_event_id),
   };
 }

@@ -1,9 +1,11 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   mapWebhookToLead,
+  rastreioOpenAI,
   type LpWebhookPayload,
 } from "@/lib/mappers/webhook-lead";
+import { reportarLeadOpenAI } from "@/lib/conversions/report";
 import { brCanonical, last8 } from "@/lib/phone";
 
 export const runtime = "nodejs";
@@ -59,6 +61,22 @@ export async function POST(request: NextRequest) {
   }
 
   const lead = mapWebhookToLead(payload);
+  const openai = rastreioOpenAI(payload);
+  const doChatgpt = Boolean(openai.openai_oppref) || lead.origem === "chatgpt_ads";
+
+  // Grava oppref/obref e avisa a OpenAI da entrada do lead (o pixel da LP
+  // manda o mesmo evento com o mesmo id; a OpenAI conta uma vez).
+  async function registrarChatgpt(id: string) {
+    if (!doChatgpt) return;
+    const campos: Record<string, string> = {};
+    if (openai.openai_oppref) campos.openai_oppref = openai.openai_oppref;
+    if (openai.openai_obref) campos.openai_obref = openai.openai_obref;
+    if (Object.keys(campos).length) {
+      const { error: e } = await supabase.from("leads").update(campos).eq("id", id);
+      if (e) console.error("[webhook/lead] openai:", e.message);
+    }
+    after(() => reportarLeadOpenAI(id, openai.eventId));
+  }
 
   const supabase = createAdminClient();
 
@@ -104,21 +122,33 @@ export async function POST(request: NextRequest) {
     if (Object.keys(rastreio).length) {
       await supabase.from("leads").update(rastreio).eq("id", existente);
     }
+    await registrarChatgpt(existente);
 
     return json({ ok: true, id: existente, acao: "atualizado" });
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("leads")
     .insert(lead)
     .select("id, nome, created_at")
     .single();
 
-  if (error) {
+  // Sem a migration 0024 a origem "chatgpt_ads" nao existe no banco: entra
+  // como "outro" (as UTMs mostram de onde veio) em vez de perder o lead.
+  if (error && lead.origem === "chatgpt_ads") {
+    ({ data, error } = await supabase
+      .from("leads")
+      .insert({ ...lead, origem: "outro" as const })
+      .select("id, nome, created_at")
+      .single());
+  }
+
+  if (error || !data) {
     console.error("[webhook/lead] insert error:", error);
     return json({ error: "could not save lead" }, 500);
   }
 
+  await registrarChatgpt(data.id as string);
   return json({ ok: true, id: data.id }, 201);
 }
 

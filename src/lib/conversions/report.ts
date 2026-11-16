@@ -13,9 +13,14 @@ import {
 } from "@/lib/google/ads";
 import { enviarEventoMeta, metaConfigured, type ConversionType } from "@/lib/meta/conversions";
 import { leadIdDoGemeo } from "@/lib/conversions/gemeo";
+import { enviarEventoOpenAI, openaiConfigurado } from "@/lib/openai/conversions";
 
 export type { ConversionType };
-type Canal = "google" | "meta";
+type Canal = "google" | "meta" | "openai";
+
+// "lead" (entrada do lead) so existe no canal da OpenAI: na Meta e no
+// Google quem conta o lead e a propria plataforma.
+type TipoEnvio = ConversionType | "lead";
 
 const VALOR_QUALIFICADO = Number(
   process.env.GOOGLE_ADS_VALOR_QUALIFICADO ?? "200"
@@ -47,7 +52,7 @@ function identificadorGoogle(
   return null;
 }
 
-function valorDe(lead: Lead, tipo: ConversionType) {
+function valorDe(lead: Lead, tipo: TipoEnvio) {
   if (tipo === "fechado") return Number(lead.valor_fechado ?? VALOR_FECHADO_PADRAO);
   if (tipo === "qualificado") return VALOR_QUALIFICADO;
   // Desqualificado e etapas do meio do funil sao sinal, nao receita.
@@ -64,7 +69,7 @@ function valorDe(lead: Lead, tipo: ConversionType) {
 async function registrarEEnviar(args: {
   admin: SupabaseClient;
   lead: Lead;
-  tipo: ConversionType;
+  tipo: TipoEnvio;
   canal: Canal;
   identificador: string | null;
   idTipo?: string | null;
@@ -128,7 +133,7 @@ async function registrarEEnviar(args: {
   if (!r.ok) console.error(`[conv:${canal}] falhou:`, r.error);
 }
 
-async function jaFoiPorOutroCard(admin: SupabaseClient, leadId: string, tipo: ConversionType, identificador: string) {
+async function jaFoiPorOutroCard(admin: SupabaseClient, leadId: string, tipo: TipoEnvio, identificador: string) {
   const { count } = await admin
     .from("ads_conversions")
     .select("id", { count: "exact", head: true })
@@ -224,9 +229,64 @@ export async function reportConversion(
       );
     }
 
+    tarefas.push(enviarParaOpenAI(admin, lead, tipo));
+
     await Promise.all(tarefas);
   } catch (e) {
     console.error("[conv] reportConversion:", e);
+  }
+}
+
+// ChatGPT Ads: so lead que veio de anuncio do ChatGPT (tem oppref ou a
+// origem). Le os campos da OpenAI numa consulta separada: sem a migration
+// 0024 as colunas nao existem, e isso nao pode derrubar Meta e Google.
+async function enviarParaOpenAI(admin: SupabaseClient, lead: Lead, tipo: TipoEnvio, eventIdFixo?: string) {
+  if (!openaiConfigurado()) return;
+  const { data: oa, error } = await admin
+    .from("leads")
+    .select("email, whatsapp, origem, openai_oppref, openai_obref")
+    .eq("id", lead.id)
+    .single();
+  if (error || !oa) return;
+  if (!oa.openai_oppref && oa.origem !== "chatgpt_ads") return;
+  await registrarEEnviar({
+    admin,
+    lead,
+    tipo,
+    canal: "openai",
+    identificador: (oa.openai_oppref as string | null) ?? (oa.openai_obref as string | null) ?? `lead:${lead.id}`,
+    statusSemIdentificador: "sem_oppref",
+    enviar: (rowId, valor, quando) =>
+      enviarEventoOpenAI({
+        tipo,
+        // A entrada do lead usa o id que a LP mandou junto com o pixel:
+        // a OpenAI junta os dois e conta uma vez.
+        eventId: eventIdFixo ?? rowId,
+        quando,
+        oppref: oa.openai_oppref as string | null,
+        obref: oa.openai_obref as string | null,
+        email: oa.email as string | null,
+        whatsapp: oa.whatsapp as string | null,
+        leadId: lead.id,
+        valor,
+      }),
+  });
+}
+
+/** Entrada de um lead do ChatGPT Ads (chamada pelo webhook da LP). */
+export async function reportarLeadOpenAI(leadId: string, eventId?: string | null): Promise<void> {
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("leads")
+      .select("id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
+      .eq("id", leadId)
+      .single();
+    const lead = data as Lead | null;
+    if (!lead || lead.ja_cliente) return;
+    await enviarParaOpenAI(admin, lead, "lead", eventId ?? undefined);
+  } catch (e) {
+    console.error("[conv] reportarLeadOpenAI:", e);
   }
 }
 
@@ -354,8 +414,31 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
       const agora = new Date();
       // Anotado porque so o Google devolve requestId; a uniao dos dois
       // retornos esconderia o campo.
+      // OpenAI: busca os identificadores na hora (colunas da migration 0024).
+      const oa =
+        row.canal === "openai"
+          ? (
+              await admin
+                .from("leads")
+                .select("email, whatsapp, openai_oppref, openai_obref")
+                .eq("id", leadId)
+                .single()
+            ).data
+          : null;
       const r: { ok: boolean; error?: string; requestId?: string } =
-        row.canal === "meta"
+        row.canal === "openai"
+          ? await enviarEventoOpenAI({
+              tipo: "fechado",
+              eventId: row.id as string,
+              quando: agora,
+              oppref: (oa?.openai_oppref as string | null) ?? null,
+              obref: (oa?.openai_obref as string | null) ?? null,
+              email: (oa?.email as string | null) ?? null,
+              whatsapp: (oa?.whatsapp as string | null) ?? null,
+              leadId,
+              valor,
+            })
+          : row.canal === "meta"
           ? await enviarEventoMeta({
               tipo: "fechado",
               leadId: metaLeadId,
@@ -417,7 +500,7 @@ const ETAPA_DO_ESTAGIO: Partial<Record<string, ConversionType>> = {
 export async function reportarEtapa(leadId: string, estagio: string): Promise<void> {
   try {
     const tipo = ETAPA_DO_ESTAGIO[estagio];
-    if (!tipo || !metaConfigured()) return;
+    if (!tipo || (!metaConfigured() && !openaiConfigurado())) return;
     const admin = createAdminClient();
     const { data } = await admin
       .from("leads")
@@ -426,6 +509,8 @@ export async function reportarEtapa(leadId: string, estagio: string): Promise<vo
       .single();
     const lead = data as Lead | null;
     if (!lead || lead.ja_cliente) return;
+    await enviarParaOpenAI(admin, lead, tipo);
+    if (!metaConfigured()) return;
     const metaLeadId = await leadIdDoFormulario(admin, lead);
     if (!metaLeadId) return;
 
