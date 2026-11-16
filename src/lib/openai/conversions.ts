@@ -75,7 +75,9 @@ export async function enviarEventoOpenAI(opts: {
   whatsapp?: string | null;
   leadId: string;
   valor?: number;
-}): Promise<{ ok: boolean; error?: string }> {
+  // Teste: a OpenAI valida o evento e nao grava nada.
+  soValidar?: boolean;
+}): Promise<{ ok: boolean; error?: string; status?: number }> {
   if (!openaiConfigurado()) return { ok: false, error: "OpenAI Ads não configurado." };
   const padrao = PADRAO[opts.tipo];
   const personalizado = PERSONALIZADO[opts.tipo];
@@ -120,14 +122,18 @@ export async function enviarEventoOpenAI(opts: {
     const res = await fetch(`${ENDPOINT}?pid=${encodeURIComponent(PIXEL_ID!)}`, {
       method: "POST",
       headers: { Authorization: `Bearer ${CHAVE}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ integration_source: "simpledev-crm", events: [evento] }),
+      body: JSON.stringify({
+        ...(opts.soValidar ? { validate_only: true } : {}),
+        integration_source: "simpledev-crm",
+        events: [evento],
+      }),
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
       const texto = (await res.text().catch(() => "")).slice(0, 600);
-      return { ok: false, error: `${res.status} ${texto}` };
+      return { ok: false, status: res.status, error: `${res.status} ${texto}` };
     }
-    return { ok: true };
+    return { ok: true, status: res.status };
   } catch (e) {
     return { ok: false, error: String(e).slice(0, 400) };
   }
