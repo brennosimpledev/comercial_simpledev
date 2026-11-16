@@ -54,7 +54,7 @@ function etapas(f: Funil): Etapa[] {
       passagem: `${taxa(f.qualificados, f.conversaram)} de quem conversou`,
     },
     {
-      rotulo: "Reuniões marcadas",
+      rotulo: "Reuniões",
       valor: num(f.reunioes),
       custo: { rotulo: "por reunião", valor: custo(f.gasto, f.reunioes), chave: true },
       passagem: `${taxa(f.reunioes, f.pessoas)} dos leads`,
