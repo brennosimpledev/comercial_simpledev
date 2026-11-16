@@ -24,6 +24,23 @@ export async function GET(request: NextRequest) {
   }
   const preset = q.get("preset") ?? "maximum";
 
+  // ?app=1: so diz a qual app da Meta cada token do CRM pertence (para
+  // escolher o app certo ao gerar um token novo). Nao devolve o token.
+  if (q.get("app") === "1") {
+    const nomes: Record<string, string> = {
+      META_CRM_ACCESS_TOKEN: process.env.META_CRM_ACCESS_TOKEN ?? "",
+      META_PAGE_ACCESS_TOKEN: process.env.META_PAGE_ACCESS_TOKEN ?? "",
+    };
+    const apps: Record<string, unknown> = {};
+    for (const [nome, token] of Object.entries(nomes)) {
+      if (!token) continue;
+      const r = await fetch(`${GRAPH}/app?fields=id,name&access_token=${encodeURIComponent(token)}`, { cache: "no-store" });
+      const j = await r.json().catch(() => null);
+      apps[nome] = r.ok ? j : { erro: (j as { error?: { message?: string } } | null)?.error?.message ?? r.status };
+    }
+    return NextResponse.json({ apps });
+  }
+
   // Tenta os tokens que o CRM ja tem; o primeiro que ler a conta vale.
   const tokens = [process.env.META_CRM_ACCESS_TOKEN, process.env.META_PAGE_ACCESS_TOKEN].filter(Boolean) as string[];
   const erros: string[] = [];
