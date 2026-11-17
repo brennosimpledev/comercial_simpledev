@@ -146,8 +146,8 @@ export function FunilChart({
         <div
           className="pointer-events-none absolute top-1 z-10 rounded-lg border border-white/10 bg-[#0b2a49] px-3 py-2 text-xs shadow-lg"
           style={{
-            left: Math.min(Math.max(x(ativo) - 80, 0), W - 170),
-            width: 160,
+            left: Math.min(Math.max(x(ativo) - 100, 0), W - 210),
+            width: 210,
           }}
         >
           <div className="text-slate-400">{p.titulo}</div>
