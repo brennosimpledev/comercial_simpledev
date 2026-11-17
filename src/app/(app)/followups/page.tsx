@@ -120,9 +120,8 @@ export default async function FollowUpsPage() {
   return (
     <div>
       <h1 className="mb-1 text-lg font-semibold text-white">Follow-ups</h1>
-      <p className="mb-5 text-sm text-slate-400">
-        Leads do SDR dos últimos 30 dias, sem reunião marcada. Cada coluna é um follow-up; o card anda sozinho quando a
-        mensagem sai.
+      <p className="mb-4 text-sm text-slate-400">
+        Cada coluna é um follow-up (1º ao 10º). O card anda sozinho quando a mensagem sai.
       </p>
       <FilaFollowUps responder={responder} colunas={colunas} titulos={titulos} frios={frios} retornos={retornos} />
     </div>
