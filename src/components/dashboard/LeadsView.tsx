@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { MarketingPanel } from "./MarketingPanel";
+import { ATALHOS, PeriodoFiltro, intervaloDoAtalho, type Atalho } from "./PeriodoFiltro";
 import { TrackingCell } from "./TrackingCell";
 import { deleteLead } from "@/app/(app)/leads/actions";
 import {
@@ -14,9 +15,6 @@ import {
 } from "@/types/database";
 import { EtiquetaBot } from "@/components/leads/EtiquetaBot";
 
-function ymd(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 function fmtDateTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString("pt-BR", {
@@ -45,13 +43,26 @@ export function LeadsView({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  const today = new Date();
-  const weekAgo = new Date(today.getTime() - 6 * 86400_000);
-
   // Os filtros vivem na URL para sobreviverem a abrir um lead e voltar.
   const sp = useSearchParams();
-  const [from, setFrom] = useState(sp.get("de") ?? ymd(weekAgo));
-  const [to, setTo] = useState(sp.get("ate") ?? ymd(today));
+  // Periodo: atalho na URL (?p=30d) se recalcula todo dia; datas a mao
+  // ficam como ?de=&ate=. Sem nada, ultimos 7 dias.
+  const [atalho, setAtalho] = useState<Atalho>(() => {
+    const p = sp.get("p") as Atalho | null;
+    if (p && ATALHOS.some((a) => a.v === p)) return p;
+    return sp.get("de") && sp.get("ate") ? "personalizado" : "7d";
+  });
+  const inicial = atalho === "personalizado" ? { de: sp.get("de")!, ate: sp.get("ate")! } : intervaloDoAtalho(atalho);
+  const [from, setFrom] = useState(inicial.de);
+  const [to, setTo] = useState(inicial.ate);
+
+  function escolherAtalho(a: Atalho) {
+    setAtalho(a);
+    if (a === "personalizado") return; // mantem as datas atuais para editar
+    const i = intervaloDoAtalho(a);
+    setFrom(i.de);
+    setTo(i.ate);
+  }
   const [origem, setOrigem] = useState<"" | LeadOrigin>(
     (sp.get("origem") as LeadOrigin) ?? ""
   );
@@ -60,8 +71,11 @@ export function LeadsView({
   // entao nao ha motivo para bater no servidor a cada tecla.
   useEffect(() => {
     const p = new URLSearchParams();
-    if (from) p.set("de", from);
-    if (to) p.set("ate", to);
+    if (atalho !== "personalizado") p.set("p", atalho);
+    else {
+      if (from) p.set("de", from);
+      if (to) p.set("ate", to);
+    }
     if (origem) p.set("origem", origem);
     const qs = p.toString();
     window.history.replaceState(
@@ -69,12 +83,12 @@ export function LeadsView({
       "",
       qs ? `${window.location.pathname}?${qs}` : window.location.pathname
     );
-  }, [from, to, origem]);
-
+  }, [atalho, from, to, origem]);
 
   const filtered = useMemo(() => {
-    const start = new Date(from + "T00:00:00Z");
-    const end = new Date(to + "T23:59:59Z");
+    // Dias de Brasilia, como no painel de marketing.
+    const start = new Date(from + "T00:00:00-03:00");
+    const end = new Date(to + "T23:59:59.999-03:00");
     return leads.filter((l) => {
       const c = new Date(l.created_at);
       if (c < start || c > end) return false;
@@ -110,8 +124,24 @@ export function LeadsView({
 
   return (
     <div className="space-y-4">
-      {/* Funil completo (Meta + CRM) com o grafico que muda pela etapa clicada. */}
-      <MarketingPanel de={from} ate={to} />
+      {/* Funil completo (Meta + CRM) com o grafico que muda pela etapa
+          clicada; o periodo fica dentro do card. */}
+      <MarketingPanel
+        de={from}
+        ate={to}
+        periodo={
+          <PeriodoFiltro
+            atalho={atalho}
+            de={from}
+            ate={to}
+            onAtalho={escolherAtalho}
+            onDatas={(de, ate) => {
+              setFrom(de);
+              setTo(ate);
+            }}
+          />
+        }
+      />
 
 
       <div className="flex flex-wrap items-center justify-end gap-2">
@@ -127,18 +157,6 @@ export function LeadsView({
             </option>
           ))}
         </select>
-        <input
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          className={inputCls}
-        />
-        <input
-          type="date"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          className={inputCls}
-        />
         <Link
           href="/leads/novo"
           className="rounded-full bg-brand px-3 py-1.5 text-sm font-semibold text-navy hover:bg-brand-dark"

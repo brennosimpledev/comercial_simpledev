@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { metricasMarketing, type Funil, type Marketing } from "@/app/(app)/leads/marketing";
 import { FunilChart, type Ponto } from "./FunilChart";
 
@@ -248,7 +248,7 @@ const colunas: { rotulo: string; valor: (a: Funil) => string; chave?: boolean }[
   { rotulo: "Fechados", valor: (a) => (a.fechados > 0 ? `${a.fechados} · ${brl(a.valor_fechado)}` : "0") },
 ];
 
-export function MarketingPanel({ de, ate }: { de: string; ate: string }) {
+export function MarketingPanel({ de, ate, periodo }: { de: string; ate: string; periodo?: ReactNode }) {
   const [dados, setDados] = useState<Marketing | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -320,6 +320,7 @@ export function MarketingPanel({ de, ate }: { de: string; ate: string }) {
 
   return (
     <section className="sd-card p-4">
+      {periodo && <div className="mb-4 border-b border-white/5 pb-3">{periodo}</div>}
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-sm font-semibold text-slate-200">Funil do período · Meta Ads</h2>
         <span className="text-xs text-slate-500">
