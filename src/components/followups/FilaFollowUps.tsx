@@ -157,7 +157,12 @@ function Cartao({ item }: { item: ItemFila }) {
       )}
 
       {auto && item.regua ? (
-        <p className="mt-1 text-[11px] text-slate-500">🤖 Régua manda {quando(item.regua.proxima)}</p>
+        <p className="mt-1 text-[11px] text-slate-500">
+          🤖{" "}
+          {new Date(item.regua.proxima).getTime() <= Date.now()
+            ? "Régua manda na próxima rodada (9h ou 14h)"
+            : `Régua manda ${quando(item.regua.proxima)}`}
+        </p>
       ) : (
         fala && (
           <p className="mt-1 line-clamp-2 text-xs leading-snug text-slate-400">
@@ -233,9 +238,9 @@ function Cartao({ item }: { item: ItemFila }) {
               onClick={sugerir}
               disabled={gerando || pending}
               title="Escrever a mensagem com IA"
-              className="h-7 rounded-md bg-brand/15 px-2 text-xs font-medium text-brand hover:bg-brand/25 disabled:opacity-50"
+              className="h-7 whitespace-nowrap rounded-md bg-brand/15 px-2 text-xs font-medium text-brand hover:bg-brand/25 disabled:opacity-50"
             >
-              {gerando ? "Escrevendo…" : "✍️ Mensagem"}
+              {gerando ? "…" : "✍️ Escrever"}
             </button>
           )}
           <Icone titulo="Sai do quadro e volta em 3 dias" onClick={() => run(() => adiarRetorno(item.id, 3))} disabled={pending}>
