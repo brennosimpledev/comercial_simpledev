@@ -71,6 +71,19 @@ type Linha = {
   lembrete: string | null;
 };
 
+// Nome e sobrenome normalizados (sem acento, minusculo). Nome de uma
+// palavra so ("Marcos", "E") casaria com gente demais: nao conta.
+function nomeCompleto(nome: string | null | undefined) {
+  const n = (nome ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return n.split(" ").length >= 2 ? n : null;
+}
+
 /** Ultimo erro da consulta de leads, para o ensaio mostrar. */
 export let erroLeads: string | null = null;
 
@@ -141,27 +154,29 @@ export async function leadsComSituacao(
   }
 
   // A reuniao pode estar no outro card do mesmo cliente (formulario e
-  // conversa): em 17/11 o Marlon e a Renata seguiam na fila com reuniao
-  // marcada no card gemeo. Confere pelo telefone.
-  const telefones = [...new Set(lista.map((l) => last8(l.whatsapp ?? "")).filter((t) => t.length === 8))];
+  // conversa): em 17/11 o Marlon seguia na fila com reuniao marcada no card
+  // gemeo. Confere pelo telefone e pelo nome completo (o Marlon preencheu o
+  // formulario com um numero e conversou por outro).
   const telComReuniao = new Set<string>();
-  for (let i = 0; i < telefones.length; i += 50) {
-    const lote = telefones.slice(i, i + 50);
-    const { data: gemeos } = await supabase
-      .from("leads")
-      .select("id, whatsapp")
-      .or(lote.map((t) => `whatsapp_digits.like.*${t}`).join(","));
-    const porId = new Map((gemeos ?? []).map((g) => [g.id as string, last8((g.whatsapp as string | null) ?? "")]));
-    if (!porId.size) continue;
-    const { data: reunioesGemeos } = await supabase.from("meetings").select("lead_id").in("lead_id", [...porId.keys()]);
-    for (const r of reunioesGemeos ?? []) {
-      const t = porId.get(r.lead_id as string);
-      if (t) telComReuniao.add(t);
-    }
+  const nomeComReuniao = new Set<string>();
+  const { data: reunioesRecentes } = await supabase
+    .from("meetings")
+    .select("lead_id, lead:leads(nome, whatsapp)")
+    .gte("starts_at", desde);
+  for (const r of (reunioesRecentes ?? []) as unknown as { lead: { nome: string | null; whatsapp: string | null } | null }[]) {
+    const t = last8(r.lead?.whatsapp ?? "");
+    if (t.length === 8) telComReuniao.add(t);
+    const n = nomeCompleto(r.lead?.nome);
+    if (n) nomeComReuniao.add(n);
   }
 
   return lista
-    .filter((l) => !comReuniao.has(l.id) && !telComReuniao.has(last8(l.whatsapp ?? "")))
+    .filter(
+      (l) =>
+        !comReuniao.has(l.id) &&
+        !telComReuniao.has(last8(l.whatsapp ?? "")) &&
+        !nomeComReuniao.has(nomeCompleto(l.nome) ?? "-")
+    )
     .map((lead) => {
       const msgs = porLead.get(lead.id) ?? [];
       const iPrimeira = msgs.findIndex((m) => m.direction === "outbound");
