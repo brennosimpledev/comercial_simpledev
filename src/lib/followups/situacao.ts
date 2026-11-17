@@ -45,6 +45,8 @@ export type Situacao = {
   ultimaHumana: string | null;
   /** O cliente escreveu algo alem do texto pronto do formulario ou anuncio. */
   falouDeVerdade: boolean;
+  /** Mensagens nossas (bot, time ou regua) depois da ultima fala do cliente. */
+  nossasDesdeCliente: number;
 };
 
 // Texto pronto do formulario repassado ou do anuncio: nao e conversa.
@@ -183,6 +185,7 @@ export async function leadsComSituacao(
       const ultima = msgs[msgs.length - 1];
       const nossa = [...msgs].reverse().find((m) => m.direction === "outbound");
       const doCliente = [...msgs].reverse().find((m) => m.direction === "inbound");
+      const iUltimaDoCliente = msgs.map((m) => m.direction).lastIndexOf("inbound");
       return {
         lead,
         s: {
@@ -198,6 +201,7 @@ export async function leadsComSituacao(
           ultimaHumana:
             [...msgs].reverse().find((m) => m.direction === "outbound" && !automatica(m))?.created_at ?? null,
           falouDeVerdade: msgs.some(falaDeVerdade),
+          nossasDesdeCliente: msgs.slice(iUltimaDoCliente + 1).filter((m) => m.direction === "outbound").length,
         },
       };
     });
