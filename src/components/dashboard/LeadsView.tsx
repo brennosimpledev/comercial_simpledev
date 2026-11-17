@@ -27,6 +27,36 @@ function fmtDateTime(iso: string) {
   });
 }
 
+export type ReuniaoDoLead = { lead_id: string; starts_at: string; status: string };
+
+const ultimos8 = (w: string | null | undefined) => (w ?? "").replace(/D/g, "").slice(-8);
+
+// Icone de reuniao: a proxima marcada, ou a ultima que aconteceu. Reuniao
+// cancelada nao conta. Furada aparece apagada.
+function IconeReuniao({ reunioes }: { reunioes: ReuniaoDoLead[] }) {
+  const validas = reunioes.filter((r) => r.status !== "cancelada");
+  if (!validas.length) return <span className="text-slate-700">·</span>;
+  const agora = Date.now();
+  const proxima = validas.find((r) => r.status === "agendada" && new Date(r.starts_at).getTime() >= agora - 3600_000);
+  const r = proxima ?? validas[validas.length - 1];
+  const quando = new Date(r.starts_at).toLocaleString("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+  const situacao = proxima ? "marcada" : r.status === "realizada" ? "realizada" : r.status === "furada" ? "faltou" : r.status;
+  const titulo =
+    `Reunião ${situacao}: ${quando}` + (validas.length > 1 ? ` (${validas.length} reuniões no total)` : "");
+  return (
+    <span title={titulo} aria-label={titulo} className={proxima ? "" : r.status === "realizada" ? "opacity-70" : "opacity-35 grayscale"}>
+      {proxima ? "📅" : r.status === "realizada" ? "✅" : "📅"}
+    </span>
+  );
+}
+
 function StatusIcon({ lead }: { lead: Lead }) {
   if (lead.desqualificado)
     return <span title="Desqualificado">👎</span>;
@@ -37,8 +67,10 @@ function StatusIcon({ lead }: { lead: Lead }) {
 
 export function LeadsView({
   leads,
+  reunioes = [],
 }: {
   leads: Lead[];
+  reunioes?: ReuniaoDoLead[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -99,6 +131,24 @@ export function LeadsView({
     });
   }, [leads, from, to, origem]);
 
+
+  // Reunioes por lead. O mesmo cliente costuma ter dois cards (formulario
+  // e conversa): a reuniao aparece nos dois, pelo telefone.
+  const reunioesDe = useMemo(() => {
+    const porId = new Map<string, ReuniaoDoLead[]>();
+    for (const r of reunioes) porId.set(r.lead_id, [...(porId.get(r.lead_id) ?? []), r]);
+    const porTelefone = new Map<string, ReuniaoDoLead[]>();
+    for (const l of leads) {
+      const rs = porId.get(l.id);
+      const k = ultimos8(l.whatsapp);
+      if (rs && k.length === 8) porTelefone.set(k, [...(porTelefone.get(k) ?? []), ...rs]);
+    }
+    return (l: Lead) => {
+      const k = ultimos8(l.whatsapp);
+      const rs = (k.length === 8 ? porTelefone.get(k) : undefined) ?? porId.get(l.id) ?? [];
+      return [...rs].sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    };
+  }, [reunioes, leads]);
 
   const sorted = useMemo(
     () =>
@@ -201,6 +251,9 @@ export function LeadsView({
             </div>
             <div className="w-8 shrink-0 text-center text-base">
               <StatusIcon lead={lead} />
+            </div>
+            <div className="w-8 shrink-0 text-center text-base">
+              <IconeReuniao reunioes={reunioesDe(lead)} />
             </div>
             <div className="w-8 shrink-0 text-center">
               <TrackingCell lead={lead} />

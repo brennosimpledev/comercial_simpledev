@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { LeadsView } from "@/components/dashboard/LeadsView";
+import { LeadsView, type ReuniaoDoLead } from "@/components/dashboard/LeadsView";
 import type { Lead } from "@/types/database";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +22,22 @@ export default async function LeadsPage() {
     if (!data || data.length < PAGINA) break;
   }
 
+  // Reunioes de todos os leads (para o icone de reuniao na lista).
+  const reunioes: ReuniaoDoLead[] = [];
+  for (let de = 0; ; de += PAGINA) {
+    const { data } = await supabase
+      .from("meetings")
+      .select("lead_id, starts_at, status")
+      .order("starts_at", { ascending: true })
+      .range(de, de + PAGINA - 1);
+    reunioes.push(...((data ?? []) as ReuniaoDoLead[]));
+    if (!data || data.length < PAGINA) break;
+  }
+
   return (
     <div>
       <h1 className="mb-4 text-lg font-semibold text-white">Leads</h1>
-      <LeadsView leads={leads} />
+      <LeadsView leads={leads} reunioes={reunioes} />
     </div>
   );
 }
