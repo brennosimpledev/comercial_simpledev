@@ -195,31 +195,48 @@ export function FilaFollowUps({
   esperando,
   parados,
   regua,
+  frios = [],
 }: {
   esperando: ItemFila[];
   parados: ItemFila[];
   regua: ItemFila[];
+  frios?: ItemFila[];
 }) {
   return (
+    <div className="flex flex-col gap-6">
     <div className="grid gap-6 lg:grid-cols-3">
       <Secao
         titulo="Esperando sua resposta"
-        ajuda="O cliente escreveu por último e ninguém respondeu há mais de 1h."
+        ajuda="O cliente escreveu por último e ninguém respondeu há mais de 1h. Mais recentes primeiro."
         itens={esperando}
         vazio="Ninguém esperando. 👌"
       />
       <Secao
         titulo="Pararam no meio da conversa"
-        ajuda="Já conversaram, mas não respondem a nossa última mensagem há mais de 20h."
+        ajuda="Já conversaram, mas não respondem a nossa última mensagem há mais de 4h. Conversa mais recente primeiro."
         itens={parados}
         vazio="Nenhuma conversa parada."
       />
       <Secao
         titulo="Na régua automática"
-        ajuda="Nunca responderam. O sistema retoma sozinho às 9h e 14h em dia útil, 4 tentativas em uma semana."
+        ajuda="Nunca responderam. O sistema retoma sozinho às 9h e 14h em dia útil, 10 tentativas em 5 dias úteis."
         itens={regua}
         vazio="Ninguém na régua agora."
       />
+    </div>
+      {frios.length > 0 && (
+        <details className="rounded-xl border border-white/10 p-3">
+          <summary className="cursor-pointer text-sm font-semibold text-slate-300">
+            Frios: sem conversa há mais de 7 dias <span className="font-normal text-slate-500">({frios.length})</span>
+            <span className="ml-2 text-xs font-normal text-slate-500">Para quando sobrar tempo. Mais recentes primeiro.</span>
+          </summary>
+          <div className="mt-3 grid gap-2 lg:grid-cols-3">
+            {frios.map((i) => (
+              <Linha key={i.id} item={i} />
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }

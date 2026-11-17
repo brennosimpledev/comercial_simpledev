@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { REGUA_AUTOMATICA, nomeDoFormulario, vencimentoDoPasso } from "./cadence";
+import { last8 } from "@/lib/phone";
 
 // Em que pe esta a conversa de cada lead do SDR. Serve a regua automatica
 // (cron) e a fila do Ronaldo (/followups), para os dois lerem a mesma coisa.
@@ -139,8 +140,28 @@ export async function leadsComSituacao(
     porLead.set(m.lead_id, l);
   }
 
+  // A reuniao pode estar no outro card do mesmo cliente (formulario e
+  // conversa): em 17/11 o Marlon e a Renata seguiam na fila com reuniao
+  // marcada no card gemeo. Confere pelo telefone.
+  const telefones = [...new Set(lista.map((l) => last8(l.whatsapp ?? "")).filter((t) => t.length === 8))];
+  const telComReuniao = new Set<string>();
+  for (let i = 0; i < telefones.length; i += 50) {
+    const lote = telefones.slice(i, i + 50);
+    const { data: gemeos } = await supabase
+      .from("leads")
+      .select("id, whatsapp")
+      .or(lote.map((t) => `whatsapp_digits.like.*${t}`).join(","));
+    const porId = new Map((gemeos ?? []).map((g) => [g.id as string, last8((g.whatsapp as string | null) ?? "")]));
+    if (!porId.size) continue;
+    const { data: reunioesGemeos } = await supabase.from("meetings").select("lead_id").in("lead_id", [...porId.keys()]);
+    for (const r of reunioesGemeos ?? []) {
+      const t = porId.get(r.lead_id as string);
+      if (t) telComReuniao.add(t);
+    }
+  }
+
   return lista
-    .filter((l) => !comReuniao.has(l.id))
+    .filter((l) => !comReuniao.has(l.id) && !telComReuniao.has(last8(l.whatsapp ?? "")))
     .map((lead) => {
       const msgs = porLead.get(lead.id) ?? [];
       const iPrimeira = msgs.findIndex((m) => m.direction === "outbound");

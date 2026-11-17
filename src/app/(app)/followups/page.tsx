@@ -18,6 +18,12 @@ export default async function FollowUpsPage() {
 
   const esperando: ItemFila[] = [];
   const parados: ItemFila[] = [];
+  // Quem nao fala com a gente ha mais de uma semana: fica numa secao
+  // recolhida no fim, para nao empurrar os de ontem para baixo.
+  const frios: ItemFila[] = [];
+  const FRIO_APOS_DIAS = 7;
+  const frio = (s: { ultimaDoCliente: { em: string } | null; ultimaNossa: { em: string } | null }) =>
+    horas((s.ultimaDoCliente ?? s.ultimaNossa)?.em ?? new Date(0).toISOString()) > FRIO_APOS_DIAS * 24;
   const regua: ItemFila[] = [];
   let adiados = 0;
 
@@ -53,20 +59,24 @@ export default async function FollowUpsPage() {
       continue;
     }
     if (s.ultimaDirecao === "inbound" && s.ultimaDoCliente && horas(s.ultimaDoCliente.em) >= 1) {
-      esperando.push({ ...base, tipo: "esperando" });
+      (frio(s) ? frios : esperando).push({ ...base, tipo: "esperando" });
     } else if (
       (s.respondeu || s.falouDeVerdade) &&
       s.ultimaDirecao === "outbound" &&
       s.ultimaNossa &&
       horas(s.ultimaNossa.em) >= PARADO_APOS_H
     ) {
-      parados.push({ ...base, tipo: "parado" });
+      (frio(s) ? frios : parados).push({ ...base, tipo: "parado" });
     }
   }
 
-  // Mais antigo primeiro: quem espera ha mais tempo vem antes.
-  esperando.sort((a, b) => (a.ultimaDoCliente!.em < b.ultimaDoCliente!.em ? -1 : 1));
-  parados.sort((a, b) => (a.ultimaNossa!.em < b.ultimaNossa!.em ? -1 : 1));
+  // Conversa mais recente primeiro (17/11/2026): com a mais antiga no topo,
+  // o Ronaldo passava o dia nos leads de dias atras e os de ontem ficavam
+  // para o dia seguinte. Quente primeiro; o que esfriou vai para "frios".
+  const recente = (i: ItemFila) => (i.ultimaDoCliente ?? i.ultimaNossa)?.em ?? "";
+  esperando.sort((a, b) => (recente(a) > recente(b) ? -1 : 1));
+  parados.sort((a, b) => (recente(a) > recente(b) ? -1 : 1));
+  frios.sort((a, b) => (recente(a) > recente(b) ? -1 : 1));
   regua.sort((a, b) => (a.regua!.proxima < b.regua!.proxima ? -1 : 1));
 
   return (
@@ -76,7 +86,7 @@ export default async function FollowUpsPage() {
         Leads do SDR dos últimos 30 dias, sem reunião marcada.
         {adiados > 0 && ` ${adiados} adiado${adiados > 1 ? "s" : ""} não aparece${adiados > 1 ? "m" : ""} hoje.`}
       </p>
-      <FilaFollowUps esperando={esperando} parados={parados} regua={regua} />
+      <FilaFollowUps esperando={esperando} parados={parados} regua={regua} frios={frios} />
     </div>
   );
 }
