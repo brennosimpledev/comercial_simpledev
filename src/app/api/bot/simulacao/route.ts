@@ -27,6 +27,9 @@ type Cenario = {
   espera: Espera;
   // O bot tem que apresentar o piso de R$ 20 mil em algum momento.
   piso?: boolean;
+  // Caso cinza (empresa em operacao que nao recusou o piso): agenda, mas
+  // nao pode virar "Lead Qualificado" (VALOR_NATURAL: nao).
+  cinza?: boolean;
   falas: string[];
 };
 
@@ -51,9 +54,10 @@ const CENARIOS: Record<string, Cenario> = {
   },
   luiz_desvia_do_valor: {
     nome: "Luiz",
-    baseado_em: "Luiz Carlos: desviou da pergunta de investimento",
-    espera: "fila_sdr",
+    baseado_em: "Luiz Carlos: desviou do valor, mas já opera a ferramenta e disse ok ao piso (caso cinza, desde 17/11 agenda)",
+    espera: "agenda",
     piso: true,
+    cinza: true,
     falas: [
       FORM({ nome: "Luiz Carlos", situacao: "Automatizar processos que já existem", estagio: "Sei o que preciso e quero estruturar melhor", quando: "O quanto antes", relacao: "Crescimento/Escala do negócio" }),
       "Uma extensão de navegador web ou mobile",
@@ -61,6 +65,7 @@ const CENARIOS: Record<string, Cenario> = {
       "Eu já tenho o projeto, linhas de código e tudo pronto, preciso ampliar para mais corretoras",
       "Sim, já estou operando com a ferramenta",
       "Ok",
+      "Pode ser o primeiro horário",
     ],
   },
   sonia_duas_ideias: {
@@ -137,15 +142,17 @@ const CENARIOS: Record<string, Cenario> = {
   },
   edeval_negociar: {
     nome: "Edeval",
-    baseado_em: "Edeval: empresa operando, 'podemos negociar valor e condições de pagamento'",
-    espera: "fila_sdr",
+    baseado_em: "Edeval: empresa operando, 'podemos negociar valor e condições de pagamento' (caso cinza, desde 17/11 agenda)",
+    espera: "agenda",
     piso: true,
+    cinza: true,
     falas: [
       FORM({ nome: "Edeval Moreth", situacao: "Automatizar processos que já existem", estagio: "Sei o que preciso e quero estruturar melhor", quando: "O quanto antes", relacao: "Necessidade operacional específica" }),
       "Preciso de um atendimento automatizado 24h no WhatsApp que envia cotação e segunda via de boleto para meus clientes",
       "Pra mim ter ideia vou precisar de uma cotação",
       "Podemos negociar valor e condições de pagamento",
-      "Quero saber se vou ter garantia",
+      "Sim, é da minha empresa, uma distribuidora que já opera há 10 anos",
+      "Pode ser o primeiro horário",
     ],
   },
   reger_projeto_pessoal: {
@@ -186,14 +193,28 @@ const CENARIOS: Record<string, Cenario> = {
       "Pode ser o segundo horário",
     ],
   },
+  leandro_erp: {
+    nome: "Leandro",
+    baseado_em: "Leandro Inácio (16/11): assumir o ERP e PDV da Videira Atacado de Bebidas, já em uso",
+    espera: "agenda",
+    piso: true,
+    cinza: true,
+    falas: [
+      FORM({ nome: "Leandro Inácio", situacao: "Automatizar processos que já existem", estagio: "Já iniciei algo e busco ajustar/evoluir", quando: "O quanto antes", relacao: "Necessidade operacional específica" }),
+      "Estamos buscando uma empresa para assumir tecnicamente, estabilizar e continuar o desenvolvimento do ERP e PDV Caravela, criado para uso próprio da Videira Atacado de Bebidas. Já tem código, banco, PDV, retaguarda e estoque",
+      "Depende do escopo, precisamos de uma proposta",
+      "Pode ser, o importante é estabilizar logo",
+      "Pode ser o primeiro horário",
+    ],
+  },
   vou_avaliar: {
     nome: "Paula",
-    baseado_em: "Hesitação sem dizer que não tem: 'vou avaliar'",
+    baseado_em: "Hesitação sem dizer que não tem e sem negócio por trás: 'vou avaliar'",
     espera: "fila_sdr",
     piso: true,
     falas: [
       FORM({ nome: "Paula Souza", situacao: "Tenho uma ideia de app/sistema", estagio: "Sei o que preciso e quero estruturar melhor", quando: "Nos próximos 3 meses", relacao: "Crescimento/Escala do negócio" }),
-      "Um app de agendamento para a minha clínica de estética",
+      "Um app de agendamento para salões de beleza, é uma ideia minha, ainda não tenho empresa",
       "Não sei ainda",
       "Hmm, vou avaliar, depende das condições",
     ],
@@ -243,6 +264,7 @@ async function rodar(chave: string, horarios: Awaited<ReturnType<typeof horarios
     checagens["não desqualificou"] = !desqualificaria;
   }
   if (c.piso) checagens["apresentou o piso de R$ 20 mil"] = falouPiso;
+  if (c.cinza) checagens["não vira Lead Qualificado (valor não natural)"] = resumo?.valorNatural === false;
 
   return {
     cenario: chave,
@@ -252,6 +274,7 @@ async function rodar(chave: string, horarios: Awaited<ReturnType<typeof horarios
     checagens,
     codigo: resumo?.codigo ?? null,
     sem_dinheiro: resumo?.semDinheiro ?? null,
+    valor_natural: resumo?.valorNatural ?? null,
     conversa,
   };
 }

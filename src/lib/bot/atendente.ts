@@ -115,6 +115,15 @@ function ehDoBot(m: Mensagem) {
   return Boolean(m.raw && (m.raw as { bot?: boolean }).bot);
 }
 
+// Mensagem automatica do CRM (regua de follow-up, lembrete): nao e uma
+// pessoa do time. Ate 17/11 contava como "humano assumiu" e calava o bot:
+// o Leandro (ERP da Videira Atacado) respondeu a regua as 20:51 e ninguem
+// respondeu ate o dia seguinte.
+function ehAutomatica(m: Mensagem) {
+  return Boolean(m.raw && (m.raw as { auto?: boolean }).auto);
+}
+const ehHumana = (m: Mensagem) => m.direction === "outbound" && !ehDoBot(m) && !ehAutomatica(m);
+
 const NOME_MIDIA: Record<string, string> = {
   image: "uma imagem",
   imagem: "uma imagem",
@@ -173,12 +182,13 @@ export async function responderForaDeHorario(
     if ((reunioes ?? 0) > 0) return { enviou: false, motivo: "tem_reuniao" };
 
     // Qualquer fala humana, em qualquer momento, tira o bot da conversa.
+    // Mensagem automatica do CRM (regua, lembrete) nao conta.
     const { count: falasHumanas } = await supabase
       .from("lead_messages")
       .select("id", { count: "exact", head: true })
       .eq("lead_id", leadId)
       .eq("direction", "outbound")
-      .or("raw.is.null,raw->>bot.is.null");
+      .or("raw.is.null,and(raw->>bot.is.null,raw->>auto.is.null)");
     if ((falasHumanas ?? 0) > 0) return { enviou: false, motivo: "ja_atendido_por_humano" };
 
     if (await numeroDeCliente(supabase, lead.whatsapp as string)) {
@@ -216,7 +226,7 @@ export async function responderForaDeHorario(
       return { enviou: false, motivo: "mensagem_sem_conteudo" };
     }
     // Humano entrou durante a espera.
-    if (lista.some((m) => m.direction === "outbound" && !ehDoBot(m))) {
+    if (lista.some(ehHumana)) {
       return { enviou: false, motivo: "ja_atendido_por_humano" };
     }
 
@@ -419,7 +429,10 @@ async function atualizarResumo(
   const respondeu = iPrimeira !== -1 && historico.slice(iPrimeira + 1).some((f) => f.autor === "cliente");
   const codigo = respondeu ? gerado.codigo : "sem_resposta";
 
-  await gravarBloco(supabase, leadId, anotacoes, gerado.resumo, codigo);
+  // Reuniao do caso cinza (empresa em operacao que nao recusou o piso) nao
+  // vira "Lead Qualificado": so a aceitacao natural do valor ensina a Meta.
+  const qualifica = codigo === "qualificado" || (codigo === "agendado" && gerado.valorNatural);
+  await gravarBloco(supabase, leadId, anotacoes, gerado.resumo, codigo, qualifica);
 
   // O proprio cliente disse que nao tem o investimento: o bot desqualifica
   // na hora, e a Meta recebe o sinal no mesmo dia (antes ficava esperando
@@ -432,7 +445,8 @@ async function gravarBloco(
   leadId: string,
   anotacoes: string,
   resumo: string,
-  codigo: CodigoAvaliacao | null
+  codigo: CodigoAvaliacao | null,
+  qualifica = false
 ) {
   const quando = new Date().toLocaleString("pt-BR", {
     timeZone: TZ,
@@ -460,6 +474,6 @@ async function gravarBloco(
   if (codigo) {
     await supabase.from("leads").update({ bot_avaliacao: codigo }).eq("id", leadId);
   }
-  // Aceitou os R$ 20 mil (ou marcou reuniao): ja vale "Lead Qualificado".
-  if (codigo === "qualificado" || codigo === "agendado") await qualificarAutomaticamente(leadId);
+  // Aceitou os R$ 20 mil com naturalidade: ja vale "Lead Qualificado".
+  if (qualifica) await qualificarAutomaticamente(leadId);
 }

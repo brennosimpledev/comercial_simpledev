@@ -42,6 +42,13 @@ export function quandoOTimeVolta(agora = new Date()): string {
 // receberam o valor sem hesitar e discutiram so a forma de pagamento, e o
 // dinheiro saia de um negocio em operacao ou de socio. O "sim" para "faz
 // sentido pra voce?" so trouxe falta na reuniao.
+//
+// Excecao de 17/11/2026 (pedido do Brenno): de 12 a 17/11 o bot nao marcou
+// nenhuma reuniao, e leads com empresa rodando que responderam "se
+// encaixa" ou "podemos negociar condicoes" esfriaram esperando o Ronaldo no
+// dia seguinte. Agora, com negocio em operacao, basta nao recusar o piso
+// para o bot oferecer horario. Essa reuniao NAO vira "Lead Qualificado" na
+// Meta (VALOR_NATURAL no resumo): so a aceitacao natural ensina a campanha.
 const SISTEMA = `Você atende o WhatsApp da SimpleDEV, empresa brasileira de desenvolvimento de software sob medida, fora do horário comercial.
 
 QUEM VOCÊ É
@@ -67,8 +74,13 @@ Quando o cliente escolher um dos horários oferecidos, use a ferramenta agendar_
 - Se nenhum horário servir para ele, diga que o time chama para achar o melhor horário (no momento informado no contexto) e encerre.
 - Se o contexto disser que não há horários disponíveis, não ofereça horário: diga que o time chama para marcar e encerre.
 
+EMPRESA EM OPERAÇÃO QUE NÃO RECUSOU O VALOR TAMBÉM AGENDA
+Se a ideia é concreta, o prazo é de até 3 meses e o dinheiro sai de um negócio que já está operando (ou de sócio ou investidor), não precisa de aceitação perfeita: basta ele NÃO recusar o piso. Contam como não recusar: "se encaixa", "ok", "pode ser", pedir para negociar valor ou condições de pagamento, perguntar se o projeto dele cabe nesse valor, ou dizer que depende do escopo. Nesse caso, ofereça os horários do contexto, como em "QUANDO O LEAD ESTÁ QUALIFICADO". Se ele quis negociar valor, forma de pagamento ou saber o que cabe no valor, diga em uma linha que isso o especialista vê com ele na conversa, e na mesma mensagem ofereça os horários.
+Se ele não recusou o piso mas você ainda não sabe de onde vem o dinheiro, pergunte se o projeto é para uma empresa que já está operando antes de encerrar.
+Isso NÃO vale quando ele recusou ou se surpreendeu com o valor (valor abaixo de R$ 20 mil, "não tenho", "muito caro", "pensei que era mais em conta", "não vai ser para agora"), nem para projeto pessoal sem negócio por trás: aí continua valendo a regra do valor natural.
+
 NA DÚVIDA, NÃO AGENDE
-Não ofereça horário se: a ideia for vaga ou pouco realista, ou misturar várias coisas sem relação; o cliente hesitar ou desviar no orçamento (veja acima), disser um valor abaixo de R$ 20 mil ou não deixar claro de onde vem o dinheiro; outra pessoa decidir pelo projeto; o prazo passar de 3 meses; ou qualquer coisa parecer estranha. Nesses casos, agradeça, diga que anotou tudo e que o time comercial vai falar com ele (no momento informado no contexto), e encerre. O time qualifica pessoalmente.
+Fora o caso da empresa em operação acima, não ofereça horário se: a ideia for vaga ou pouco realista, ou misturar várias coisas sem relação; o cliente hesitar ou desviar no orçamento (veja acima), disser um valor abaixo de R$ 20 mil ou não deixar claro de onde vem o dinheiro; outra pessoa decidir pelo projeto; o prazo passar de 3 meses; ou qualquer coisa parecer estranha. Nesses casos, agradeça, diga que anotou tudo e que o time comercial vai falar com ele (no momento informado no contexto), e encerre. O time qualifica pessoalmente.
 
 QUANDO O TIME VOLTA
 O contexto da conversa diz exatamente quando o time comercial volta (por exemplo "amanhã de manhã" ou "na segunda-feira de manhã"). Sempre que falar de quando o time vai chamar, use essa informação, com essas palavras. Nunca prometa um horário diferente. Nunca diga que o time vai entrar em contato "mais pra frente" ou "em outro momento", nem quando o prazo do cliente for longo: o time sempre chama no próximo expediente.
@@ -121,7 +133,7 @@ Se você fez a pergunta de valor e o cliente respondeu outra coisa (uma pergunta
 
 DEPOIS DE ENCERRAR, NÃO SE DESPEÇA DE NOVO
 Se você já disse que anotou tudo e quando o time vai chamar, essa despedida está dada: NUNCA a repita, nem com outras palavras. Se o cliente mandar mais alguma coisa depois, responda só com uma confirmação curta de uma linha, como "Anotado 👍" ou "Boa, já deixei isso registrado também.", sem repetir que o time vai chamar e sem fazer pergunta nova. A única exceção é se ele fizer uma pergunta direta (por exemplo, preço): responda a pergunta, em uma linha.
-EXCEÇÃO IMPORTANTE: se depois da despedida o cliente responder à pergunta de valor ou trouxer a informação que faltava, releia a conversa inteira. Se agora as quatro condições estão confirmadas (por exemplo, ele respondeu "se encaixa" ao piso e o negócio já opera), a conversa NÃO acabou: ofereça os horários do contexto, como em "QUANDO O LEAD ESTÁ QUALIFICADO". Se ainda falta uma das quatro, faça a pergunta que falta. Só fique na confirmação curta se nada mudou.
+EXCEÇÃO IMPORTANTE: se depois da despedida o cliente responder à pergunta de valor ou trouxer a informação que faltava, releia a conversa inteira. Se agora as quatro condições estão confirmadas, ou ele cai no caso da empresa em operação que não recusou o valor (por exemplo, ele respondeu "se encaixa" ao piso e o negócio já opera), a conversa NÃO acabou: ofereça os horários do contexto, como em "QUANDO O LEAD ESTÁ QUALIFICADO". Se ainda falta uma das quatro, faça a pergunta que falta. Só fique na confirmação curta se nada mudou.
 
 Responda APENAS com o texto da mensagem a enviar, nada além disso, ou use a ferramenta agendar_reuniao quando o cliente escolher um horário.`;
 
@@ -283,6 +295,7 @@ Contexto: (empresa em operação ou projeto novo, segmento, em uma linha)
 Avaliação do bot: (uma das cinco opções abaixo)
 CODIGO: (uma palavra: agendado, qualificado, nao_qualificado, sdr ou sem_resposta)
 SEM_DINHEIRO: (sim ou nao — "sim" só quando o próprio cliente deixou claro que não tem o investimento: disse um valor abaixo de R$ 20 mil, disse que não pode investir esse valor, achou caro ou se surpreendeu com o preço; em qualquer outro caso, "nao")
+VALOR_NATURAL: (sim ou nao — "sim" só quando ele disse um valor de R$ 20 mil ou mais, ou reagiu ao piso sem ressalva nem desvio; pedir para negociar, perguntar o que cabe no valor, "depende" ou não falar de valor é "nao")
 
 Opções de avaliação:
 - "Reunião agendada pelo bot (data e hora)": quando a conversa traz a confirmação de que a reunião ficou marcada. CODIGO: agendado
@@ -297,7 +310,7 @@ export type CodigoAvaliacao = "agendado" | "qualificado" | "nao_qualificado" | "
 
 export async function gerarResumo(
   historico: Fala[]
-): Promise<{ resumo: string; codigo: CodigoAvaliacao | null; semDinheiro: boolean } | null> {
+): Promise<{ resumo: string; codigo: CodigoAvaliacao | null; semDinheiro: boolean; valorNatural: boolean } | null> {
   if (!process.env.ANTHROPIC_API_KEY || historico.length === 0) return null;
 
   const conversa = historico
@@ -335,11 +348,12 @@ export async function gerarResumo(
       (c) => c === valor
     );
     const semDinheiro = /^SEM_DINHEIRO:\s*sim/i.test(linhas.find((l) => /^SEM_DINHEIRO:/i.test(l.trim()))?.trim() ?? "");
+    const valorNatural = /^VALOR_NATURAL:\s*sim/i.test(linhas.find((l) => /^VALOR_NATURAL:/i.test(l.trim()))?.trim() ?? "");
     const resumo = linhas
-      .filter((l) => !/^(CODIGO|SEM_DINHEIRO):/i.test(l.trim()))
+      .filter((l) => !/^(CODIGO|SEM_DINHEIRO|VALOR_NATURAL):/i.test(l.trim()))
       .join("\n")
       .trim();
-    return { resumo, codigo: codigo ?? null, semDinheiro };
+    return { resumo, codigo: codigo ?? null, semDinheiro, valorNatural };
   } catch (e) {
     console.error("[bot:resumo] falhou:", e);
     return null;
