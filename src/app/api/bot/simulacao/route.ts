@@ -63,8 +63,8 @@ const CENARIOS: Record<string, Cenario> = {
       "Uma extensão de navegador web ou mobile",
       "Leitura de gráficos e interpretação para entradas no mercado trader",
       "Eu já tenho o projeto, linhas de código e tudo pronto, preciso ampliar para mais corretoras",
-      "Sim, já estou operando com a ferramenta",
-      "Ok",
+      "Ok, sem problema",
+      "É da minha empresa, já opero com a ferramenta e vendo acesso pra outros traders",
       "Pode ser o primeiro horário",
     ],
   },
@@ -195,10 +195,9 @@ const CENARIOS: Record<string, Cenario> = {
   },
   leandro_erp: {
     nome: "Leandro",
-    baseado_em: "Leandro Inácio (16/11): assumir o ERP e PDV da Videira Atacado de Bebidas, já em uso",
+    baseado_em: "Leandro Inácio (16/11): assumir o ERP e PDV da Videira Atacado de Bebidas; 'pode ser' ao piso é aceitação natural",
     espera: "agenda",
     piso: true,
-    cinza: true,
     falas: [
       FORM({ nome: "Leandro Inácio", situacao: "Automatizar processos que já existem", estagio: "Já iniciei algo e busco ajustar/evoluir", quando: "O quanto antes", relacao: "Necessidade operacional específica" }),
       "Estamos buscando uma empresa para assumir tecnicamente, estabilizar e continuar o desenvolvimento do ERP e PDV Caravela, criado para uso próprio da Videira Atacado de Bebidas. Já tem código, banco, PDV, retaguarda e estoque",
