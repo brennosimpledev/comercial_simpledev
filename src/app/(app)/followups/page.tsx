@@ -100,20 +100,20 @@ export default async function FollowUpsPage() {
     );
   }
 
-  // Retornos agendados: tudo com data marcada, inclusive desqualificado
-  // ("agora nao, me chama em janeiro"), fora cliente e fechado.
+  // Retornos agendados do SDR, inclusive desqualificado ("agora nao, me
+  // chama em janeiro"). Retorno do funil do closer fica no Funil. Data que
+  // ja chegou de lead ativo nao aparece aqui: ele voltou para o quadro.
   const { data: comRetorno } = await supabase
     .from("leads")
     .select("id, nome, estagio, desqualificado, proximo_contato")
     .not("proximo_contato", "is", null)
     .eq("ja_cliente", false)
-    .neq("estagio", "fechado")
+    .in("estagio", ["novo", "sdr", "perdido"])
     .order("proximo_contato", { ascending: true })
     .limit(300);
-  const retornos: Retorno[] = ((comRetorno ?? []) as Retorno[]).map((r) => ({
-    ...r,
-    vencido: (r.proximo_contato ?? "").slice(0, 10) <= hojeBR,
-  }));
+  const retornos: Retorno[] = ((comRetorno ?? []) as Retorno[])
+    .map((r) => ({ ...r, vencido: (r.proximo_contato ?? "").slice(0, 10) <= hojeBR }))
+    .filter((r) => !r.vencido || r.estagio === "perdido" || r.desqualificado);
 
   const titulos = REGUA_AUTOMATICA.map((p) => p.titulo);
 
