@@ -54,10 +54,9 @@ const CENARIOS: Record<string, Cenario> = {
   },
   luiz_desvia_do_valor: {
     nome: "Luiz",
-    baseado_em: "Luiz Carlos: desviou do valor, mas já opera a ferramenta e disse ok ao piso (caso cinza, desde 17/11 agenda)",
+    baseado_em: "Luiz Carlos: desviou da pergunta de valor, mas aceitou o piso depois e já opera a ferramenta",
     espera: "agenda",
     piso: true,
-    cinza: true,
     falas: [
       FORM({ nome: "Luiz Carlos", situacao: "Automatizar processos que já existem", estagio: "Sei o que preciso e quero estruturar melhor", quando: "O quanto antes", relacao: "Crescimento/Escala do negócio" }),
       "Uma extensão de navegador web ou mobile",
