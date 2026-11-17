@@ -7,7 +7,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { anunciosNoPeriodo } from "@/lib/meta/insights";
+import { anunciosNoPeriodo, metaPorDia } from "@/lib/meta/insights";
 
 export type Funil = {
   gasto: number;
@@ -29,6 +29,9 @@ export type LinhaAnuncio = Funil & { anuncio: string; campanha: string };
 
 export type Marketing = {
   total: Funil;
+  // Um ponto por dia do periodo ("AAAA-MM-DD"): lead conta no dia em que
+  // entrou (coorte), gasto/impressoes/cliques no dia em que a Meta cobrou.
+  serie: { dia: string; f: Funil }[];
   anuncios: LinhaAnuncio[];
   sem_anuncio: number;
   // Leads do periodo que nao vieram da Meta (organico, indicacao...).
@@ -66,11 +69,12 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
   const fim = new Date(new Date(`${ate}T03:00:00Z`).getTime() + 86_400_000).toISOString();
 
   const admin = createAdminClient();
-  const [meta, { data: leads }] = await Promise.all([
+  const [meta, metaDias, { data: leads }] = await Promise.all([
     anunciosNoPeriodo(de, ate),
+    metaPorDia(de, ate),
     admin
       .from("leads")
-      .select("id, whatsapp, origem, utm_content, utm_campaign, meta_ad_id, qualificado, desqualificado, estagio, valor_fechado, ja_cliente")
+      .select("id, created_at, whatsapp, origem, utm_content, utm_campaign, meta_ad_id, qualificado, desqualificado, estagio, valor_fechado, ja_cliente")
       .gte("created_at", inicio)
       .lt("created_at", fim)
       .eq("ja_cliente", false),
@@ -78,6 +82,7 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
 
   const lista = (leads ?? []) as {
     id: string;
+    created_at: string;
     whatsapp: string | null;
     origem: string | null;
     utm_content: string | null;
@@ -137,6 +142,12 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
   }
 
   const total = vazio();
+  // Dia de Brasilia de cada lead e um Funil por dia do periodo.
+  const diaBR = (iso: string) => new Date(new Date(iso).getTime() - 3 * 3600_000).toISOString().slice(0, 10);
+  const porDia = new Map<string, Funil>();
+  for (let d = new Date(`${de}T00:00:00Z`); d <= new Date(`${ate}T00:00:00Z`); d = new Date(d.getTime() + 86_400_000)) {
+    porDia.set(d.toISOString().slice(0, 10), vazio());
+  }
   const porAnuncio = new Map<string, Funil>();
   let semAnuncio = 0;
   let outrasOrigens = 0;
@@ -176,6 +187,8 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
       }
     };
     somar(total);
+    const dia = porDia.get(diaBR(cards.map((c) => c.created_at).sort()[0]));
+    if (dia) somar(dia);
     if (anuncio) {
       if (!porAnuncio.has(anuncio)) porAnuncio.set(anuncio, vazio());
       somar(porAnuncio.get(anuncio)!);
@@ -199,6 +212,15 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
     f.leads_meta += a.leads_meta;
   }
 
+  for (const [dia, m] of metaDias) {
+    const f = porDia.get(dia);
+    if (!f) continue;
+    f.gasto += m.gasto;
+    f.impressoes += m.impressoes;
+    f.cliques += m.cliques_link;
+    f.leads_meta += m.leads_meta;
+  }
+
   const anuncios: LinhaAnuncio[] = [...porAnuncio.entries()]
     .map(([anuncio, f]) => ({ anuncio, campanha: campanhaPorNome.get(anuncio) ?? "", ...f }))
     .filter((a) => a.gasto > 0 || a.pessoas > 0)
@@ -206,6 +228,7 @@ export async function metricasMarketing(de: string, ate: string): Promise<Market
 
   return {
     total,
+    serie: [...porDia.entries()].map(([dia, f]) => ({ dia, f })),
     anuncios,
     sem_anuncio: semAnuncio,
     outras_origens: outrasOrigens,

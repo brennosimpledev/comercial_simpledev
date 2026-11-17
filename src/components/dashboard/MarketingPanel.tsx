@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { metricasMarketing, type Funil, type Marketing } from "@/app/(app)/leads/marketing";
+import { FunilChart, type Ponto } from "./FunilChart";
 
 // Funil do periodo, passo a passo: do dinheiro investido na Meta ate o
 // contrato fechado. Cada etapa mostra quantos chegaram ali, quanto custou
@@ -14,7 +15,10 @@ const custo = (gasto: number, n: number, casas = 0) => (n > 0 && gasto > 0 ? brl
 const taxa = (a: number, b: number, casas = 0) =>
   b > 0 ? `${((a / b) * 100).toLocaleString("pt-BR", { maximumFractionDigits: casas, minimumFractionDigits: casas })}%` : "—";
 
+type Metrica = "gasto" | "impressoes" | "cliques" | "pessoas" | "conversaram" | "qualificados" | "reunioes" | "realizadas" | "fechados";
+
 type Etapa = {
+  metrica: Metrica;
   rotulo: string;
   valor: string;
   custo?: { rotulo: string; valor: string; chave?: boolean };
@@ -23,49 +27,57 @@ type Etapa = {
 
 function etapas(f: Funil): Etapa[] {
   return [
-    { rotulo: "Investimento", valor: brl(f.gasto) },
+    { metrica: "gasto", rotulo: "Investimento", valor: brl(f.gasto) },
     {
+      metrica: "impressoes",
       rotulo: "Impressões",
       valor: num(f.impressoes),
       custo: { rotulo: "CPM", valor: custo(f.gasto * 1000, f.impressoes, 2) },
     },
     {
+      metrica: "cliques",
       rotulo: "Cliques no link",
       valor: num(f.cliques),
       custo: { rotulo: "CPC", valor: custo(f.gasto, f.cliques, 2) },
       passagem: `CTR ${taxa(f.cliques, f.impressoes, 2)}`,
     },
     {
+      metrica: "pessoas",
       rotulo: "Leads",
       valor: num(f.pessoas),
       custo: { rotulo: "por lead", valor: custo(f.gasto, f.pessoas, 2), chave: true },
       passagem: `${taxa(f.pessoas, f.cliques, 1)} dos cliques`,
     },
     {
+      metrica: "conversaram",
       rotulo: "Conversaram",
       valor: num(f.conversaram),
       custo: { rotulo: "por conversa", valor: custo(f.gasto, f.conversaram) },
       passagem: `${taxa(f.conversaram, f.pessoas)} dos leads`,
     },
     {
+      metrica: "qualificados",
       rotulo: "Qualificados",
       valor: num(f.qualificados),
       custo: { rotulo: "por qualificado", valor: custo(f.gasto, f.qualificados), chave: true },
       passagem: `${taxa(f.qualificados, f.conversaram)} de quem conversou`,
     },
     {
+      metrica: "reunioes",
       rotulo: "Reuniões",
       valor: num(f.reunioes),
       custo: { rotulo: "por reunião", valor: custo(f.gasto, f.reunioes), chave: true },
       passagem: `${taxa(f.reunioes, f.pessoas)} dos leads`,
     },
     {
+      metrica: "realizadas",
       rotulo: "Realizadas",
       valor: num(f.realizadas),
       custo: { rotulo: "por realizada", valor: custo(f.gasto, f.realizadas) },
       passagem: `${taxa(f.realizadas, f.reunioes)} das marcadas`,
     },
     {
+      metrica: "fechados",
       rotulo: "Fechados",
       valor: num(f.fechados),
       custo: { rotulo: "por venda", valor: custo(f.gasto, f.fechados), chave: true },
@@ -74,9 +86,18 @@ function etapas(f: Funil): Etapa[] {
   ];
 }
 
-function CartaoEtapa({ e, primeira }: { e: Etapa; primeira: boolean }) {
+function CartaoEtapa({ e, primeira, marcado, onClick }: { e: Etapa; primeira: boolean; marcado: boolean; onClick: () => void }) {
   return (
-    <div className="relative flex min-w-0 flex-col rounded-xl border border-white/10 bg-navy-mid px-3 py-2.5">
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={marcado}
+      title="Ver no gráfico"
+      className={
+        "relative flex min-w-0 flex-col rounded-xl border px-3 py-2.5 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand " +
+        (marcado ? "border-brand bg-brand/10" : "border-white/10 bg-navy-mid hover:border-white/25")
+      }
+    >
       {!primeira && (
         <span aria-hidden className="absolute -left-[11px] top-1/2 hidden -translate-y-1/2 text-slate-500 lg:block">
           ›
@@ -90,6 +111,121 @@ function CartaoEtapa({ e, primeira }: { e: Etapa; primeira: boolean }) {
         </div>
       )}
       {e.passagem && <div className="mt-0.5 text-[11px] tabular-nums text-slate-500">{e.passagem}</div>}
+    </button>
+  );
+}
+
+// O que o grafico mostra para cada etapa: a quantidade, o custo de cada um
+// e a taxa de passagem da etapa anterior (null = sem base para calcular).
+const div = (a: number, b: number) => (b > 0 ? a / b : null);
+const porCabeca = (f: Funil, n: number) => (f.gasto > 0 ? div(f.gasto, n) : null);
+const GRAFICO: Record<
+  Metrica,
+  {
+    qtd: (f: Funil) => number;
+    custo?: { rotulo: string; v: (f: Funil) => number | null };
+    taxa?: { rotulo: string; v: (f: Funil) => number | null };
+  }
+> = {
+  gasto: { qtd: (f) => f.gasto },
+  impressoes: { qtd: (f) => f.impressoes, custo: { rotulo: "CPM", v: (f) => (f.gasto > 0 ? div(f.gasto * 1000, f.impressoes) : null) } },
+  cliques: {
+    qtd: (f) => f.cliques,
+    custo: { rotulo: "CPC", v: (f) => porCabeca(f, f.cliques) },
+    taxa: { rotulo: "CTR", v: (f) => div(f.cliques, f.impressoes) },
+  },
+  pessoas: {
+    qtd: (f) => f.pessoas,
+    custo: { rotulo: "custo por lead", v: (f) => porCabeca(f, f.pessoas) },
+    taxa: { rotulo: "% dos cliques", v: (f) => div(f.pessoas, f.cliques) },
+  },
+  conversaram: {
+    qtd: (f) => f.conversaram,
+    custo: { rotulo: "custo por conversa", v: (f) => porCabeca(f, f.conversaram) },
+    taxa: { rotulo: "% dos leads", v: (f) => div(f.conversaram, f.pessoas) },
+  },
+  qualificados: {
+    qtd: (f) => f.qualificados,
+    custo: { rotulo: "custo por qualificado", v: (f) => porCabeca(f, f.qualificados) },
+    taxa: { rotulo: "% de quem conversou", v: (f) => div(f.qualificados, f.conversaram) },
+  },
+  reunioes: {
+    qtd: (f) => f.reunioes,
+    custo: { rotulo: "custo por reunião", v: (f) => porCabeca(f, f.reunioes) },
+    taxa: { rotulo: "% dos leads", v: (f) => div(f.reunioes, f.pessoas) },
+  },
+  realizadas: {
+    qtd: (f) => f.realizadas,
+    custo: { rotulo: "custo por realizada", v: (f) => porCabeca(f, f.realizadas) },
+    taxa: { rotulo: "% das marcadas", v: (f) => div(f.realizadas, f.reunioes) },
+  },
+  fechados: {
+    qtd: (f) => f.fechados,
+    custo: { rotulo: "custo por venda", v: (f) => porCabeca(f, f.fechados) },
+    taxa: { rotulo: "% das realizadas", v: (f) => div(f.fechados, f.realizadas) },
+  },
+};
+
+type Modo = "qtd" | "custo" | "taxa";
+type Escala = "dia" | "semana";
+
+function somarFunis(lista: Funil[]): Funil {
+  const t = { ...lista[0] };
+  for (const f of lista.slice(1)) for (const k of Object.keys(t) as (keyof Funil)[]) t[k] += f[k];
+  return t;
+}
+
+const ddmm = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
+
+// Dias -> pontos (por dia ou por semana de segunda a domingo).
+function agrupar(serie: Marketing["serie"], escala: Escala) {
+  if (escala === "dia") {
+    return serie.map((s) => {
+      const sem = new Date(`${s.dia}T12:00:00Z`).toLocaleDateString("pt-BR", { weekday: "short", timeZone: "UTC" }).replace(".", "");
+      return { rotulo: ddmm(s.dia), titulo: `${sem}, ${ddmm(s.dia)}`, f: s.f, nota: undefined as string | undefined };
+    });
+  }
+  const grupos: { dias: string[]; f: Funil[] }[] = [];
+  for (const s of serie) {
+    const dow = new Date(`${s.dia}T12:00:00Z`).getUTCDay();
+    if (!grupos.length || dow === 1) grupos.push({ dias: [], f: [] });
+    grupos[grupos.length - 1].dias.push(s.dia);
+    grupos[grupos.length - 1].f.push(s.f);
+  }
+  return grupos.map((g) => ({
+    rotulo: ddmm(g.dias[0]),
+    titulo: `Semana de ${ddmm(g.dias[0])} a ${ddmm(g.dias[g.dias.length - 1])}`,
+    f: somarFunis(g.f),
+    nota: g.dias.length < 7 ? `Semana parcial (${g.dias.length} ${g.dias.length === 1 ? "dia" : "dias"})` : undefined,
+  }));
+}
+
+function Alternador<T extends string>({
+  valor,
+  opcoes,
+  onChange,
+}: {
+  valor: T;
+  opcoes: { v: T; rotulo: string; off?: boolean }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-white/10 p-0.5">
+      {opcoes.map((o) => (
+        <button
+          key={o.v}
+          type="button"
+          disabled={o.off}
+          onClick={() => onChange(o.v)}
+          aria-pressed={valor === o.v}
+          className={
+            "rounded-md px-2.5 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-30 " +
+            (valor === o.v ? "bg-white/10 text-white" : "text-slate-400 hover:text-slate-200")
+          }
+        >
+          {o.rotulo}
+        </button>
+      ))}
     </div>
   );
 }
@@ -116,6 +252,10 @@ export function MarketingPanel({ de, ate }: { de: string; ate: string }) {
   const [dados, setDados] = useState<Marketing | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
+  // Grafico: qual etapa, o que dela (quantidade, custo, taxa) e por dia/semana.
+  const [metrica, setMetrica] = useState<Metrica>("pessoas");
+  const [modo, setModo] = useState<Modo>("qtd");
+  const [escala, setEscala] = useState<Escala>("dia");
   // Detalhe por anuncio fechado por padrao; lembra a escolha no navegador.
   const [porAnuncio, setPorAnuncio] = useState(false);
   useEffect(() => {
@@ -153,6 +293,31 @@ export function MarketingPanel({ de, ate }: { de: string; ate: string }) {
 
   const t = dados?.total;
 
+  const cfg = GRAFICO[metrica];
+  // Etapa sem custo/taxa (ex.: investimento) cai para quantidade.
+  const modoVale: Modo = (modo === "custo" && !cfg.custo) || (modo === "taxa" && !cfg.taxa) ? "qtd" : modo;
+  const rotuloEtapa = t ? (etapas(t).find((e) => e.metrica === metrica)?.rotulo ?? "") : "";
+  const tituloGrafico =
+    modoVale === "custo" ? `${rotuloEtapa} · ${cfg.custo!.rotulo}` : modoVale === "taxa" ? `${rotuloEtapa} · ${cfg.taxa!.rotulo}` : rotuloEtapa;
+  const grafico = useMemo(() => {
+    if (!dados?.serie?.length) return null;
+    const conf = GRAFICO[metrica];
+    const pontos: Ponto[] = agrupar(dados.serie, escala).map((g) => ({
+      rotulo: g.rotulo,
+      titulo: g.titulo,
+      nota: g.nota,
+      valor: modoVale === "custo" ? conf.custo!.v(g.f) : modoVale === "taxa" ? conf.taxa!.v(g.f) : conf.qtd(g.f),
+    }));
+    const dinheiro = modoVale === "custo" || (modoVale === "qtd" && metrica === "gasto");
+    const formatar =
+      modoVale === "taxa"
+        ? (v: number) => `${(v * 100).toLocaleString("pt-BR", { maximumFractionDigits: v > 0 && v < 0.1 ? 1 : 0 })}%`
+        : dinheiro
+          ? (v: number) => brl(v, v > 0 && v < 100 ? 2 : 0)
+          : (v: number) => num(Math.round(v));
+    return { pontos, formatar, inteiro: !dinheiro && modoVale === "qtd" };
+  }, [dados, metrica, modoVale, escala]);
+
   return (
     <section className="sd-card p-4">
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
@@ -172,9 +337,41 @@ export function MarketingPanel({ de, ate }: { de: string; ate: string }) {
 
       {t && dados && (
         <div className={carregando ? "opacity-60 transition" : "transition"}>
+          {grafico && (
+            <div className="mb-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-slate-200">{tituloGrafico}</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Alternador
+                    valor={modoVale}
+                    onChange={setModo}
+                    opcoes={[
+                      { v: "qtd", rotulo: "Quantidade" },
+                      { v: "custo", rotulo: "Custo", off: !cfg.custo },
+                      { v: "taxa", rotulo: "Taxa", off: !cfg.taxa },
+                    ]}
+                  />
+                  <Alternador
+                    valor={escala}
+                    onChange={setEscala}
+                    opcoes={[
+                      { v: "dia", rotulo: "Diário" },
+                      { v: "semana", rotulo: "Semanal" },
+                    ]}
+                  />
+                </div>
+              </div>
+              <FunilChart pontos={grafico.pontos} formatar={grafico.formatar} inteiro={grafico.inteiro} />
+              <p className="mt-1 text-[11px] text-slate-500">
+                Clique numa etapa abaixo para trocar o gráfico. Cada dia conta os leads que entraram nele; os últimos dias ainda estão
+                amadurecendo (qualificação e reunião chegam depois).
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-9">
             {etapas(t).map((e, i) => (
-              <CartaoEtapa key={e.rotulo} e={e} primeira={i === 0} />
+              <CartaoEtapa key={e.rotulo} e={e} primeira={i === 0} marcado={e.metrica === metrica} onClick={() => setMetrica(e.metrica)} />
             ))}
           </div>
 

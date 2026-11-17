@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { LeadsChart } from "./LeadsChart";
 import { MarketingPanel } from "./MarketingPanel";
 import { TrackingCell } from "./TrackingCell";
 import { deleteLead } from "@/app/(app)/leads/actions";
@@ -87,29 +86,6 @@ export function LeadsView({
   }, [leads, from, to, origem]);
 
 
-  const chartPoints = useMemo(() => {
-    const start = new Date(from + "T00:00:00Z");
-    const end = new Date(to + "T00:00:00Z");
-    const days: { label: string; value: number }[] = [];
-    const counts = new Map<string, number>();
-    for (const l of filtered) {
-      const key = ymd(new Date(l.created_at));
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    for (let d = new Date(start); d <= end; d = new Date(d.getTime() + 86400_000)) {
-      const key = ymd(d);
-      days.push({
-        label: d.toLocaleDateString("pt-BR", {
-          day: "2-digit",
-          month: "2-digit",
-          timeZone: "UTC",
-        }),
-        value: counts.get(key) ?? 0,
-      });
-    }
-    return days;
-  }, [filtered, from, to]);
-
   const sorted = useMemo(
     () =>
       [...filtered].sort(
@@ -134,14 +110,7 @@ export function LeadsView({
 
   return (
     <div className="space-y-4">
-      <div className="sd-card p-4">
-        <h2 className="mb-2 text-center text-sm font-semibold text-slate-400">
-          Leads
-        </h2>
-        <LeadsChart points={chartPoints} />
-      </div>
-
-      {/* Funil completo (Meta + CRM) no lugar da antiga faixa de numeros. */}
+      {/* Funil completo (Meta + CRM) com o grafico que muda pela etapa clicada. */}
       <MarketingPanel de={from} ate={to} />
 
 

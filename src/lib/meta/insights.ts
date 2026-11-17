@@ -76,3 +76,36 @@ export async function anunciosNoPeriodo(
   }
   return { anuncios: lista, ...(erros.length && !lista.length ? { erro: erros[0] } : {}) };
 }
+
+export type DiaMeta = { gasto: number; impressoes: number; cliques_link: number; leads_meta: number };
+
+// Mesmos numeros, somados por dia (todas as contas), para o grafico do
+// funil. Chave: "AAAA-MM-DD" no fuso da conta.
+export async function metaPorDia(de: string, ate: string): Promise<Map<string, DiaMeta>> {
+  const dias = new Map<string, DiaMeta>();
+  const token = process.env.META_ADS_ACCESS_TOKEN;
+  if (!token) return dias;
+  const campos = "spend,impressions,inline_link_clicks,actions";
+  const periodo = encodeURIComponent(JSON.stringify({ since: de, until: ate }));
+  for (const conta of await contas(token)) {
+    let url: string | null =
+      `${GRAPH}/${conta}/insights?level=account&time_increment=1&time_range=${periodo}&fields=${campos}&limit=500&access_token=${encodeURIComponent(token)}`;
+    while (url) {
+      const r = await fetch(url, { next: { revalidate: 900 } });
+      const j = (await r.json()) as { data?: Record<string, unknown>[]; paging?: { next?: string } };
+      if (!r.ok || !j.data) break;
+      for (const d of j.data) {
+        const dia = String(d.date_start);
+        const acoes = d.actions as Acao[] | undefined;
+        const atual = dias.get(dia) ?? { gasto: 0, impressoes: 0, cliques_link: 0, leads_meta: 0 };
+        atual.gasto += Number(d.spend ?? 0);
+        atual.impressoes += Number(d.impressions ?? 0);
+        atual.cliques_link += Number(d.inline_link_clicks ?? 0);
+        atual.leads_meta += acao(acoes, "lead") || acao(acoes, "onsite_conversion.lead_grouped");
+        dias.set(dia, atual);
+      }
+      url = j.paging?.next ?? null;
+    }
+  }
+  return dias;
+}
