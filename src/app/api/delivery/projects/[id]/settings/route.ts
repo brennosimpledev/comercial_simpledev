@@ -34,14 +34,14 @@ export async function POST(
       const { error } = await db
         .from("delivery_tokens")
         .insert({
-          project_id: id,
+          project_id: null,
           user_id: user.id,
           token_hash: createHash("sha256").update(token).digest("hex"),
-          expires_at: new Date(Date.now() + 30 * 86400000).toISOString(),
+          expires_at: null,
         });
       if (error) throw Error("Falha ao criar conexão");
       return Response.json(
-        { token, expiresInDays: 30 },
+        { token, expiresAt: null, projectId: null },
         { headers: { "Cache-Control": "no-store" } },
       );
     }
@@ -50,7 +50,6 @@ export async function POST(
         .from("delivery_tokens")
         .update({ revoked_at: new Date().toISOString() })
         .eq("id", input.tokenId)
-        .eq("project_id", id)
         .eq("user_id", user.id);
       if (error) throw Error("Falha ao revogar");
     } else {

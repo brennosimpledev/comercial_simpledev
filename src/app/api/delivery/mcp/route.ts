@@ -19,21 +19,24 @@ export async function POST(req: Request) {
   const db = createAdminClient();
   const { data, error } = await db
     .from("delivery_tokens")
-    .select("project_id,user_id")
+    .select("project_id,user_id,expires_at")
     .eq("token_hash", createHash("sha256").update(token).digest("hex"))
     .is("revoked_at", null)
-    .gt("expires_at", new Date().toISOString())
     .maybeSingle();
   if (error || !data) return new Response("Unauthorized", { status: 401 });
-  try {
-    await projectAccess(data.project_id, data.user_id);
-  } catch {
-    return new Response("Forbidden", { status: 403 });
+  if (data.expires_at && new Date(data.expires_at).getTime() <= Date.now())
+    return new Response("Unauthorized", { status: 401 });
+  if (data.project_id) {
+    try {
+      await projectAccess(data.project_id, data.user_id);
+    } catch {
+      return new Response("Forbidden", { status: 403 });
+    }
   }
   const raw = await req.text();
   if (raw.length > 2_000_000)
     return new Response("Payload too large", { status: 413 });
-  const server = deliveryMcp(data.project_id, data.user_id),
+  const server = deliveryMcp(data.user_id, data.project_id),
     transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
