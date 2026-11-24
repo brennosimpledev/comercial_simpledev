@@ -12,6 +12,8 @@
 //
 // https://developers.facebook.com/documentation/ads-commerce/conversions-api/business-messaging
 
+import { emailHash, telefoneHash } from "@/lib/openai/conversions";
+
 const PIXEL_ID = process.env.META_CRM_PIXEL_ID;
 const TOKEN = process.env.META_CRM_ACCESS_TOKEN;
 const VERSION = process.env.META_GRAPH_VERSION ?? "v21.0";
@@ -24,6 +26,12 @@ const PAGE_ID = process.env.META_PAGE_ID;
 const WABA_ID = process.env.META_WHATSAPP_BUSINESS_ACCOUNT_ID;
 
 export type ConversionType =
+  // Lead bruto: todo lead de formulario, assim que entra. A Meta pede este
+  // estagio para TODOS os leads ("send all stages as they are updated,
+  // including the raw lead") e mede por ele a cobertura da integracao, que
+  // precisa ficar acima de 60%. Sem ele, so quem mudava de etapa gerava
+  // evento e o Gerenciador de Eventos acusava "baixa cobertura de leads".
+  | "lead"
   | "qualificado"
   | "fechado"
   | "desqualificado"
@@ -38,6 +46,9 @@ export type ConversionType =
 // Caminho CRM: nomes livres, entao configuraveis. Precisam bater com o que
 // esta registrado no Gerenciador de Eventos.
 const CRM_EVENT_NAMES: Record<ConversionType, string> = {
+  // Fica em "Outros estagios" no funil do Gerenciador de Eventos: e o ponto
+  // de partida, nao sinal de qualidade.
+  lead: process.env.META_EVENT_LEAD ?? "Lead Recebido",
   qualificado: process.env.META_EVENT_QUALIFICADO ?? "Lead Qualificado",
   fechado: process.env.META_EVENT_FECHADO ?? "Venda Fechada",
   // Retorno negativo: precisa ficar FORA dos estagios positivos no
@@ -77,6 +88,11 @@ export async function enviarEventoMeta(opts: {
   value?: number;
   currency?: string;
   eventId: string; // deduplicacao do lado da Meta
+  // Contato do lead, enviado com hash junto do lead_id: a Meta lista e-mail
+  // e telefone como os identificadores de maior prioridade depois do lead_id,
+  // e sem eles a qualidade de correspondencia dos eventos ficava em 0/10.
+  email?: string | null;
+  whatsapp?: string | null;
 }): Promise<{ ok: boolean; error?: string }> {
   if (!metaConfigured()) {
     return { ok: false, error: "Meta CRM não configurado." };
@@ -105,7 +121,16 @@ export async function enviarEventoMeta(opts: {
   if (viaCrm) {
     // Evento vindo de sistema, nao de navegacao - dispensa user agent e URL.
     evento.action_source = "system_generated";
-    evento.user_data = { lead_id: opts.leadId };
+    const em = emailHash(opts.email);
+    const ph = telefoneHash(opts.whatsapp);
+    evento.user_data = {
+      lead_id: opts.leadId,
+      ...(em ? { em: [em] } : {}),
+      ...(ph ? { ph: [ph] } : {}),
+    };
+    // Obrigatorios na especificacao da integracao de CRM. Sem eles a Meta
+    // recebe o evento mas nao o trata como estagio vindo de um CRM.
+    evento.custom_data = { event_source: "crm", lead_event_source: "SimpleDEV CRM" };
   } else {
     if (!WABA_ID && !PAGE_ID) {
       return {
@@ -128,6 +153,7 @@ export async function enviarEventoMeta(opts: {
 
   if (typeof opts.value === "number" && opts.value > 0) {
     evento.custom_data = {
+      ...((evento.custom_data as Record<string, unknown> | undefined) ?? {}),
       value: opts.value,
       currency: opts.currency ?? "BRL",
     };

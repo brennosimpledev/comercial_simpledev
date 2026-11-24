@@ -60,7 +60,7 @@ const PERSONALIZADO: Partial<Record<TipoCrm, string>> = {
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
-function emailHash(email: string | null | undefined) {
+export function emailHash(email: string | null | undefined) {
   const e = (email ?? "").trim().toLowerCase();
   return e.includes("@") ? sha(e) : null;
 }
@@ -68,7 +68,7 @@ function emailHash(email: string | null | undefined) {
 // Telefone: so digitos, com DDI, sem zeros a esquerda, 8 a 15 digitos.
 // Numero gravado com "+" ja traz o DDI: um americano (+1 415 555 0132) tem
 // 11 digitos e nao pode ganhar o 55. A LP aplica a mesma regra no pixel.
-function telefoneHash(tel: string | null | undefined) {
+export function telefoneHash(tel: string | null | undefined) {
   const temDdi = /^\s*\+/.test(tel ?? "");
   let d = (tel ?? "").replace(/\D/g, "").replace(/^0+/, "");
   if (!temDdi && (d.length === 10 || d.length === 11)) d = "55" + d;

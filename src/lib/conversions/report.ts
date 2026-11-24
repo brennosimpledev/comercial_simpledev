@@ -38,6 +38,10 @@ interface Lead {
   ctwa_clid: string | null;
   valor_fechado: number | null;
   ja_cliente: boolean;
+  // Contato vai com hash para a Meta junto do lead_id.
+  email?: string | null;
+  whatsapp?: string | null;
+  qualificado?: boolean | null;
 }
 
 // Trafego de iOS chega com gbraid ou wbraid no lugar do gclid. Qualquer
@@ -163,7 +167,7 @@ export async function reportConversion(
     const { data } = await admin
       .from("leads")
       .select(
-        "id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente"
+        "id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente, email, whatsapp, qualificado"
       )
       .eq("id", leadId)
       .single();
@@ -222,6 +226,8 @@ export async function reportConversion(
               tipo,
               leadId: metaLeadId,
               ctwaClid: lead.ctwa_clid,
+              email: lead.email,
+              whatsapp: lead.whatsapp,
               eventTime: quando,
               value: valor,
               currency: "BRL",
@@ -302,7 +308,7 @@ export async function reportarLeadOpenAI(
     const admin = createAdminClient();
     const { data } = await admin
       .from("leads")
-      .select("id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
+      .select("id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente, email, whatsapp, qualificado")
       .eq("id", leadId)
       .single();
     const lead = data as Lead | null;
@@ -334,7 +340,7 @@ export async function reportarLeadsNovosOpenAI(opts: { ensaio?: boolean; validar
   const agora = Date.now();
   const { data } = await admin
     .from("leads")
-    .select("id, nome, origem, created_at, email, whatsapp, form_id, openai_oppref, openai_obref, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
+    .select("id, nome, origem, created_at, email, whatsapp, form_id, openai_oppref, openai_obref, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente, qualificado")
     .gte("created_at", new Date(agora - JANELA_OPENAI_MS).toISOString())
     .lte("created_at", new Date(agora - FOLGA_DO_WEBHOOK_MS).toISOString())
     .eq("ja_cliente", false)
@@ -399,7 +405,7 @@ export async function reenviarPendentes(leadId: string): Promise<void> {
     const { data } = await admin
       .from("leads")
       .select(
-        "id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente"
+        "id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente, email, whatsapp, qualificado"
       )
       .eq("id", leadId)
       .single();
@@ -438,6 +444,8 @@ export async function reenviarPendentes(leadId: string): Promise<void> {
               tipo,
               leadId: metaLeadId,
               ctwaClid: lead.ctwa_clid,
+              email: lead.email,
+              whatsapp: lead.whatsapp,
               eventTime: agora,
               value: valor,
               currency: "BRL",
@@ -486,7 +494,7 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
     const { data: lead } = await admin
       .from("leads")
       .select(
-        "id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente"
+        "id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente, email, whatsapp, qualificado"
       )
       .eq("id", leadId)
       .single();
@@ -538,6 +546,8 @@ export async function enviarFechamentoPendente(leadId: string): Promise<void> {
               tipo: "fechado",
               leadId: metaLeadId,
               ctwaClid: (lead as Lead | null)?.ctwa_clid,
+              email: (lead as Lead | null)?.email,
+              whatsapp: (lead as Lead | null)?.whatsapp,
               eventTime: agora,
               value: valor,
               currency: "BRL",
@@ -599,13 +609,22 @@ export async function reportarEtapa(leadId: string, estagio: string): Promise<vo
     const admin = createAdminClient();
     const { data } = await admin
       .from("leads")
-      .select("id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
+      .select("id, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente, email, whatsapp, qualificado")
       .eq("id", leadId)
       .single();
     const lead = data as Lead | null;
     if (!lead || lead.ja_cliente) return;
     await enviarParaOpenAI(admin, lead, tipo);
     if (!metaConfigured()) return;
+    // Reuniao de lead que nao e qualificado nao vai para a Meta. Desde
+    // 17/11/2026 o bot da horario para empresa que nao recusou o piso sem
+    // marcar "Lead Qualificado" (regra do valor natural), mas "Reuniao
+    // Marcada" e estagio positivo ACIMA do qualificado no funil da Meta: o
+    // evento saia do mesmo jeito e desfazia a regra. Em novembro, metade das
+    // reunioes marcadas era de lead nao qualificado. As etapas seguintes
+    // (escopo, apresentacao, negociacao) seguem indo: chegar nelas ja e
+    // evidencia de qualidade.
+    if ((tipo === "reuniao_marcada" || tipo === "reuniao_realizada") && !lead.qualificado) return;
     const metaLeadId = await leadIdDoFormulario(admin, lead);
     if (!metaLeadId) return;
 
@@ -620,6 +639,8 @@ export async function reportarEtapa(leadId: string, estagio: string): Promise<vo
         enviarEventoMeta({
           tipo,
           leadId: metaLeadId,
+          email: lead.email,
+          whatsapp: lead.whatsapp,
           eventTime: quando,
           eventId: rowId,
         }),
@@ -627,6 +648,66 @@ export async function reportarEtapa(leadId: string, estagio: string): Promise<vo
   } catch (e) {
     console.error("[conv] reportarEtapa:", e);
   }
+}
+
+// A Meta aceita evento de CRM com ate 7 dias.
+const JANELA_META_MS = 6.5 * 86_400_000;
+
+/**
+ * Lead bruto para a Meta: todo lead de formulario instantaneo, uma vez.
+ * E o estagio inicial que a integracao de CRM exige para todos os leads e
+ * por onde a Meta mede a cobertura (minimo de 60%). Chamada pela rotina
+ * /api/cron/openai-leads; cobre tambem os leads dos ultimos dias que
+ * entraram antes de este envio existir.
+ *   ensaio  so conta, nao envia
+ */
+export async function reportarLeadsBrutosMeta(opts: { ensaio?: boolean; limite?: number } = {}) {
+  if (!metaConfigured()) return { configurado: false as const };
+  const admin = createAdminClient();
+  const agora = Date.now();
+  const { data } = await admin
+    .from("leads")
+    .select("id, created_at, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente, email, whatsapp, qualificado")
+    .not("meta_lead_id", "is", null)
+    .gte("created_at", new Date(agora - JANELA_META_MS).toISOString())
+    .eq("ja_cliente", false)
+    .order("created_at", { ascending: true });
+  const candidatos = (data ?? []) as (Lead & { created_at: string })[];
+  if (candidatos.length === 0) return { configurado: true as const, pendentes: 0 };
+
+  const { data: feitos } = await admin
+    .from("ads_conversions")
+    .select("lead_id")
+    .eq("canal", "meta")
+    .eq("tipo", "lead")
+    .in("lead_id", candidatos.map((l) => l.id));
+  const jaFoi = new Set((feitos ?? []).map((f) => f.lead_id as string));
+  const pendentes = candidatos.filter((l) => !jaFoi.has(l.id)).slice(0, opts.limite ?? 80);
+  if (opts.ensaio) return { configurado: true as const, pendentes: pendentes.length };
+
+  for (const l of pendentes) {
+    await registrarEEnviar({
+      admin,
+      lead: l,
+      tipo: "lead",
+      canal: "meta",
+      identificador: l.meta_lead_id,
+      statusSemIdentificador: "sem_lead_id",
+      // O evento precisa ser posterior a geracao do lead na Meta; a entrada
+      // no CRM acontece sempre depois dela.
+      quando: new Date(l.created_at),
+      enviar: (rowId, _valor, quando) =>
+        enviarEventoMeta({
+          tipo: "lead",
+          leadId: l.meta_lead_id,
+          email: l.email,
+          whatsapp: l.whatsapp,
+          eventTime: quando,
+          eventId: rowId,
+        }),
+    });
+  }
+  return { configurado: true as const, enviados: pendentes.length };
 }
 
 /**

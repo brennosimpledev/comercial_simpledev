@@ -184,6 +184,7 @@ export async function POST(request: NextRequest) {
             utm_campaign: lead?.campaign_name ?? null,
             utm_content: lead?.ad_name ?? null,
             form_id: (value.form_id as string) ?? null,
+            meta_ad_id: (value.ad_id as string) ?? null,
           })
           .eq("id", existente)
           // Nao sobrescreve um identificador que ja esteja la.
@@ -218,6 +219,9 @@ export async function POST(request: NextRequest) {
           referral_source: lead?.platform ?? null,
           data_conversao: lead?.created_time ?? null,
           form_id: (value.form_id as string) ?? null,
+          // Id do anuncio: sem ele nao da para medir qualidade por criativo
+          // (o nome muda quando o anuncio e duplicado ou renomeado).
+          meta_ad_id: (value.ad_id as string) ?? null,
           page_id: (value.page_id as string) ?? entry.id ?? null,
           raw_payload: { leadgen: value, lead } as Record<string, unknown>,
         })
