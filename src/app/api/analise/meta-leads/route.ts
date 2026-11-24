@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { brCanonical, last8 } from "@/lib/phone";
-import { fetchWhatsAppHistory, toWaNumber } from "@/lib/evolution/client";
+import { consultarNumeros, fetchWhatsAppHistory, toWaNumber, variantesBR } from "@/lib/evolution/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -118,22 +118,55 @@ export async function GET(request: NextRequest) {
         // O servidor do WhatsApp guarda a conversa mesmo se o lead for
         // apagado do CRM. Conversa nossa com o numero = o lead existiu e foi
         // excluido; nenhuma = o aviso da Meta nunca virou lead.
-        let whatsapp: { mensagens: number; nossas: number; primeira: string | null } | null = null;
+        let whatsapp: { mensagens: number; nossas: number; primeira: string | null; numero_existe?: boolean | null } | null = null;
         if (tel.length >= 10) {
+          // Numero sem WhatsApp tambem daria "nenhuma conversa" (o bot nao
+          // escreve para ele), entao confere se o numero existe.
+          const existe = await consultarNumeros(variantesBR(tel));
           const hist = await fetchWhatsAppHistory(toWaNumber(tel));
           const tempos = hist.map((m) => Number(m.messageTimestamp ?? 0)).filter(Boolean).sort((a, b) => a - b);
           whatsapp = {
             mensagens: hist.length,
             nossas: hist.filter((m) => m.key?.fromMe).length,
             primeira: tempos.length ? new Date(tempos[0] * 1000).toISOString() : null,
+            numero_existe: existe ? existe.some((n) => n.exists) : null,
           };
         }
         faltando.push({ ...linha, whatsapp, email: campos.email || campos.work_email || null, telefone: tel, campos });
       }
     }
 
+    // Calibragem do teste do WhatsApp: os mesmos dois testes em leads de
+    // formulario que ESTAO no CRM. Se aqui tambem der zero conversa, o teste
+    // nao prova nada.
+    let calibragem: unknown = null;
+    if (q.get("calibrar") === "1") {
+      const { data: amostra } = await supabase
+        .from("leads")
+        .select("whatsapp, created_at")
+        .not("meta_lead_id", "is", null)
+        .gte("created_at", `${desde}T03:00:00Z`)
+        .order("created_at", { ascending: false })
+        .limit(12);
+      const linhas = [];
+      for (const a of amostra ?? []) {
+        const tel = String(a.whatsapp ?? "").replace(/[^0-9]/g, "");
+        if (tel.length < 10) continue;
+        const hist = await fetchWhatsAppHistory(toWaNumber(tel));
+        const existe = await consultarNumeros(variantesBR(tel));
+        linhas.push({
+          entrou: a.created_at,
+          mensagens: hist.length,
+          nossas: hist.filter((m) => m.key?.fromMe).length,
+          numero_existe: existe ? existe.some((n) => n.exists) : null,
+        });
+      }
+      calibragem = linhas;
+    }
+
     return NextResponse.json({
       desde,
+      calibragem,
       assinaturas_do_app_na_pagina: assinaturas,
       formularios: formularios.map((f) => ({
         id: f.id,
