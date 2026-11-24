@@ -62,6 +62,20 @@ export async function GET(request: NextRequest) {
   const pageToken = process.env.META_PAGE_ACCESS_TOKEN;
   const pagina = process.env.META_PAGE_ID;
   if (!ads) return NextResponse.json({ erro: "Falta META_ADS_ACCESS_TOKEN na Vercel." });
+  // Consulta avulsa de leitura: ?ler=<id>[/aresta]&campos=a,b&com=ads|pagina|crm
+  // So GET, so caminho simples (id e uma aresta), para investigar um objeto
+  // que apareceu no pente fino sem precisar publicar de novo.
+  const avulsa = q.get("ler");
+  if (avulsa) {
+    if (!/^[0-9a-z_]+(\/[a-z_]+)?$/i.test(avulsa)) return NextResponse.json({ erro: "caminho invalido" }, { status: 400 });
+    const com = q.get("com");
+    const tk = com === "pagina" ? pageToken : com === "crm" ? process.env.META_CRM_ACCESS_TOKEN : ads;
+    if (!tk) return NextResponse.json({ erro: "token ausente" });
+    const campos = q.get("campos");
+    const extra = q.get("extra");
+    const partes = [campos ? `fields=${encodeURIComponent(campos)}` : "", extra ?? ""].filter(Boolean).join("&");
+    return NextResponse.json(await ler(`${avulsa}${partes ? `?${partes}` : ""}`, tk));
+  }
   const conta = q.get("conta") ?? CONTA_PADRAO;
   const enc = (o: unknown) => encodeURIComponent(JSON.stringify(o));
   const hoje = new Date().toISOString().slice(0, 10);
