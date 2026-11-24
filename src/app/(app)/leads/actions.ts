@@ -273,7 +273,14 @@ export async function toggleLeadFlag(
   if (error) return { error: "Não foi possível atualizar." };
 
   if (flag === "qualificado" && value) {
-    after(() => reportConversion(id, "qualificado"));
+    // A etapa em que o lead ja esta vai junto: reuniao marcada ou realizada
+    // de lead ainda nao qualificado fica retida (reportarEtapa), e sem isto
+    // nunca chegaria na Meta quando a pessoa qualifica depois de agendar.
+    const { data: l } = await supabase.from("leads").select("estagio").eq("id", id).single();
+    after(async () => {
+      await reportConversion(id, "qualificado");
+      if (l?.estagio) await reportarEtapa(id, l.estagio as string);
+    });
   }
 
   // Retorno negativo para a Meta: ensina o modelo quem nao prestou.

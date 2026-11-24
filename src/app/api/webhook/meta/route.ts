@@ -1,14 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { brCanonical, last8 } from "@/lib/phone";
+import { buscarLeadNaMeta, gravarLeadDaMeta } from "@/lib/meta/leadgen";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const GRAPH = `https://graph.facebook.com/${
-  process.env.META_GRAPH_VERSION ?? "v21.0"
-}`;
 
 // -------- Verificacao do webhook (GET) --------
 // O Meta chama esta URL com hub.challenge ao configurar o webhook.
@@ -25,17 +21,6 @@ export async function GET(request: NextRequest) {
     });
   }
   return new Response("forbidden", { status: 403 });
-}
-
-interface LeadFieldDatum {
-  name: string;
-  values: string[];
-}
-
-function mapFields(fieldData: LeadFieldDatum[] = []) {
-  const m: Record<string, string> = {};
-  for (const f of fieldData) m[f.name] = (f.values ?? []).join(", ");
-  return m;
 }
 
 // -------- Recebimento de leads (POST) --------
@@ -76,6 +61,7 @@ export async function POST(request: NextRequest) {
   // Motivos de descarte, devolvidos na resposta para facilitar o diagnostico
   // (a rota so chega aqui com assinatura valida).
   const skipped: string[] = [];
+  let falhou = false;
 
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
@@ -95,148 +81,30 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Busca os dados completos do lead na Graph API.
-      let lead: {
-        field_data?: LeadFieldDatum[];
-        created_time?: string;
-        campaign_name?: string;
-        adset_name?: string;
-        ad_name?: string;
-        platform?: string;
-      } | null = null;
-      try {
-        const res = await fetch(
-          `${GRAPH}/${leadgenId}?fields=field_data,created_time,campaign_name,adset_name,ad_name,platform&access_token=${encodeURIComponent(
-            token
-          )}`
-        );
-        lead = await res.json();
-        if (!res.ok) {
-          console.error("[webhook/meta] graph error:", lead);
-          const gErr = (lead as { error?: { message?: string; code?: number } })
-            ?.error;
-          skipped.push(
-            `graph_${res.status}:${gErr?.code ?? "?"}:${gErr?.message ?? "erro"}`
-          );
-          continue;
-        }
-      } catch (e) {
-        console.error("[webhook/meta] graph fetch failed:", e);
-        skipped.push("graph_fetch_falhou");
+      // Busca os dados completos do lead na Graph API e grava no CRM
+      // (lib/meta/leadgen.ts, a mesma entrada que a rotina de conferencia usa).
+      const busca = await buscarLeadNaMeta(leadgenId, token);
+      if ("erro" in busca) {
+        skipped.push(busca.erro);
+        falhou = true;
         continue;
       }
-
-      const f = mapFields(lead?.field_data);
-      const nome =
-        f.full_name ||
-        f.name ||
-        [f.first_name, f.last_name].filter(Boolean).join(" ") ||
-        "Lead Meta";
-      const email = f.email || null;
-      const whatsapp = f.phone_number || f.phone || null;
-
-      // Campos personalizados (perguntas do formulario) -> necessidade.
-      const known = new Set([
-        "full_name",
-        "name",
-        "first_name",
-        "last_name",
-        "email",
-        "phone_number",
-        "phone",
-      ]);
-      const extras = Object.entries(f)
-        .filter(([k]) => !known.has(k))
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(" | ");
-
-      // O lead pode ja existir: a automacao que repassa o formulario pelo
-      // WhatsApp costuma chegar antes deste webhook, e nesse caminho nao ha
-      // leadgen_id. Sem procurar antes, este insert criava um SEGUNDO lead
-      // com o identificador enquanto o SDR trabalhava e qualificava o
-      // primeiro, que ficava sem. Era a causa de 15 das 22 conversoes da
-      // Meta nunca terem sido devolvidas.
-      const digitos = (whatsapp ?? "").replace(/[^0-9]/g, "");
-      let existente: string | undefined;
-
-      if (digitos.length >= 8) {
-        const canon = brCanonical(digitos);
-        const { data: candidatos } = await supabase
-          .from("leads")
-          .select("id, whatsapp")
-          .like("whatsapp_digits", `%${last8(digitos)}`)
-          .limit(10);
-        existente = (candidatos ?? []).find(
-          (c) => brCanonical(c.whatsapp) === canon
-        )?.id;
-      }
-
-      if (existente) {
-        // Completa o que falta em vez de duplicar. Nao mexe em nome, estagio
-        // nem anotacoes: o SDR pode ja ter trabalhado este lead.
-        const { error: upErr } = await supabase
-          .from("leads")
-          .update({
-            meta_lead_id: leadgenId,
-            origem: "meta_ads",
-            utm_source: "meta",
-            utm_medium: "paid",
-            utm_campaign: lead?.campaign_name ?? null,
-            utm_content: lead?.ad_name ?? null,
-            form_id: (value.form_id as string) ?? null,
-            meta_ad_id: (value.ad_id as string) ?? null,
-          })
-          .eq("id", existente)
-          // Nao sobrescreve um identificador que ja esteja la.
-          .is("meta_lead_id", null);
-
-        if (upErr) {
-          console.error("[webhook/meta] update error:", upErr);
-          skipped.push(`db:${upErr.code ?? ""}:${upErr.message}`);
-          continue;
-        }
-
-        processed++;
+      const r = await gravarLeadDaMeta(supabase, leadgenId, busca.lead, {
+        ...value,
+        page_id: (value.page_id as string) ?? entry.id ?? null,
+      });
+      if (!r.ok) {
+        skipped.push(r.erro);
+        falhou = true;
         continue;
       }
-
-      const { data: inserted, error } = await supabase
-        .from("leads")
-        .insert({
-          nome,
-          email,
-          whatsapp,
-          origem: "meta_ads",
-          // Coluna propria: e o identificador que devolve a conversao a Meta.
-          meta_lead_id: leadgenId,
-          necessidade: extras || null,
-          estagio: "novo",
-          status: "ativo",
-          utm_source: "meta",
-          utm_medium: "paid",
-          utm_campaign: lead?.campaign_name ?? null,
-          utm_content: lead?.ad_name ?? null,
-          referral_source: lead?.platform ?? null,
-          data_conversao: lead?.created_time ?? null,
-          form_id: (value.form_id as string) ?? null,
-          // Id do anuncio: sem ele nao da para medir qualidade por criativo
-          // (o nome muda quando o anuncio e duplicado ou renomeado).
-          meta_ad_id: (value.ad_id as string) ?? null,
-          page_id: (value.page_id as string) ?? entry.id ?? null,
-          raw_payload: { leadgen: value, lead } as Record<string, unknown>,
-        })
-        .select("id, nome, created_at")
-        .single();
-
-      if (error) {
-        console.error("[webhook/meta] insert error:", error);
-        skipped.push(`db:${error.code ?? ""}:${error.message}`);
-        continue;
-      }
-
       processed++;
     }
   }
 
-  return NextResponse.json({ ok: true, processed, skipped });
+  // Continua respondendo 200 mesmo quando um lead falha: erro repetido faz a
+  // Meta suspender o aviso. Quem garante que o lead que falhou aqui (ou cujo
+  // aviso nunca chegou) entre no CRM e a rotina /api/cron/meta-leads, que
+  // confere os formularios a cada 30 minutos.
+  return NextResponse.json({ ok: !falhou, processed, skipped });
 }

@@ -5,6 +5,7 @@
     { "path": "/api/cron/lembretes", "schedule": "*/15 * * * *" },
     { "path": "/api/cron/primeiro-contato", "schedule": "*/5 * * * *" },
     { "path": "/api/cron/cutucada", "schedule": "*/15 * * * *" },
-    { "path": "/api/cron/openai-leads", "schedule": "*/15 * * * *" }
+    { "path": "/api/cron/openai-leads", "schedule": "*/15 * * * *" },
+    { "path": "/api/cron/meta-leads", "schedule": "*/30 * * * *" }
   ]
 }
