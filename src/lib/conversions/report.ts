@@ -74,6 +74,8 @@ async function registrarEEnviar(args: {
   identificador: string | null;
   idTipo?: string | null;
   statusSemIdentificador: string;
+  // Hora do evento, quando nao e agora (lead que entrou antes de ser enviado).
+  quando?: Date;
   enviar: (rowId: string, valor: number, quando: Date) => Promise<{
     ok: boolean;
     error?: string;
@@ -82,7 +84,7 @@ async function registrarEEnviar(args: {
 }): Promise<void> {
   const { admin, lead, tipo, canal, identificador } = args;
 
-  const agora = new Date();
+  const agora = args.quando ?? new Date();
   const valor = valorDe(lead, tipo);
 
   // Fechamento sem valor fica em espera em vez de subir zerado: a unique
@@ -237,23 +239,36 @@ export async function reportConversion(
   }
 }
 
-// ChatGPT Ads: so lead que veio de anuncio do ChatGPT (tem oppref ou a
-// origem). Le os campos da OpenAI numa consulta separada: sem a migration
-// 0024 as colunas nao existem, e isso nao pode derrubar Meta e Google.
-async function enviarParaOpenAI(admin: SupabaseClient, lead: Lead, tipo: TipoEnvio, eventIdFixo?: string) {
+// ChatGPT Ads: vai TODO lead, de qualquer origem (lib/openai/conversions.ts
+// explica por que). Le os campos da OpenAI numa consulta separada: sem a
+// migration 0024 as colunas nao existem, e isso nao pode derrubar Meta e
+// Google.
+type ExtrasOpenAI = { ip?: string | null; userAgent?: string | null; quando?: Date };
+
+// Lead do site: formulario da LP (form_id lp_...) ou o formulario com
+// caminhos. Os outros nunca passaram pela pagina.
+const doSite = (formId: string | null | undefined) => /^(lp_|formulario)/.test(formId ?? "");
+
+async function enviarParaOpenAI(
+  admin: SupabaseClient,
+  lead: Lead,
+  tipo: TipoEnvio,
+  eventIdFixo?: string,
+  extras: ExtrasOpenAI = {}
+) {
   if (!openaiConfigurado()) return;
   const { data: oa, error } = await admin
     .from("leads")
-    .select("email, whatsapp, origem, openai_oppref, openai_obref")
+    .select("email, whatsapp, nome, form_id, openai_oppref, openai_obref")
     .eq("id", lead.id)
     .single();
   if (error || !oa) return;
-  if (!oa.openai_oppref && oa.origem !== "chatgpt_ads") return;
   await registrarEEnviar({
     admin,
     lead,
     tipo,
     canal: "openai",
+    quando: extras.quando,
     identificador: (oa.openai_oppref as string | null) ?? (oa.openai_obref as string | null) ?? `lead:${lead.id}`,
     statusSemIdentificador: "sem_oppref",
     enviar: (rowId, valor, quando) =>
@@ -267,14 +282,22 @@ async function enviarParaOpenAI(admin: SupabaseClient, lead: Lead, tipo: TipoEnv
         obref: oa.openai_obref as string | null,
         email: oa.email as string | null,
         whatsapp: oa.whatsapp as string | null,
+        nome: oa.nome as string | null,
         leadId: lead.id,
         valor,
+        doSite: doSite(oa.form_id as string | null),
+        ip: extras.ip,
+        userAgent: extras.userAgent,
       }),
   });
 }
 
-/** Entrada de um lead do ChatGPT Ads (chamada pelo webhook da LP). */
-export async function reportarLeadOpenAI(leadId: string, eventId?: string | null): Promise<void> {
+/** Entrada de um lead pelo site (chamada pelo webhook da LP e do formulario). */
+export async function reportarLeadOpenAI(
+  leadId: string,
+  eventId?: string | null,
+  extras: ExtrasOpenAI = {}
+): Promise<void> {
   try {
     const admin = createAdminClient();
     const { data } = await admin
@@ -284,10 +307,82 @@ export async function reportarLeadOpenAI(leadId: string, eventId?: string | null
       .single();
     const lead = data as Lead | null;
     if (!lead || lead.ja_cliente) return;
-    await enviarParaOpenAI(admin, lead, "lead", eventId ?? undefined);
+    await enviarParaOpenAI(admin, lead, "lead", eventId ?? undefined, extras);
   } catch (e) {
     console.error("[conv] reportarLeadOpenAI:", e);
   }
+}
+
+// A API de conversoes da OpenAI so aceita evento dos ultimos 7 dias.
+const JANELA_OPENAI_MS = 6.5 * 86_400_000;
+// O lead do site e enviado na hora pelo webhook, com o id que o pixel usou
+// (a OpenAI junta os dois). A rotina so pega quem passou disso sem envio.
+const FOLGA_DO_WEBHOOK_MS = 10 * 60_000;
+
+export type LeadParaOpenAI = { id: string; nome: string | null; origem: string; created_at: string };
+
+/**
+ * Entrada de todo lead (Meta, WhatsApp, site) que ainda nao foi para a
+ * OpenAI. Chamada pela rotina /api/cron/openai-leads.
+ *   ensaio  so lista
+ *   validar manda com validate_only: a OpenAI confere e nao grava nada, e o
+ *           CRM tambem nao registra o envio
+ */
+export async function reportarLeadsNovosOpenAI(opts: { ensaio?: boolean; validar?: boolean; limite?: number } = {}) {
+  if (!openaiConfigurado()) return { configurado: false as const };
+  const admin = createAdminClient();
+  const agora = Date.now();
+  const { data } = await admin
+    .from("leads")
+    .select("id, nome, origem, created_at, email, whatsapp, form_id, openai_oppref, openai_obref, gclid, gbraid, wbraid, meta_lead_id, ctwa_clid, valor_fechado, ja_cliente")
+    .gte("created_at", new Date(agora - JANELA_OPENAI_MS).toISOString())
+    .lte("created_at", new Date(agora - FOLGA_DO_WEBHOOK_MS).toISOString())
+    .eq("ja_cliente", false)
+    .order("created_at", { ascending: true });
+  const candidatos = (data ?? []) as (Lead & Record<string, unknown>)[];
+  if (candidatos.length === 0) return { configurado: true as const, pendentes: [] as LeadParaOpenAI[] };
+
+  const { data: feitos } = await admin
+    .from("ads_conversions")
+    .select("lead_id")
+    .eq("canal", "openai")
+    .eq("tipo", "lead")
+    .in("lead_id", candidatos.map((l) => l.id));
+  const jaFoi = new Set((feitos ?? []).map((f) => f.lead_id as string));
+  const pendentes = candidatos.filter((l) => !jaFoi.has(l.id)).slice(0, opts.limite ?? 60);
+  const resumo = pendentes.map((l) => ({
+    id: l.id,
+    nome: (l.nome as string | null) ?? null,
+    origem: l.origem as string,
+    created_at: l.created_at as string,
+  }));
+  if (opts.ensaio) return { configurado: true as const, pendentes: resumo };
+
+  if (opts.validar) {
+    const resultados = [];
+    for (const l of pendentes) {
+      const r = await enviarEventoOpenAI({
+        tipo: "lead",
+        eventId: `validar_${l.id}`,
+        quando: new Date(l.created_at as string),
+        oppref: l.openai_oppref as string | null,
+        obref: l.openai_obref as string | null,
+        email: l.email as string | null,
+        whatsapp: l.whatsapp as string | null,
+        nome: l.nome as string | null,
+        leadId: l.id,
+        doSite: doSite(l.form_id as string | null),
+        soValidar: true,
+      });
+      resultados.push({ id: l.id, origem: l.origem, ok: r.ok, erro: r.error });
+    }
+    return { configurado: true as const, validados: resultados };
+  }
+
+  for (const l of pendentes) {
+    await enviarParaOpenAI(admin, l as Lead, "lead", undefined, { quando: new Date(l.created_at as string) });
+  }
+  return { configurado: true as const, enviados: resumo.length, pendentes: resumo };
 }
 
 /**

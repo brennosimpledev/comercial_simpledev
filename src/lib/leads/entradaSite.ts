@@ -1,8 +1,9 @@
 // Entrada de um lead vindo do site (LP e formulario). SERVER-ONLY.
 //
 // Procura o lead pelo telefone antes de inserir (nunca duplica), deriva a
-// origem pelas UTMs/identificadores de clique e, se o lead veio de anuncio
-// do ChatGPT, grava oppref/obref e avisa a OpenAI.
+// origem pelas UTMs/identificadores de clique, grava oppref/obref quando
+// vierem e avisa a OpenAI da entrada (todo lead do site, nao so o do
+// ChatGPT: ver lib/openai/conversions.ts).
 
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,16 +12,18 @@ import { reportarLeadOpenAI } from "@/lib/conversions/report";
 import { brCanonical, last8 } from "@/lib/phone";
 
 export async function entrarLeadDoSite(
-  payload: LpWebhookPayload
+  payload: LpWebhookPayload,
+  // IP e navegador de quem preencheu: o webhook recebe a requisicao direto
+  // do navegador da pessoa. Vao so para a OpenAI, para casar a conversao.
+  contexto: { ip?: string | null; userAgent?: string | null } = {}
 ): Promise<{ ok: true; id: string; acao: "criado" | "atualizado" } | { error: string }> {
   const lead = mapWebhookToLead(payload);
   const openai = rastreioOpenAI(payload);
-  const doChatgpt = Boolean(openai.openai_oppref) || lead.origem === "chatgpt_ads";
 
   // Grava oppref/obref e avisa a OpenAI da entrada do lead (o pixel da LP
-  // manda o mesmo evento com o mesmo id; a OpenAI conta uma vez).
+  // manda o mesmo evento com o mesmo id; a OpenAI conta uma vez). O obref
+  // existe para qualquer visitante, nao so para quem clicou no ChatGPT.
   async function registrarChatgpt(id: string) {
-    if (!doChatgpt) return;
     const campos: Record<string, string> = {};
     if (openai.openai_oppref) campos.openai_oppref = openai.openai_oppref;
     if (openai.openai_obref) campos.openai_obref = openai.openai_obref;
@@ -28,7 +31,7 @@ export async function entrarLeadDoSite(
       const { error: e } = await supabase.from("leads").update(campos).eq("id", id);
       if (e) console.error("[webhook/lead] openai:", e.message);
     }
-    after(() => reportarLeadOpenAI(id, openai.eventId));
+    after(() => reportarLeadOpenAI(id, openai.eventId, contexto));
   }
 
   const supabase = createAdminClient();

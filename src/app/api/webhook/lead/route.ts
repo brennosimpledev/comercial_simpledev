@@ -54,7 +54,10 @@ export async function POST(request: NextRequest) {
     return json({ ok: true, ignorado: "lead de teste da Meta" });
   }
 
-  const r = await entrarLeadDoSite(payload);
+  const r = await entrarLeadDoSite(payload, {
+    ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+    userAgent: request.headers.get("user-agent"),
+  });
   if ("error" in r) return json({ error: r.error }, 500);
   return json({ ok: true, id: r.id, ...(r.acao === "atualizado" ? { acao: r.acao } : {}) }, r.acao === "criado" ? 201 : 200);
 }

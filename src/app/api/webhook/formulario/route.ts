@@ -122,6 +122,9 @@ export async function POST(request: NextRequest) {
     inicio: r.prazo,
     orcamento: r.investimento,
     Id_do_formulario: "formulario_site_v1",
+  }, {
+    ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || null,
+    userAgent: request.headers.get("user-agent"),
   });
   if ("error" in entrada) return json({ error: entrada.error }, 500);
   const id = entrada.id;
