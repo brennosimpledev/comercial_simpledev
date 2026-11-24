@@ -11,7 +11,8 @@ export const maxDuration = 60;
 // Le os formularios instantaneos da pagina direto na Meta e grava no CRM
 // qualquer lead que nao esteja la. O webhook /api/webhook/meta continua
 // sendo o caminho normal (entra na hora); isto pega o lead cujo aviso nao
-// chegou ou falhou. Em 24/11/2026 havia 11 assim, de 11 a 24/11.
+// chegou ou falhou. Em 24/11/2026 havia 11 formularios sem card, mas por
+// exclusao na tela de leads, nao por falha do aviso (lib/leads/gemeos.ts).
 //
 //   GET ?secret=...&ensaio=1     lista o que traria, sem gravar
 //   GET ?secret=...&horas=400    janela maior (padrao: 48 horas)

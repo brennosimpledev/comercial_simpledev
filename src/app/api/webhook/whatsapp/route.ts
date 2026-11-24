@@ -4,6 +4,7 @@ import { responderForaDeHorario } from "@/lib/bot/atendente";
 import { atenderReuniao } from "@/lib/bot/reuniao";
 import { entenderMidia } from "@/lib/midia/entender";
 import { brCanonical, last8 } from "@/lib/phone";
+import { cardDoFormularioPeloTexto } from "@/lib/leads/gemeos";
 import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 
 export const runtime = "nodejs";
@@ -221,6 +222,34 @@ export async function POST(request: NextRequest) {
         !deAnuncio && (Boolean(rastreio.leadgenId) || pareceFormularioMeta(text));
       const daMeta = deAnuncio || deFormulario;
 
+      // Quem preencheu o formulario com um numero e escreve de outro: a
+      // conversa entra no card do formulario (que tem o meta_lead_id) em vez
+      // de abrir um segundo card. O numero do card passa a ser o da conversa.
+      let doFormulario: Awaited<ReturnType<typeof cardDoFormularioPeloTexto>> = null;
+      try {
+        doFormulario = await cardDoFormularioPeloTexto(supabase, text);
+      } catch (e) {
+        console.error("[webhook/whatsapp] busca do card do formulario falhou:", e);
+      }
+      if (doFormulario) {
+        const { error: juntaErr } = await supabase
+          .from("leads")
+          .update({
+            whatsapp: digits,
+            ...(anuncio?.ctwaClid ? { ctwa_clid: anuncio.ctwaClid } : {}),
+            anotacoes: [
+              doFormulario.anotacoes,
+              `📋 Preencheu o formulário com outro número: ${doFormulario.whatsapp ?? "não informado"}. O número do card é o da conversa.`,
+            ]
+              .filter(Boolean)
+              .join("\n"),
+          })
+          .eq("id", doFormulario.id);
+        if (juntaErr) console.error("[webhook/whatsapp] juntar com o formulario falhou:", juntaErr);
+        else leadId = doFormulario.id;
+      }
+
+      if (!leadId) {
       const { data: created } = await supabase
         .from("leads")
         .insert({
@@ -256,6 +285,7 @@ export async function POST(request: NextRequest) {
         .select("id")
         .single();
       leadId = created?.id;
+      }
     }
 
     if (!leadId) continue;

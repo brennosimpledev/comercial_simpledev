@@ -6,12 +6,16 @@
 //     lead cujo aviso nao chegou ou falhou.
 //
 // A rotina existe porque em 24/11/2026 a conferencia com a Meta achou 11
-// leads de 11 a 24/11 que nunca entraram no CRM (ninguem falou com eles). A
-// causa nao ficou provada: ou o aviso nao foi entregue, ou a busca/gravacao
-// falhou aqui, e nos dois casos nada tentava de novo.
+// formularios de 11 a 24/11 sem card no CRM. O aviso da Meta tinha chegado
+// (284 de 284 conferidos, entre 4 e 19 segundos): os cards foram excluidos
+// na tela de leads, 9 deles por serem o card parado de quem conversava por
+// outro numero (ver lib/leads/gemeos.ts). A rotina fica como rede para o
+// dia em que o aviso falhar de verdade.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { brCanonical, last8 } from "@/lib/phone";
+import { emailDoFormulario } from "@/lib/bot/formulario";
+import { cardDaConversaPeloEmail } from "@/lib/leads/gemeos";
 
 export const GRAPH = `https://graph.facebook.com/${process.env.META_GRAPH_VERSION ?? "v21.0"}`;
 
@@ -110,6 +114,53 @@ export async function gravarLeadDaMeta(
       .like("whatsapp_digits", `%${last8(digitos)}`)
       .limit(10);
     existente = (candidatos ?? []).find((c) => brCanonical(c.whatsapp) === canon)?.id;
+  }
+
+  // Nenhum card com este numero: a pessoa pode ja estar conversando de
+  // OUTRO numero (a mensagem pronta do formulario cita o e-mail). O
+  // formulario entra no card da conversa em vez de criar um segundo.
+  if (!existente) {
+    const conversa = await cardDaConversaPeloEmail(
+      supabase,
+      emailDoFormulario(extras, email),
+      new Date(lead.created_time ?? Date.now())
+    );
+    if (conversa) {
+      const { data: atual } = await supabase
+        .from("leads")
+        .select("email, necessidade, meta_ad_id, data_conversao, anotacoes")
+        .eq("id", conversa)
+        .single();
+      const { error: upErr } = await supabase
+        .from("leads")
+        .update({
+          meta_lead_id: leadgenId,
+          origem: "meta_ads",
+          utm_source: "meta",
+          utm_medium: "paid",
+          utm_campaign: lead.campaign_name ?? null,
+          utm_content: lead.ad_name ?? null,
+          form_id: formId,
+          page_id: (aviso.page_id as string) ?? null,
+          meta_ad_id: (atual?.meta_ad_id as string | null) ?? adId,
+          email: (atual?.email as string | null) ?? email,
+          necessidade: (atual?.necessidade as string | null) ?? (extras || null),
+          data_conversao: (atual?.data_conversao as string | null) ?? lead.created_time ?? null,
+          anotacoes: [
+            atual?.anotacoes as string | null,
+            `📋 Preencheu o formulário com outro número: ${whatsapp ?? "não informado"}.`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+        })
+        .eq("id", conversa)
+        .is("meta_lead_id", null);
+      if (upErr) {
+        console.error("[meta/leadgen] update (conversa) error:", upErr);
+        return { ok: false, erro: `db:${upErr.code ?? ""}:${upErr.message}` };
+      }
+      return { ok: true, acao: "atualizado", id: conversa };
+    }
   }
 
   if (existente) {

@@ -22,6 +22,9 @@ import {
 } from "@/lib/conversions/report";
 import { CLOSER_STAGES, type LeadStage, type LeadOrigin } from "@/types/database";
 import { parseValor } from "@/lib/valor";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { emailDoFormulario } from "@/lib/bot/formulario";
+import { cardDaConversaPeloEmail, passarFormulario } from "@/lib/leads/gemeos";
 
 const VALID_STAGES: LeadStage[] = [
   "novo",
@@ -144,8 +147,36 @@ export async function createManualLead(_prev: unknown, formData: FormData) {
 }
 
 // Exclui um lead (e, em cascata, mensagens e follow-ups).
+//
+// Lead de formulario da Meta carrega o meta_lead_id, que e por onde a
+// campanha recebe o retorno daquela pessoa. Excluir o card apagava isso
+// (11 casos de 11 a 24/11/2026). Agora, se a pessoa conversa por outro card,
+// o formulario vai para la antes da exclusao; se nao conversa por nenhum, a
+// exclusao e recusada e o caminho e desqualificar, que ainda ensina a
+// campanha.
 export async function deleteLead(id: string) {
   const supabase = await createClient();
+  const { data: alvo } = await supabase
+    .from("leads")
+    .select("meta_lead_id, email, necessidade, created_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (alvo?.meta_lead_id) {
+    const conversa = await cardDaConversaPeloEmail(
+      supabase,
+      emailDoFormulario(alvo.necessidade as string | null, alvo.email as string | null),
+      new Date(alvo.created_at as string),
+      id
+    );
+    // Com a chave de servico: leva junto o historico de envios para a Meta.
+    const passou = conversa ? await passarFormulario(createAdminClient(), id, conversa) : null;
+    if (!passou?.ok) {
+      return {
+        error:
+          "Este lead veio de um formulário da Meta e não pode ser excluído: a campanha perderia o retorno dele. Se for lead ruim, marque como desqualificado.",
+      };
+    }
+  }
   const { data, error } = await supabase
     .from("leads")
     .delete()
