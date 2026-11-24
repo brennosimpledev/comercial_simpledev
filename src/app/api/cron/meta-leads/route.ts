@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { GRAPH, gravarLeadDaMeta, type LeadDaMeta } from "@/lib/meta/leadgen";
+import { GRAPH, gravarLeadDaMeta, tokenDaPaginaReserva, type LeadDaMeta } from "@/lib/meta/leadgen";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +16,7 @@ export const maxDuration = 60;
 //
 //   GET ?secret=...&ensaio=1     lista o que traria, sem gravar
 //   GET ?secret=...&horas=400    janela maior (padrao: 48 horas)
+//   GET ?secret=...&ensaio=1&testar_reserva=1   prova o token de reserva
 
 // Lead mais novo que isto pode estar sendo gravado pelo webhook agora.
 const FOLGA_DO_WEBHOOK_MS = 10 * 60_000;
@@ -36,8 +37,14 @@ export async function GET(request: NextRequest) {
   if (!secret || (auth !== `Bearer ${secret}` && q.get("secret") !== secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
-  const token = process.env.META_PAGE_ACCESS_TOKEN;
   const pagina = process.env.META_PAGE_ID;
+  // Sem o token da pagina (ou com ele recusado, mais abaixo) vale o de
+  // reserva, do usuario de sistema: a rede de seguranca nao pode cair junto
+  // com o aviso por causa do mesmo token.
+  // ?testar_reserva=1 finge que o token principal quebrou, para provar que
+  // a reserva assume (usar junto com ensaio=1).
+  const principal = q.get("testar_reserva") === "1" ? "token_invalido_de_teste" : process.env.META_PAGE_ACCESS_TOKEN;
+  const token = principal ?? (await tokenDaPaginaReserva());
   if (!token || !pagina) {
     return NextResponse.json({ ok: false, erro: "Falta META_PAGE_ACCESS_TOKEN ou META_PAGE_ID." });
   }
@@ -45,12 +52,27 @@ export async function GET(request: NextRequest) {
   const horas = Math.min(Math.max(Number(q.get("horas") ?? 48) || 48, 1), 24 * 60);
   const agora = Date.now();
   const desdeUnix = Math.floor((agora - horas * 3600_000) / 1000);
-  const t = encodeURIComponent(token);
+  let t = encodeURIComponent(token);
+  let pelaReserva = false;
 
   try {
-    const forms = (await ler(`${GRAPH}/${pagina}/leadgen_forms?fields=id,status&limit=100&access_token=${t}`)).data as
-      | { id: string; status: string }[]
-      | undefined;
+    const listar = () =>
+      ler(`${GRAPH}/${pagina}/leadgen_forms?fields=id,status&limit=100&access_token=${t}`).then(
+        (j) => j.data as { id: string; status: string }[] | undefined
+      );
+    let forms: { id: string; status: string }[] | undefined;
+    try {
+      forms = await listar();
+    } catch (e) {
+      const outro = await tokenDaPaginaReserva();
+      if (!outro || outro === token) throw e;
+      console.error(
+        `[cron/meta-leads] META_PAGE_ACCESS_TOKEN falhou (${String(e).slice(0, 200)}); usando o token de reserva. Renovar o token da pagina na Vercel.`
+      );
+      t = encodeURIComponent(outro);
+      pelaReserva = true;
+      forms = await listar();
+    }
 
     const naMeta: LeadDoForm[] = [];
     const filtro = encodeURIComponent(
@@ -80,6 +102,7 @@ export async function GET(request: NextRequest) {
     if (ensaio) {
       return NextResponse.json({
         ensaio: true,
+        ...(pelaReserva ? { token_de_reserva: true } : {}),
         horas,
         na_meta: naMeta.length,
         ja_no_crm: noCrm.size,
@@ -100,7 +123,15 @@ export async function GET(request: NextRequest) {
     }
     const criados = resultado.filter((r) => "acao" in r && r.acao === "criado").length;
     if (criados > 0) console.error(`[cron/meta-leads] ${criados} lead(s) da Meta nao tinham entrado pelo webhook e foram recuperados`);
-    return NextResponse.json({ ok: true, horas, na_meta: naMeta.length, ja_no_crm: noCrm.size, criados, resultado });
+    return NextResponse.json({
+      ok: true,
+      ...(pelaReserva ? { token_de_reserva: true } : {}),
+      horas,
+      na_meta: naMeta.length,
+      ja_no_crm: noCrm.size,
+      criados,
+      resultado,
+    });
   } catch (e) {
     console.error("[cron/meta-leads]", e);
     return NextResponse.json({ ok: false, erro: String(e).slice(0, 500) }, { status: 500 });

@@ -41,6 +41,39 @@ export function mapFields(fieldData: LeadFieldDatum[] = []) {
   return m;
 }
 
+// Token da pagina de reserva.
+//
+// META_PAGE_ACCESS_TOKEN nasceu do login de uma pessoa: se ela trocar a
+// senha, sair do Business ou a Meta vencer o acesso (em 24/11/2026 a Meta ja
+// marcava o "acesso aos dados" dele como vencido desde 15/11, embora ainda
+// respondesse), o aviso de lead E a rotina de conferencia parariam juntos,
+// porque os dois usam o mesmo token. A reserva pede um token da pagina ao
+// usuario de sistema (META_ADS_ACCESS_TOKEN), que nao vence e nao depende
+// de ninguem. So entra quando o token principal falha.
+let reserva: { token: string; ate: number } | null = null;
+export async function tokenDaPaginaReserva(): Promise<string | null> {
+  const sistema = process.env.META_ADS_ACCESS_TOKEN;
+  const pagina = process.env.META_PAGE_ID;
+  if (!sistema || !pagina) return null;
+  if (reserva && reserva.ate > Date.now()) return reserva.token;
+  try {
+    const res = await fetch(
+      `${GRAPH}/${pagina}?fields=access_token&access_token=${encodeURIComponent(sistema)}`,
+      { cache: "no-store" }
+    );
+    const j = (await res.json()) as { access_token?: string; error?: { message?: string } };
+    if (!res.ok || !j.access_token) {
+      console.error("[meta/leadgen] token de reserva da pagina nao veio:", j?.error?.message ?? res.status);
+      return null;
+    }
+    reserva = { token: j.access_token, ate: Date.now() + 30 * 60_000 };
+    return reserva.token;
+  } catch (e) {
+    console.error("[meta/leadgen] token de reserva da pagina falhou:", e);
+    return null;
+  }
+}
+
 /** Dados completos do lead na Graph API. Devolve `erro` em vez de lancar. */
 export async function buscarLeadNaMeta(
   leadgenId: string,

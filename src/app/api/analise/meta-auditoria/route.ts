@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { tokenDaPaginaReserva } from "@/lib/meta/leadgen";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,6 +77,30 @@ export async function GET(request: NextRequest) {
     const extra = q.get("extra");
     const partes = [campos ? `fields=${encodeURIComponent(campos)}` : "", extra ?? ""].filter(Boolean).join("&");
     return NextResponse.json(await ler(`${avulsa}${partes ? `?${partes}` : ""}`, tk));
+  }
+  // ?reserva=1: prova que o token de reserva da pagina existe e le os
+  // formularios e um lead, sem devolver o token.
+  if (q.get("reserva") === "1") {
+    const r = await tokenDaPaginaReserva();
+    if (!r) return NextResponse.json({ reserva: false });
+    const forms = (await ler(`${pagina}/leadgen_forms?fields=id,status&limit=5`, r)) as {
+      data?: { id: string }[];
+      erro?: string;
+    };
+    const um = forms.data?.[0]?.id
+      ? ((await ler(`${forms.data[0].id}/leads?fields=id,created_time&limit=1`, r)) as {
+          data?: { id: string }[];
+          erro?: string;
+        })
+      : null;
+    const lead = um?.data?.[0]?.id ? await ler(`${um.data[0].id}?fields=id,created_time,ad_name,form_id`, r) : null;
+    return NextResponse.json({
+      reserva: true,
+      igual_ao_principal: r === pageToken,
+      validade: await validade("reserva", r),
+      formularios: forms.erro ?? forms.data?.length,
+      leu_um_lead: lead,
+    });
   }
   const conta = q.get("conta") ?? CONTA_PADRAO;
   const enc = (o: unknown) => encodeURIComponent(JSON.stringify(o));

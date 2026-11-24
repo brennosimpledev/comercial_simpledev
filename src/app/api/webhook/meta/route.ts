@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { buscarLeadNaMeta, gravarLeadDaMeta } from "@/lib/meta/leadgen";
+import { buscarLeadNaMeta, gravarLeadDaMeta, tokenDaPaginaReserva } from "@/lib/meta/leadgen";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -75,15 +75,25 @@ export async function POST(request: NextRequest) {
         skipped.push("sem_leadgen_id");
         continue;
       }
-      if (!token) {
-        console.error("[webhook/meta] META_PAGE_ACCESS_TOKEN nao configurado");
-        skipped.push("META_PAGE_ACCESS_TOKEN_ausente");
-        continue;
-      }
-
       // Busca os dados completos do lead na Graph API e grava no CRM
       // (lib/meta/leadgen.ts, a mesma entrada que a rotina de conferencia usa).
-      const busca = await buscarLeadNaMeta(leadgenId, token);
+      // Se o token da pagina falhar ou faltar, tenta com o de reserva (do
+      // usuario de sistema) antes de desistir do lead.
+      let busca: Awaited<ReturnType<typeof buscarLeadNaMeta>> = token
+        ? await buscarLeadNaMeta(leadgenId, token)
+        : { erro: "META_PAGE_ACCESS_TOKEN_ausente" };
+      if ("erro" in busca) {
+        const outro = await tokenDaPaginaReserva();
+        if (outro && outro !== token) {
+          const deNovo = await buscarLeadNaMeta(leadgenId, outro);
+          if (!("erro" in deNovo)) {
+            console.error(
+              `[webhook/meta] META_PAGE_ACCESS_TOKEN falhou (${busca.erro}); o lead ${leadgenId} entrou pelo token de reserva. Renovar o token da pagina na Vercel.`
+            );
+          }
+          busca = deNovo;
+        }
+      }
       if ("erro" in busca) {
         skipped.push(busca.erro);
         falhou = true;
