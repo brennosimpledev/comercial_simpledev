@@ -604,6 +604,8 @@ const ETAPA_DO_ESTAGIO: Partial<Record<string, ConversionType>> = {
  */
 export async function reportarEtapa(leadId: string, estagio: string): Promise<void> {
   try {
+    // Antes da etapa: o "Lead Qualificado" precisa chegar na Meta primeiro.
+    await qualificarPorAvanco(leadId, estagio);
     const tipo = ETAPA_DO_ESTAGIO[estagio];
     if (!tipo || (!metaConfigured() && !openaiConfigurado())) return;
     const admin = createAdminClient();
@@ -710,30 +712,38 @@ export async function reportarLeadsBrutosMeta(opts: { ensaio?: boolean; limite?:
   return { configurado: true as const, enviados: pendentes.length };
 }
 
-/**
- * Marca o lead como qualificado e avisa as plataformas sem depender de
- * alguem clicar. So o bot chama, quando o lead passa na regra dele (valor
- * natural e dinheiro com origem): "Lead Qualificado" e o evento que a
- * campanha otimiza. Reuniao marcada a mao no CRM nao qualifica sozinha
- * desde 12/11/2026 - em novembro, reuniao empurrada sem orcamento
- * confirmado virou "Lead Qualificado" e a Meta aprendeu a trazer quem
- * marca e falta. Lead que o time ja desqualificou fica como esta. Nunca
- * lanca.
- */
-export async function qualificarAutomaticamente(leadId: string): Promise<void> {
-  try {
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("leads")
-      .select("qualificado, desqualificado, ja_cliente")
-      .eq("id", leadId)
-      .single();
-    if (!data || data.desqualificado || data.ja_cliente) return;
-    if (!data.qualificado) await admin.from("leads").update({ qualificado: true }).eq("id", leadId);
-    await reportConversion(leadId, "qualificado");
-  } catch (e) {
-    console.error("[conv] qualificarAutomaticamente:", e);
-  }
+// Quem pode dizer "Lead Qualificado" para as plataformas (24/11/2026):
+// so uma pessoa. O bot e o formulario do site NAO qualificam mais sozinhos.
+// "Lead Qualificado" e o evento que a campanha da Meta otimiza, e de 01 a
+// 11/11 nove dos treze enviados eram de lead que depois foi desqualificado
+// (em outubro, com so gente qualificando, foi 1 em 32). A Meta aprendeu com
+// isso e passou a trazer lead pior. O bot continua deixando a etiqueta dele
+// no lead (bot_avaliacao); o clique de qualificar e do time.
+
+// Etapas do funil do closer depois da reuniao feita. Lead que chega nelas
+// sem estar qualificado e porque alguem esqueceu de clicar: o closer levou
+// adiante, entao e qualificado. "reuniao_feita" fica de fora de proposito:
+// reuniao realizada com lead ruim nao qualifica ninguem.
+const ETAPAS_QUE_QUALIFICAM = new Set([
+  "escopo_enviado",
+  "apresentacao_marcada",
+  "negociacao",
+  "proposta",
+  "interesse",
+  "fechado",
+]);
+
+async function qualificarPorAvanco(leadId: string, estagio: string): Promise<void> {
+  if (!ETAPAS_QUE_QUALIFICAM.has(estagio)) return;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("leads")
+    .select("qualificado, desqualificado, ja_cliente")
+    .eq("id", leadId)
+    .single();
+  if (!data || data.qualificado || data.desqualificado || data.ja_cliente) return;
+  await admin.from("leads").update({ qualificado: true }).eq("id", leadId);
+  await reportConversion(leadId, "qualificado");
 }
 
 // Desqualifica um lead e avisa a Meta/Google (mesmo efeito do botao no

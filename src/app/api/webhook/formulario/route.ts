@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { entrarLeadDoSite } from "@/lib/leads/entradaSite";
-import { desqualificarLead, qualificarAutomaticamente } from "@/lib/conversions/report";
+import { desqualificarLead } from "@/lib/conversions/report";
 import type { LpWebhookPayload } from "@/lib/mappers/webhook-lead";
 
 export const runtime = "nodejs";
@@ -167,9 +167,13 @@ export async function POST(request: NextRequest) {
   if (!final) return json({ ok: true, id });
 
   if (resultado === "desqualificado") await desqualificarLead(id);
-  // Passou na regra do valor: sinal forte para as plataformas ja na hora.
-  // Longo prazo fica de fora (tem o valor, mas nao e para agora).
-  if (resultado === "qualificado") await qualificarAutomaticamente(id);
+  // Passou na regra do valor: fica com a etiqueta para o time confirmar.
+  // Nao vira "Lead Qualificado" sozinho - so uma pessoa avisa a Meta
+  // (lib/conversions/report.ts). Longo prazo fica de fora (tem o valor, mas
+  // nao e para agora).
+  if (resultado === "qualificado") {
+    await admin.from("leads").update({ bot_avaliacao: "qualificado" }).eq("id", id);
+  }
 
   return json({ ok: true, id, resultado });
 }

@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createMeetEvent, listarOcupados, patchEvent, type PeriodoOcupado } from "@/lib/google/calendar";
 import { getTeamAccessToken } from "@/lib/google/tokens";
-import { qualificarAutomaticamente, reportarEtapa } from "@/lib/conversions/report";
+import { reportarEtapa } from "@/lib/conversions/report";
 import { ehFeriado } from "@/lib/feriados";
 
 export function horaBR(iso: string) {
@@ -235,7 +235,6 @@ export async function agendarPeloBot(
       .eq("id", leadId);
     await reportarEtapa(leadId, "reuniao_marcada");
   }
-  await qualificarAutomaticamente(leadId);
 
   return { ok: true, meetLink: evento.meetLink ?? null, inicio };
 }

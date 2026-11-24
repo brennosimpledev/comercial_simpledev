@@ -26,7 +26,7 @@ import {
 import { agendarPeloBot, horariosLivres, rotuloHorario } from "@/lib/agenda";
 import { brCanonical, last8 } from "@/lib/phone";
 import { formularioParaOBot } from "@/lib/bot/formulario";
-import { desqualificarLead, qualificarAutomaticamente } from "@/lib/conversions/report";
+import { desqualificarLead } from "@/lib/conversions/report";
 
 const TZ = "America/Sao_Paulo";
 
@@ -429,10 +429,10 @@ async function atualizarResumo(
   const respondeu = iPrimeira !== -1 && historico.slice(iPrimeira + 1).some((f) => f.autor === "cliente");
   const codigo = respondeu ? gerado.codigo : "sem_resposta";
 
-  // Reuniao do caso cinza (empresa em operacao que nao recusou o piso) nao
-  // vira "Lead Qualificado": so a aceitacao natural do valor ensina a Meta.
-  const qualifica = codigo === "qualificado" || (codigo === "agendado" && gerado.valorNatural);
-  await gravarBloco(supabase, leadId, anotacoes, gerado.resumo, codigo, qualifica);
+  // O bot so deixa a etiqueta ("Bot: qualificado", "Agendado pelo bot").
+  // Quem marca "Lead Qualificado" e avisa a Meta e uma pessoa
+  // (lib/conversions/report.ts explica o porque).
+  await gravarBloco(supabase, leadId, anotacoes, gerado.resumo, codigo);
 
   // O proprio cliente disse que nao tem o investimento: o bot desqualifica
   // na hora, e a Meta recebe o sinal no mesmo dia (antes ficava esperando
@@ -445,8 +445,7 @@ async function gravarBloco(
   leadId: string,
   anotacoes: string,
   resumo: string,
-  codigo: CodigoAvaliacao | null,
-  qualifica = false
+  codigo: CodigoAvaliacao | null
 ) {
   const quando = new Date().toLocaleString("pt-BR", {
     timeZone: TZ,
@@ -474,6 +473,4 @@ async function gravarBloco(
   if (codigo) {
     await supabase.from("leads").update({ bot_avaliacao: codigo }).eq("id", leadId);
   }
-  // Aceitou os R$ 20 mil com naturalidade: ja vale "Lead Qualificado".
-  if (qualifica) await qualificarAutomaticamente(leadId);
 }

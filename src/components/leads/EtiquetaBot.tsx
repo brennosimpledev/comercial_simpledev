@@ -4,12 +4,12 @@
 const CONFIG: Record<string, { texto: string; titulo: string; cls: string }> = {
   agendado: {
     texto: "📅 Agendado pelo bot",
-    titulo: "O bot qualificou e marcou a reunião. Confira o resumo nas anotações.",
+    titulo: "O bot marcou a reunião. Confira o resumo nas anotações e, se o lead for bom, clique em qualificar: só o clique de uma pessoa avisa a Meta.",
     cls: "bg-emerald-500/15 text-emerald-300",
   },
   qualificado: {
     texto: "✅ Bot: qualificado",
-    titulo: "O bot confirmou ideia, prazo e orçamento, mas a reunião não foi marcada.",
+    titulo: "Passou na triagem automática (bot ou formulário), sem reunião marcada. Falta uma pessoa confirmar e clicar em qualificar: só esse clique avisa a Meta.",
     cls: "bg-brand/15 text-brand",
   },
   sdr: {
