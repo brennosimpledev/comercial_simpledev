@@ -4,6 +4,7 @@ import { evolutionConfigured, sendWhatsAppText } from "@/lib/evolution/client";
 import { horariosLivres } from "@/lib/agenda";
 import { atenderReuniao, ESPERA_TIME_MIN } from "@/lib/bot/reuniao";
 import { nomeDoFormulario, primeiroNome } from "@/lib/followups/cadence";
+import { automatica, closerNoAr, lerMensagens, linhasDosLeads, registrarSaida, type Linha as LinhaWa } from "@/lib/linha";
 import {
   horaDeMandar,
   lembretesLigados,
@@ -23,6 +24,10 @@ export const maxDuration = 60;
 //   - furo: reuniao marcada como furada, oferece horarios
 //   - pendentes: cliente falou sobre a reuniao e o time nao respondeu em
 //     20 min; o bot de reuniao assume
+//
+// Linha: quem ja teve reuniao realizada recebe tudo isso pelo WhatsApp do
+// closer, nao mais pelo do SDR (lib/linha.ts). Se o closer estiver fora do
+// ar, volta para o SDR.
 //
 // Desligado por padrao: so envia com LEMBRETES_AUTO ligado no Vercel.
 //   GET ?secret=...&ensaio=1  -> mostra o que mandaria agora, sem enviar
@@ -94,12 +99,26 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  const linhaBase = await linhasDosLeads(supabase, ids);
+  const closerOk = [...linhaBase.values()].includes("closer") ? await closerNoAr() : false;
+  const linhaDe = (id: string): LinhaWa => (linhaBase.get(id) === "closer" && closerOk ? "closer" : "sdr");
+
   // Movimento recente na conversa: com o time falando (ou o cliente acabando
   // de escrever), o lembrete automatico atropela. Em 30/10 o lembrete de 1h
-  // saiu 18 min depois de o cliente avisar que ia adiar.
+  // saiu 18 min depois de o cliente avisar que ia adiar. Vale nas duas linhas:
+  // o closer conversando com ele tambem e o time falando.
   const ultimaHumana = new Map<string, number>();
   const ultimaDoCliente = new Map<string, number>();
   if (ids.length) {
+    const doCloser = await lerMensagens(supabase, "closer", {
+      leadIds: ids,
+      desde: new Date(agora - 12 * H).toISOString(),
+    });
+    for (const m of doCloser) {
+      const mapa = m.direction === "inbound" ? ultimaDoCliente : automatica(m) ? null : ultimaHumana;
+      const t = new Date(m.created_at).getTime();
+      if (mapa) mapa.set(m.lead_id, Math.max(mapa.get(m.lead_id) ?? 0, t));
+    }
     const { data: recentes } = await supabase
       .from("lead_messages")
       .select("lead_id, direction, created_at, followup:raw->>followup, bot:raw->>bot, lembrete:raw->>lembrete")
@@ -167,6 +186,8 @@ export async function GET(request: NextRequest) {
         .gte("created_at", r.starts_at)
         .is("raw->>bot", null);
       if ((falouDepois ?? 0) > 0) continue;
+      const closerDepois = await lerMensagens(supabase, "closer", { leadIds: [r.lead_id], desde: r.starts_at });
+      if (closerDepois.some((m) => m.direction === "outbound" && !automatica(m))) continue;
       const horarios = await horariosLivres(supabase);
       envios.push({ reuniao: r, tipo: "furo", texto: textoFuro(nome, inicio, horarios) });
     }
@@ -175,13 +196,8 @@ export async function GET(request: NextRequest) {
   // Cliente falou sobre a reuniao e ninguem respondeu em 20 min.
   const pendentes: string[] = [];
   for (const id of ids) {
-    const { data: ultima } = await supabase
-      .from("lead_messages")
-      .select("direction, created_at, wa_message_id")
-      .eq("lead_id", id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    // So a linha de reuniao do lead: e por ela que o bot responde.
+    const [ultima] = await lerMensagens(supabase, linhaDe(id), { leadIds: [id], limite: 1, ordem: "desc" });
     if (!ultima || ultima.direction !== "inbound") continue;
     if (agora - new Date(ultima.created_at as string).getTime() < ESPERA_TIME_MIN * 60_000) continue;
     // So o que chegou depois da reuniao ser marcada, e nunca o que o bot ja avaliou.
@@ -196,8 +212,10 @@ export async function GET(request: NextRequest) {
       ensaio: true,
       ligado: lembretesLigados(),
       reunioes: reunioes.length,
+      closer_no_ar: closerOk,
       mandaria: envios.map((e) => ({
         lead: e.reuniao.leads?.nome,
+        linha: linhaDe(e.reuniao.lead_id),
         reuniao: e.reuniao.starts_at,
         tipo: e.tipo,
         texto: e.texto,
@@ -209,16 +227,15 @@ export async function GET(request: NextRequest) {
   let enviados = 0;
   const campo = { vespera: "lembrete_vespera_em", "1h": "lembrete_1h_em", furo: "aviso_furo_em" } as const;
   for (const e of envios) {
-    const envio = await sendWhatsAppText(e.reuniao.leads!.whatsapp!, e.texto);
+    const linha = linhaDe(e.reuniao.lead_id);
+    const envio = await sendWhatsAppText(e.reuniao.leads!.whatsapp!, e.texto, linha);
     if (!envio.ok) {
-      console.error("[cron/lembretes]", e.reuniao.id, envio.error);
+      console.error("[cron/lembretes]", e.reuniao.id, linha, envio.error);
       continue;
     }
-    await supabase.from("lead_messages").insert({
+    await registrarSaida(supabase, linha, {
       lead_id: e.reuniao.lead_id,
-      direction: "outbound",
       body: e.texto,
-      status: "sent",
       wa_message_id: envio.waMessageId ?? null,
       raw: { bot: true, lembrete: e.tipo, reuniao: e.reuniao.id },
     });
@@ -232,7 +249,7 @@ export async function GET(request: NextRequest) {
   // Cada atendimento chama a IA; dois por rodada cabem no tempo da funcao.
   const atendidos = [];
   for (const id of pendentes.slice(0, 2)) {
-    atendidos.push(await atenderReuniao(supabase, id, { origem: "cron" }));
+    atendidos.push(await atenderReuniao(supabase, id, { origem: "cron", linha: linhaDe(id) }));
   }
 
   return NextResponse.json({ ok: true, enviados, pendentes: pendentes.length, atendidos });

@@ -2,8 +2,10 @@
 //
 // A linha do SDR e a instancia de EVOLUTION_INSTANCE, a de sempre: o bot,
 // a regua e o webhook /api/webhook/whatsapp dependem dela. A do closer e
-// outra instancia, so para leitura das conversas (webhook
-// /api/webhook/whatsapp-closer, que nao cria lead nem aciona o bot).
+// outra instancia (webhook /api/webhook/whatsapp-closer, que nao cria lead).
+// Ela le as conversas e, para quem ja teve reuniao realizada, tambem manda
+// lembrete e confirmacao de reuniao e acorda o bot de reuniao (lib/linha.ts).
+// Nenhum outro bot fala por ela.
 //
 // Criar e listar instancias pede a chave GLOBAL da Evolution
 // (AUTHENTICATION_API_KEY do servidor). Sem EVOLUTION_GLOBAL_API_KEY usa

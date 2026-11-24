@@ -1,10 +1,13 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, after, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { atenderReuniao } from "@/lib/bot/reuniao";
 import { brCanonical, last8 } from "@/lib/phone";
 import { mediaKind, messageBody } from "@/lib/whatsapp-message";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// O bot de reuniao espera o cliente terminar de escrever e chama a IA.
+export const maxDuration = 60;
 
 // Recebe as mensagens do WhatsApp do CLOSER (segunda instancia da Evolution).
 // Configure nessa instancia o webhook apontando para:
@@ -12,10 +15,15 @@ export const dynamic = "force-dynamic";
 // Evento necessario: MESSAGES_UPSERT.
 //
 // NUNCA aponte essa instancia para /api/webhook/whatsapp: aquele e o da
-// linha do SDR, cria lead para numero desconhecido e aciona o bot. Este aqui
-// so guarda, em closer_messages (migration 0022), a conversa com numero que
+// linha do SDR, cria lead para numero desconhecido e aciona o atendente. Este
+// aqui guarda, em closer_messages (migration 0022), a conversa com numero que
 // JA e lead. Contato pessoal, grupo e numero desconhecido sao ignorados; nao
-// cria lead, nao responde, nao mexe em lead_messages.
+// cria lead, nao mexe em lead_messages.
+//
+// O unico bot que escuta esta linha e o de reuniao: quem ja teve reuniao
+// realizada recebe lembrete e confirmacao por aqui (lib/linha.ts), entao a
+// resposta dele tambem chega por aqui. O bot so trata assunto de reuniao, so
+// fala com quem tem reuniao em jogo e fica quieto se o closer esta na conversa.
 
 interface EvoKey {
   remoteJid?: string;
@@ -67,6 +75,8 @@ export async function POST(request: NextRequest) {
   const supabase = createAdminClient();
   let guardadas = 0;
   let ignoradas = 0;
+  // Ultima mensagem do cliente por lead, para o bot de reuniao.
+  const doCliente = new Map<string, string | null>();
 
   for (const data of items) {
     const digits = keyToDigits(data?.key);
@@ -102,7 +112,20 @@ export async function POST(request: NextRequest) {
       console.error("[webhook/whatsapp-closer]", error.message);
       continue;
     }
-    if (!error) guardadas++;
+    if (!error) {
+      guardadas++;
+      if (!data.key?.fromMe) doCliente.set(lead.id as string, data.key?.id ?? null);
+    }
+  }
+
+  if (doCliente.size > 0) {
+    after(async () => {
+      await Promise.all(
+        [...doCliente].map(([id, gatilho]) =>
+          atenderReuniao(supabase, id, { gatilho, origem: "webhook", linha: "closer" })
+        )
+      );
+    });
   }
 
   return NextResponse.json({ ok: true, guardadas, ignoradas });

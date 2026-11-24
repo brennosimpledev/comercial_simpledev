@@ -16,6 +16,15 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendWhatsAppText } from "@/lib/evolution/client";
 import {
+  automatica,
+  closerNoAr,
+  lerMensagens,
+  linhaDoLead,
+  registrarSaida,
+  type Linha,
+  type Msg,
+} from "@/lib/linha";
+import {
   ACEITA_FALLBACK,
   MODELO,
   agruparFalas,
@@ -73,18 +82,6 @@ export async function reuniaoEmJogo(
     .maybeSingle();
   return (furada as ReuniaoEmJogo | null) ?? null;
 }
-
-type Msg = {
-  direction: string;
-  created_at: string;
-  body: string | null;
-  media_type: string | null;
-  wa_message_id: string | null;
-  raw: Record<string, unknown> | null;
-};
-
-const automatica = (m: Msg) =>
-  m.direction === "outbound" && Boolean(m.raw && ((m.raw as { bot?: boolean }).bot || (m.raw as { lembrete?: string }).lembrete));
 
 function textoDaFala(m: Msg) {
   const corpo = (m.body ?? "").trim();
@@ -249,18 +246,17 @@ async function enviar(
   lead: { id: string; whatsapp: string },
   reuniaoId: string,
   texto: string,
-  acao: string
+  acao: string,
+  linha: Linha
 ) {
-  const envio = await sendWhatsAppText(lead.whatsapp, texto);
+  const envio = await sendWhatsAppText(lead.whatsapp, texto, linha);
   if (!envio.ok) {
     console.error("[bot:reuniao] falha ao enviar:", envio.error);
     return false;
   }
-  await supabase.from("lead_messages").insert({
+  await registrarSaida(supabase, linha, {
     lead_id: lead.id,
-    direction: "outbound",
     body: texto,
-    status: "sent",
     wa_message_id: envio.waMessageId ?? null,
     raw: { bot: true, reuniao: reuniaoId, acao },
   });
@@ -272,12 +268,16 @@ const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * Trata a ultima mensagem do cliente sobre a reuniao. Nunca lanca.
  * `origem` "cron" e o caminho dos 20 min sem resposta do time.
+ * `linha` e o WhatsApp onde a mensagem chegou (padrao: SDR). O bot le e
+ * responde nessa linha, mas so fala se ela for a linha de reuniao do lead
+ * (lib/linha.ts); na outra, so atualiza o status em silencio.
  */
 export async function atenderReuniao(
   supabase: SupabaseClient,
   leadId: string,
-  opts: { gatilho?: string | null; origem: "webhook" | "cron"; ensaio?: boolean }
+  opts: { gatilho?: string | null; origem: "webhook" | "cron"; ensaio?: boolean; linha?: Linha }
 ): Promise<{ agiu: boolean; motivo: string; decisao?: Decisao }> {
+  const canal: Linha = opts.linha ?? "sdr";
   try {
     if (!lembretesLigados() && !opts.ensaio) return { agiu: false, motivo: "lembretes_desligados" };
     if (!cerebroAtivo()) return { agiu: false, motivo: "sem_ia" };
@@ -295,15 +295,16 @@ export async function atenderReuniao(
     // Desqualificado pelo time nao remarca sozinho pelo bot.
     if (lead.desqualificado) return { agiu: false, motivo: "desqualificado" };
 
+    // Lead que ja passou pelo closer fala de reuniao pela linha do closer.
+    // Mensagem no SDR so conta como linha certa se o closer estiver fora do
+    // ar, que e quando o cron de lembretes volta a mandar pelo SDR.
+    const esperada = await linhaDoLead(supabase, leadId);
+    const linhaCerta =
+      canal === esperada || (canal === "sdr" && esperada === "closer" && !(await closerNoAr()));
+
     if (opts.origem === "webhook") await espera(ESPERA_MS);
 
-    const { data } = await supabase
-      .from("lead_messages")
-      .select("direction, created_at, body, media_type, wa_message_id, raw")
-      .eq("lead_id", leadId)
-      .order("created_at", { ascending: false })
-      .limit(30);
-    const lista = (data ?? []) as Msg[];
+    const lista = await lerMensagens(supabase, canal, { leadIds: [leadId], limite: 30, ordem: "desc" });
     const ultima = lista[0];
     if (!ultima || ultima.direction !== "inbound") return { agiu: false, motivo: "nada_novo" };
     if (opts.gatilho && ultima.wa_message_id !== opts.gatilho) {
@@ -324,9 +325,10 @@ export async function atenderReuniao(
     const minutosSemResposta = (Date.now() - new Date(ultima.created_at).getTime()) / 60_000;
 
     const podeAgir =
-      respondendoAoBot ||
-      (opts.origem === "webhook" && foraDoHorario() && !humanoNaUltimaHora) ||
-      (opts.origem === "cron" && minutosSemResposta >= ESPERA_TIME_MIN);
+      linhaCerta &&
+      (respondendoAoBot ||
+        (opts.origem === "webhook" && foraDoHorario() && !humanoNaUltimaHora) ||
+        (opts.origem === "cron" && minutosSemResposta >= ESPERA_TIME_MIN));
     // Com o time na conversa o bot nao fala, mas le: um "vou ter que adiar"
     // dito ao Ronaldo precisa virar status, senao o lembrete de 1h sai assim
     // mesmo (aconteceu em 30/10).
@@ -417,7 +419,7 @@ export async function atenderReuniao(
         .from("meetings")
         .update({ confirmacao: "confirmada", confirmacao_em: agora })
         .eq("id", reuniao.id);
-      if (decisao.texto) await enviar(supabase, alvo, reuniao.id, decisao.texto, "confirmar");
+      if (decisao.texto) await enviar(supabase, alvo, reuniao.id, decisao.texto, "confirmar", canal);
       return { agiu: true, motivo: "confirmou", decisao };
     }
 
@@ -428,7 +430,7 @@ export async function atenderReuniao(
           .update({ confirmacao: "remarcar", confirmacao_em: agora })
           .eq("id", reuniao.id);
       }
-      await enviar(supabase, alvo, reuniao.id, decisao.texto, "oferecer");
+      await enviar(supabase, alvo, reuniao.id, decisao.texto, "oferecer", canal);
       return { agiu: true, motivo: "ofereceu_horarios", decisao };
     }
 
@@ -443,7 +445,7 @@ export async function atenderReuniao(
         const texto =
           `Prontinho${nome ? `, ${nome}` : ""}! Remarquei nossa conversa para ${quandoE(feito.inicio)}.` +
           (feito.meetLink ? `\n\nO link do Google Meet continua o mesmo: ${feito.meetLink}` : "");
-        await enviar(supabase, alvo, reuniao.id, texto, "remarcou");
+        await enviar(supabase, alvo, reuniao.id, texto, "remarcou", canal);
         return { agiu: true, motivo: "remarcou", decisao };
       }
       console.error("[bot:reuniao] remarcacao falhou:", feito.motivo);
@@ -452,7 +454,7 @@ export async function atenderReuniao(
         outros.length > 0
           ? `Esse horário acabou de ser ocupado 😕 Tenho ${listaOu(outros.map((h) => h.rotulo))}. Algum desses fica bom pra você?`
           : `Esse horário acabou de ser ocupado 😕 O time comercial te chama ${foraDoHorario() ? quandoOTimeVolta() : "em instantes"} pra achar o melhor horário com você.`;
-      await enviar(supabase, alvo, reuniao.id, texto, outros.length > 0 ? "oferecer" : "falhou");
+      await enviar(supabase, alvo, reuniao.id, texto, outros.length > 0 ? "oferecer" : "falhou", canal);
       return { agiu: true, motivo: "remarcacao_falhou", decisao };
     }
 
@@ -465,7 +467,7 @@ export async function atenderReuniao(
         .eq("id", reuniao.id);
     }
     if (decisao.texto && foraDoHorario()) {
-      await enviar(supabase, alvo, reuniao.id, decisao.texto, "time");
+      await enviar(supabase, alvo, reuniao.id, decisao.texto, "time", canal);
     }
     return { agiu: true, motivo: `time_${decisao.motivo}`, decisao };
   } catch (e) {

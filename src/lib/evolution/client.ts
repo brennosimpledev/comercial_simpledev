@@ -1,9 +1,14 @@
 // Integracao com a Evolution API (WhatsApp). SERVER-ONLY.
 // Docs: https://doc.evolution-api.com  (endpoints v2)
 
+import { NOME_DA_INSTANCIA, type Papel } from "@/lib/evolution/instancias";
+
 const BASE = process.env.EVOLUTION_API_URL; // ex: https://evo.suaempresa.com
 const INSTANCE = process.env.EVOLUTION_INSTANCE; // nome da instancia
 const API_KEY = process.env.EVOLUTION_API_KEY; // apikey da instancia
+// A chave da instancia do SDR nao vale para a do closer; a global vale para
+// todas.
+const CHAVE_GLOBAL = process.env.EVOLUTION_GLOBAL_API_KEY || API_KEY;
 
 export function evolutionConfigured(): boolean {
   return Boolean(BASE && INSTANCE && API_KEY);
@@ -242,7 +247,8 @@ export interface SendTextResult {
 // Envia uma mensagem de texto via Evolution API.
 export async function sendWhatsAppText(
   toRaw: string,
-  text: string
+  text: string,
+  linha: Papel = "sdr"
 ): Promise<SendTextResult> {
   if (!evolutionConfigured()) {
     return { ok: false, error: "Evolution API não configurada (env vars)." };
@@ -252,12 +258,12 @@ export async function sendWhatsAppText(
 
   try {
     const res = await fetch(
-      `${BASE}/message/sendText/${encodeURIComponent(INSTANCE!)}`,
+      `${BASE}/message/sendText/${encodeURIComponent(linha === "closer" ? NOME_DA_INSTANCIA.closer : INSTANCE!)}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: API_KEY!,
+          apikey: (linha === "closer" ? CHAVE_GLOBAL : API_KEY)!,
         },
         body: JSON.stringify({ number, text }),
       }
