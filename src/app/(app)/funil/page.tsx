@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { FunilBoard } from "@/components/funil/FunilBoard";
-import { CLOSER_STAGES, type Lead, type LeadArquivo } from "@/types/database";
+import { CLOSER_STAGES, type Lead, type LeadArquivo, type LeadUpsell } from "@/types/database";
 import type { ReuniaoResumo } from "@/components/funil/FunilBoard";
 
 export const dynamic = "force-dynamic";
@@ -49,6 +49,14 @@ export default async function FunilPage() {
     .eq("atual", true)
     .in("lead_id", leads.length ? leads.map((l) => l.id) : ["sem-leads"]);
 
+  // Upsells (vendas novas para quem ja e cliente) dos leads do funil. Sem a
+  // migration 0025 a tabela nao existe; o funil segue sem a linha extra.
+  const { data: ups } = await supabase
+    .from("lead_upsells")
+    .select("*")
+    .in("lead_id", leads.length ? leads.map((l) => l.id) : ["sem-leads"])
+    .order("data", { ascending: false });
+
   // Historico de reunioes dos leads do funil, para o painel do card.
   const { data: mtgs } = await supabase
     .from("meetings")
@@ -67,6 +75,7 @@ export default async function FunilPage() {
   return (
     <FunilBoard
       initialLeads={leads}
+      initialUpsells={(ups ?? []) as LeadUpsell[]}
       googleConnected={Boolean(gacc)}
       reunioes={(mtgs ?? []) as ReuniaoResumo[]}
       atuais={(arqs ?? []) as Pick<

@@ -189,6 +189,18 @@ export interface LeadArquivo {
   created_by: string | null;
 }
 
+// Venda nova para quem ja e cliente. Fica fora de leads.valor_fechado, que
+// guarda o contrato de origem e alimenta as conversoes de anuncio.
+export interface LeadUpsell {
+  id: string;
+  created_at: string;
+  lead_id: string;
+  valor: number;
+  descricao: string | null;
+  data: string;
+  created_by: string | null;
+}
+
 export type MeetingStatus = "agendada" | "realizada" | "furada" | "cancelada";
 
 export const MEETING_STATUS_LABELS: Record<MeetingStatus, string> = {

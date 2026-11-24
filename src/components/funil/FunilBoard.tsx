@@ -26,6 +26,7 @@ import {
   type Lead,
   type LeadArquivo,
   type LeadStage,
+  type LeadUpsell,
   type Meeting,
   type MeetingStatus,
 } from "@/types/database";
@@ -106,10 +107,12 @@ function fmtValor(v: number | null | undefined) {
 function Card({
   lead,
   arquivos,
+  upsells,
   onAbrir,
 }: {
   lead: Lead;
   arquivos: ArquivoAtual[];
+  upsells: LeadUpsell[];
   onAbrir: (l: Lead) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
@@ -124,6 +127,7 @@ function Card({
 
   const escopo = arquivos.find((a) => a.tipo === "escopo");
   const proposta = arquivos.find((a) => a.tipo === "proposta");
+  const somaUpsells = upsells.reduce((s, u) => s + u.valor, 0);
 
   return (
     <div
@@ -140,10 +144,24 @@ function Card({
     >
       <div className="mb-1 flex items-start justify-between gap-2">
         <p className="truncate text-sm font-semibold text-slate-100">{lead.nome}</p>
-        {fmtValor(lead.valor_fechado ?? proposta?.valor) && (
-          <span className="shrink-0 text-xs font-semibold text-emerald-400">
-            {fmtValor(lead.valor_fechado ?? proposta?.valor)}
-          </span>
+        {(fmtValor(lead.valor_fechado ?? proposta?.valor) || somaUpsells > 0) && (
+          <div className="shrink-0 text-right leading-tight">
+            {fmtValor(lead.valor_fechado ?? proposta?.valor) && (
+              <span className="block text-xs font-semibold text-emerald-400">
+                {fmtValor(lead.valor_fechado ?? proposta?.valor)}
+              </span>
+            )}
+            {/* Upsell em cor propria: e receita do mesmo cliente, mas nao
+                entra nas conversoes de anuncio como o contrato. */}
+            {somaUpsells > 0 && (
+              <span
+                title={`${upsells.length} upsell${upsells.length > 1 ? "s" : ""} · total ${fmtValor((lead.valor_fechado ?? 0) + somaUpsells)}`}
+                className="block text-[11px] font-semibold text-brand"
+              >
+                +{fmtValor(somaUpsells)}
+              </span>
+            )}
+          </div>
         )}
       </div>
 
@@ -187,17 +205,23 @@ function Coluna({
   stage,
   leads,
   arquivos,
+  upsells,
   onAbrir,
 }: {
   stage: LeadStage;
   leads: Lead[];
   arquivos: ArquivoAtual[];
+  upsells: LeadUpsell[];
   onAbrir: (l: Lead) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
+  // Receita da coluna: contrato de cada lead mais os upsells dele.
   const total = leads.reduce((soma, l) => {
     const p = arquivos.find((a) => a.lead_id === l.id && a.tipo === "proposta");
-    return soma + (l.valor_fechado ?? p?.valor ?? 0);
+    const extra = upsells
+      .filter((u) => u.lead_id === l.id)
+      .reduce((s, u) => s + u.valor, 0);
+    return soma + (l.valor_fechado ?? p?.valor ?? 0) + extra;
   }, 0);
 
   return (
@@ -223,6 +247,7 @@ function Coluna({
             key={lead.id}
             lead={lead}
             arquivos={arquivos.filter((a) => a.lead_id === lead.id)}
+            upsells={upsells.filter((u) => u.lead_id === lead.id)}
             onAbrir={onAbrir}
           />
         ))}
@@ -237,15 +262,18 @@ function Coluna({
 export function FunilBoard({
   initialLeads,
   atuais,
+  initialUpsells = [],
   reunioes = [],
   googleConnected = false,
 }: {
   initialLeads: Lead[];
   atuais: ArquivoAtual[];
+  initialUpsells?: LeadUpsell[];
   reunioes?: ReuniaoResumo[];
   googleConnected?: boolean;
 }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
+  const [upsells, setUpsells] = useState<LeadUpsell[]>(initialUpsells);
   const [sel, setSel] = useState<Lead | null>(null);
   const [rascunho, setRascunho] = useState<{ texto: string; n: number; leadId: string } | null>(null);
   const [versaoFollowup, setVersaoFollowup] = useState(0);
@@ -371,6 +399,7 @@ export function FunilBoard({
               stage={stage}
               leads={porColuna[stage]}
               arquivos={atuais}
+              upsells={upsells}
               onAbrir={setSel}
             />
           ))}
@@ -474,6 +503,11 @@ export function FunilBoard({
                       leadId={sel.id}
                       valor={sel.valor_fechado}
                       jaCliente={sel.ja_cliente}
+                      upsells={upsells.filter((u) => u.lead_id === sel.id)}
+                      aoAdicionarUpsell={(u) => setUpsells((prev) => [u, ...prev])}
+                      aoRemoverUpsell={(id) =>
+                        setUpsells((prev) => prev.filter((u) => u.id !== id))
+                      }
                       aoSalvar={(valor) => {
                         setLeads((prev) => prev.map((l) => (l.id === sel.id ? { ...l, valor_fechado: valor } : l)));
                         setSel((atual) => (atual ? { ...atual, valor_fechado: valor } : atual));
