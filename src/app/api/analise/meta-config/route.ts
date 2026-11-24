@@ -22,7 +22,8 @@ async function ler(caminho: string, token: string) {
     const r = await fetch(`${GRAPH}/${caminho}${sep}access_token=${encodeURIComponent(token)}`, { cache: "no-store" });
     const j = await r.json();
     if (!r.ok) return { erro: `${r.status}: ${JSON.stringify(j?.error ?? j).slice(0, 400)}` };
-    return j as Record<string, unknown>;
+    // paging.next/previous trazem o token na URL; nunca devolver isso.
+    return JSON.parse(JSON.stringify(j).replace(/access_token=[^&"\\]+/g, "access_token=OCULTO")) as Record<string, unknown>;
   } catch (e) {
     return { erro: String(e).slice(0, 300) };
   }
