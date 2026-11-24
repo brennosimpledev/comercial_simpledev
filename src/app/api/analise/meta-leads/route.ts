@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { brCanonical, last8 } from "@/lib/phone";
+import { fetchWhatsAppHistory, toWaNumber } from "@/lib/evolution/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,7 +115,20 @@ export async function GET(request: NextRequest) {
       if (existente) {
         mesmaPessoa.push({ ...linha, lead_no_crm: existente.id, entrou_no_crm: existente.created_at, id_gravado_la: existente.meta_lead_id });
       } else {
-        faltando.push({ ...linha, email: campos.email || campos.work_email || null, telefone: tel, campos });
+        // O servidor do WhatsApp guarda a conversa mesmo se o lead for
+        // apagado do CRM. Conversa nossa com o numero = o lead existiu e foi
+        // excluido; nenhuma = o aviso da Meta nunca virou lead.
+        let whatsapp: { mensagens: number; nossas: number; primeira: string | null } | null = null;
+        if (tel.length >= 10) {
+          const hist = await fetchWhatsAppHistory(toWaNumber(tel));
+          const tempos = hist.map((m) => Number(m.messageTimestamp ?? 0)).filter(Boolean).sort((a, b) => a - b);
+          whatsapp = {
+            mensagens: hist.length,
+            nossas: hist.filter((m) => m.key?.fromMe).length,
+            primeira: tempos.length ? new Date(tempos[0] * 1000).toISOString() : null,
+          };
+        }
+        faltando.push({ ...linha, whatsapp, email: campos.email || campos.work_email || null, telefone: tel, campos });
       }
     }
 
