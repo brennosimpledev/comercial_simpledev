@@ -200,16 +200,52 @@ outubro, que foi o melhor mês. Não recriar o conjunto por causa disso — zera
 o aprendizado. `/api/analise/meta-config?secret=...&historico=1` mostra a
 configuração real e o histórico de alterações da conta.
 
-**Novembro/2026 — o que mudou de fato.** Em 30/10 o AD 18 foi pausado e em
-01/11 os AD 20, 21, 24 e 25; sobrou o AD 22 com quase toda a verba. Em
-outubro o AD 18 qualificava 27% (76 leads) e o AD 22, 20% (45 leads). Em
-novembro o AD 22, sozinho, caiu para 7% (141 leads). Parte da queda é o
-critério mais duro de 12/11; o resto é concentração num criativo só.
-Comparar criativo por taxa de qualificação no CRM, nunca por CPL.
+**Novembro/2026 — o que derrubou a qualidade.** De 01 a 11/11 o bot de fora
+de horário marcava "Lead Qualificado" sem critério: 9 dos 13 qualificados do
+período foram desqualificados depois (em outubro, 1 de 32). A campanha otimiza
+por esse evento, então aprendeu a buscar lead ruim. Em 24/11 o bot perdeu o
+poder de qualificar: só gente marca, ou o lead se qualifica ao avançar no
+funil do closer (escopo enviado em diante). O sinal sujo sai da janela da Meta
+por volta de 09/12; até lá não mexer em campanha, conjunto ou criativo.
 
-**Pendente:** o site da OneGarage (`torque/apps/web/index.html`) carrega o
-pixel `36869866015945984`, que é o dataset do CRM da SimpleDEV (`crm_SD`), e
-manda `PageView` para ele. O dataset da OneGarage é `1434327361938656`.
+O criativo não é a causa: os dois fechamentos de R$ 50 mil de novembro vieram
+do AD 22. Comparar criativo por taxa de qualificação no CRM, nunca por CPL.
+
+**OneGarage.** O site da OneGarage carregava o pixel `36869866015945984` (o
+dataset `crm_SD`) e mandava `PageView` para ele. Trocado em 24/11 pelo
+dataset da OneGarage, `1434327361938656`.
+
+### Formulário com um número, conversa por outro (24/11/2026)
+
+Cerca de 1 em cada 5 leads de formulário preenche com um número e toca em
+"falar no WhatsApp" de outro. Isso criava dois cards: o do formulário (com o
+`meta_lead_id`, parado em "novo") e o da conversa (sem identificador).
+
+O card parado parecia lixo e era excluído na tela de leads. Junto ia o
+`meta_lead_id`, e a campanha perdia o retorno daquela pessoa. A conferência
+de 24/11 achou 11 formulários de 11 a 24/11 sem card no CRM: 9 eram desse
+tipo e 2 eram números sem WhatsApp. **Não foi falha do aviso da Meta** — dos
+284 leads conferidos, todos entraram entre 4 e 19 segundos depois do
+formulário, e o registro do banco mostrou a exclusão pela tela.
+
+Desde 24/11 (`src/lib/leads/gemeos.ts`):
+
+- a conversa nova que cita o e-mail do formulário entra no card do
+  formulário, e o número do card passa a ser o da conversa;
+- o formulário que chega depois da conversa entra no card da conversa;
+- excluir um lead de formulário leva o formulário para o card da conversa
+  antes; se a pessoa não conversa por nenhum outro card, a exclusão é
+  recusada e o caminho é desqualificar;
+- `/api/cron/meta-leads` confere os formulários com a Meta a cada 30 minutos
+  e traz o que faltar.
+
+`/api/analise/gemeos?secret=...&desde=AAAA-MM-DD&ate=AAAA-MM-DD` lista os
+pares que ainda existem (janelas de até 5 dias, senão a rota estoura o
+tempo) e `&juntar=parados` junta os que nunca foram trabalhados.
+`/api/analise/meta-leads?secret=...&desde=...` confere lead a lead com a Meta.
+
+**Registro do banco:** o plano gratuito do Supabase guarda só 1 dia. Para
+saber quem excluiu ou alterou algo, olhar em Logs no mesmo dia.
 
 ### Idempotência
 

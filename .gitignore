@@ -32,3 +32,4 @@ next-env.d.ts
 
 # relatorios de analise comercial (tem dados de clientes)
 /relatorios/
+.env*
