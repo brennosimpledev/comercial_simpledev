@@ -171,6 +171,46 @@ chegavam e eram descartados para efeito de otimização.
 Movido para *Estágios positivos* em 01/09/2026, com alvo de otimização
 definido. É o que destrava a meta `QUALITY_LEAD` nos conjuntos de anúncios.
 
+### Integração de CRM da Meta: o que ela exige (24/11/2026)
+
+O Gerenciador de Eventos acusava "não podemos concluir a integração do seu
+CRM nem otimizar a veiculação" e "baixa cobertura de leads". Três causas, as
+três no código, corrigidas em 24/11:
+
+- **Lead bruto para todo lead.** A Meta pede o estágio inicial de todos os
+  leads e mede por ele a cobertura (mínimo de 60%). O CRM só enviava evento
+  quando o lead mudava de etapa. Agora "Lead Recebido" sai para todo lead de
+  formulário, pela rotina `/api/cron/openai-leads`. No funil do Gerenciador
+  de Eventos ele tem que ficar em **Outros estágios**.
+- **`custom_data.event_source = "crm"` e `lead_event_source`** são
+  obrigatórios na especificação e não eram enviados.
+- **E-mail e telefone em hash** junto do `lead_id` (a qualidade de
+  correspondência estava em 0/10).
+
+Também desde 24/11: "Reunião Marcada" e "Reunião Realizada" só vão para a
+Meta se o lead é qualificado. São estágios positivos acima de "Lead
+Qualificado" no funil, e a regra de 17/11 (horário para quem não recusou o
+piso, sem qualificar) vazava por eles.
+
+**A tela de edição do conjunto de anúncios engana.** Em conjunto já publicado
+com fonte de sinal CRM, "Conjunto de dados" e "Evento de conversão" aparecem
+em branco e travados. Não é defeito: pela API o conjunto está igual desde
+15/09/2026 (`QUALITY_LEAD`, `promoted_object` só com a página), inclusive em
+outubro, que foi o melhor mês. Não recriar o conjunto por causa disso — zera
+o aprendizado. `/api/analise/meta-config?secret=...&historico=1` mostra a
+configuração real e o histórico de alterações da conta.
+
+**Novembro/2026 — o que mudou de fato.** Em 30/10 o AD 18 foi pausado e em
+01/11 os AD 20, 21, 24 e 25; sobrou o AD 22 com quase toda a verba. Em
+outubro o AD 18 qualificava 27% (76 leads) e o AD 22, 20% (45 leads). Em
+novembro o AD 22, sozinho, caiu para 7% (141 leads). Parte da queda é o
+critério mais duro de 12/11; o resto é concentração num criativo só.
+Comparar criativo por taxa de qualificação no CRM, nunca por CPL.
+
+**Pendente:** o site da OneGarage (`torque/apps/web/index.html`) carrega o
+pixel `36869866015945984`, que é o dataset do CRM da SimpleDEV (`crm_SD`), e
+manda `PageView` para ele. O dataset da OneGarage é `1434327361938656`.
+
 ### Idempotência
 
 `ads_conversions` tem unique `(lead_id, tipo, canal)`. As duas plataformas
