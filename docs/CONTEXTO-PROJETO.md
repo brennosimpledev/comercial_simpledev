@@ -342,6 +342,35 @@ Decisão do Brenno: não esperar 09/12, porque a semana já estava sem reunião
   Se for feito, é campanha própria com verba própria, comparando reunião
   feita por real gasto.
 
+### Desfecho de quem não responde (24/11/2026)
+
+Regra do Brenno: são 10 tentativas, 2 por dia; depois disso o lead é
+desqualificado como não respondido e a Meta recebe o evento negativo.
+
+- `/api/cron/desfecho` roda às 9h30 e 14h30 em dia útil, depois da régua.
+  `?secret=...&ensaio=1` lista o que faria sem gravar. `DESFECHO_AUTO=0`
+  desliga.
+- **Tentativa** = um turno (manhã ou tarde, Brasília) com mensagem nossa
+  depois da última fala do cliente, seja do bot, da régua ou do time. Várias
+  mensagens no mesmo turno contam uma vez; resposta do cliente zera
+  (`turnosDesdeCliente` em `lib/followups/situacao.ts`).
+- A partir da **3ª** tentativa o card sai de "Novo" e vai para o estágio
+  `sdr`, que passou a se chamar **"Tentando contato"** (era "Em contato" e
+  estava sem uso). Só anda para a frente.
+- Depois da **10ª**, com a régua automática encerrada e pelo menos 20 horas
+  desde a nossa última mensagem: `desqualificarLead` (Perdido +
+  desqualificado + evento para a Meta), `sem_resposta = true` e uma nota no
+  card. No máximo 30 por rodada.
+- Fica de fora quem falou por último, tem reunião, é cliente ou tem
+  "próximo contato" marcado para o futuro.
+- Antes disso o funil não tinha desfecho: lead atendido que sumia ficava em
+  "Novo" para sempre e não mandava sinal nenhum para a Meta. Em 24/11, de 42
+  leads de formulário em "Novo" nos últimos 10 dias, 29 tinham sido
+  atendidos pelo Ronaldo e parado de responder.
+- Lead que recebeu a despedida da régua antiga (4 passos, até 12/11) com
+  menos de 10 tentativas reais **não** é desqualificado pela regra; o ensaio
+  lista em `despedida_enviada_com_menos_de_10`.
+
 ### Idempotência
 
 `ads_conversions` tem unique `(lead_id, tipo, canal)`. As duas plataformas
