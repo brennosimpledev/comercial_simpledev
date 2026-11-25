@@ -371,6 +371,35 @@ desqualificado como não respondido e a Meta recebe o evento negativo.
   menos de 10 tentativas reais **não** é desqualificado pela regra; o ensaio
   lista em `despedida_enviada_com_menos_de_10`.
 
+### Revisão geral de 24/11/2026 (noite) e resgate do bot
+
+Depois da troca de conjunto e formulário, CRM e Meta foram conferidos de
+novo. O que a revisão deixou registrado:
+
+- **Na tela da Meta, "Conjunto de dados" e "Evento de conversão" do conjunto
+  aparecem vazios e cinza**, no conjunto novo e no antigo, com "Fonte de
+  sinal: CRM". É o estado normal desta campanha (o antigo estava assim em
+  outubro). A ligação com o `crm_SD` fica no **anúncio**, em Rastreamento:
+  nos anúncios novos "Eventos de CRM" e "Eventos do site" mostram `crm_SD`;
+  nos antigos "Eventos de CRM" aparecia em branco (apontava para o dataset
+  antigo `2524535781334252`).
+- **Resgate do bot** (`lib/bot/resgate.ts`, dentro de `/api/cron/cutucada`):
+  o atendente responde no `after()` do aviso do WhatsApp e, se aquela
+  execução morre, ninguém tentava de novo. Em 24/11 às 19:36 um lead ficou
+  sem resposta assim (causa não identificada: os logs da Vercel não estavam
+  acessíveis). Agora, fora do expediente, quem tem a última fala há 4 a 45
+  minutos recebe nova tentativa do mesmo atendente, com todas as travas
+  dele. `?ensaio=1` mostra em `resgate.sem_resposta_do_bot` quem está nessa
+  situação.
+- **Cadastro público do Supabase segue aberto** (`disable_signup: false`,
+  com confirmação de e-mail). Sem login nenhuma tabela devolve dado. Fechar
+  em Authentication → Sign In / Providers é decisão do Brenno.
+- **Cobrança**: cartão padrão (final 0109) continua falhando; a última
+  cobrança (23/11, R$ 991,79) foi paga pelo reserva (final 8070).
+- Portas conferidas sem credencial: webhooks `meta`, `whatsapp`,
+  `whatsapp-closer`, `lead` e `formulario` recusam o POST (401); rotas de
+  cron e de análise recusam sem o segredo (401).
+
 ### Idempotência
 
 `ads_conversions` tem unique `(lead_id, tipo, canal)`. As duas plataformas
