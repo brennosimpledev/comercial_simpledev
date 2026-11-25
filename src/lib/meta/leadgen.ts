@@ -35,9 +35,27 @@ export type LeadDaMeta = {
   platform?: string;
 };
 
+// Formulario em portugues: a Meta traduz o NOME dos campos de contato
+// (nome_completo, telefone, email_comercial em vez de full_name,
+// phone_number, work_email). O CRM inteiro le os nomes em ingles, entao a
+// traducao volta aqui, na entrada. Sem isto o lead do formulario em
+// portugues (no ar desde 24/11/2026) entraria como "Lead Meta", sem
+// telefone e sem e-mail.
+const CAMPO_PADRAO: Record<string, string> = {
+  nome_completo: "full_name",
+  nome: "first_name",
+  sobrenome: "last_name",
+  telefone: "phone_number",
+  "número_de_telefone": "phone_number",
+  numero_de_telefone: "phone_number",
+  email_comercial: "work_email",
+  "e-mail_comercial": "work_email",
+  "e-mail": "email",
+};
+
 export function mapFields(fieldData: LeadFieldDatum[] = []) {
   const m: Record<string, string> = {};
-  for (const f of fieldData) m[f.name] = (f.values ?? []).join(", ");
+  for (const f of fieldData) m[CAMPO_PADRAO[f.name] ?? f.name] = (f.values ?? []).join(", ");
   return m;
 }
 

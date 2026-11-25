@@ -77,7 +77,8 @@ function pareceFormularioMeta(texto: string | null): boolean {
   // exclusao, lead do Google entraria como meta_ads.
   if (acharRastreioDaLp(texto).daLp) return false;
   const t = texto.toLowerCase();
-  const marcas = ["work_email:", "full_name:", "phone_number:"];
+  // Em ingles (formulario antigo) e em portugues (formulario de 24/11/2026).
+  const marcas = ["work_email:", "full_name:", "phone_number:", "email_comercial:", "nome_completo:", "telefone:"];
   return marcas.filter((m) => t.includes(m)).length >= 2;
 }
 

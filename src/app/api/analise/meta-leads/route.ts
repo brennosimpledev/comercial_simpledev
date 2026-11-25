@@ -1,3 +1,4 @@
+import { mapFields } from "@/lib/meta/leadgen";
 import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { brCanonical, last8 } from "@/lib/phone";
@@ -93,8 +94,7 @@ export async function GET(request: NextRequest) {
     const mesmaPessoa = [];
     for (const l of naMeta) {
       if (noCrm.has(l.id)) continue;
-      const campos: Record<string, string> = {};
-      for (const c of l.field_data ?? []) campos[c.name] = (c.values ?? []).join(", ");
+      const campos = mapFields(l.field_data ?? []);
       const tel = (campos.phone_number || campos.phone || "").replace(/[^0-9]/g, "");
       let existente: { id: string; created_at: string; meta_lead_id: string | null } | undefined;
       if (tel.length >= 8) {
