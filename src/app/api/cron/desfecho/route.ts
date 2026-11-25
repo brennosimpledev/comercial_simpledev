@@ -27,6 +27,9 @@ export const maxDuration = 60;
 //
 // Roda as 9h30 e as 14h30 em dia util (vercel.json), depois da regua.
 //   GET ?secret=...&ensaio=1   -> lista o que faria, sem gravar
+//   GET ?secret=...&despedidos=1 -> so desqualifica quem recebeu a despedida
+//     da regua com menos de 10 tentativas (decisao manual; a rotina normal
+//     nao toca neles)
 // DESFECHO_AUTO=0 no Vercel desliga.
 
 const EM_CONTATO = 3;
@@ -61,7 +64,7 @@ export async function GET(request: NextRequest) {
   const todos = await leadsComSituacao(supabase, 30);
   const mover: { id: string; nome: string; tentativas: number }[] = [];
   const encerrar: { id: string; nome: string; tentativas: number; ultima: string }[] = [];
-  const despedidos: { nome: string; tentativas: number; ultima: string }[] = [];
+  const despedidos: { id: string; nome: string; tentativas: number; ultima: string }[] = [];
 
   for (const { lead, s } of todos) {
     // Sem conversa, ou o cliente falou por ultimo: nao e caso de desfecho.
@@ -84,7 +87,7 @@ export async function GET(request: NextRequest) {
     // Regua encerrada (despedida enviada) com menos de 10 tentativas: nao
     // entra na regra; aparece no ensaio para alguem decidir.
     if (!s.respondeu && !s.falouDeVerdade && s.automaticos >= LIMITE && tentativas < LIMITE) {
-      despedidos.push({ nome: lead.nome, tentativas, ultima: s.ultimaNossa.em });
+      despedidos.push({ id: lead.id, nome: lead.nome, tentativas, ultima: s.ultimaNossa.em });
     }
   }
 
@@ -95,8 +98,31 @@ export async function GET(request: NextRequest) {
       avaliados: todos.length,
       iria_para_tentando_contato: mover.map(({ nome, tentativas }) => ({ nome, tentativas })),
       seria_desqualificado: encerrar.map(({ nome, tentativas, ultima }) => ({ nome, tentativas, ultima })),
-      despedida_enviada_com_menos_de_10: despedidos,
+      despedida_enviada_com_menos_de_10: despedidos.map(({ nome, tentativas, ultima }) => ({ nome, tentativas, ultima })),
     });
+  }
+
+  const dia = new Date(agora - 3 * 3600_000).toISOString().slice(0, 10).split("-").reverse().join("/");
+  const encerrarLead = async (id: string, nota: string) => {
+    if (!(await desqualificarLead(id))) return false;
+    const { data: l } = await supabase.from("leads").select("anotacoes").eq("id", id).single();
+    await supabase
+      .from("leads")
+      .update({ sem_resposta: true, anotacoes: [l?.anotacoes, nota].filter(Boolean).join("\n\n") })
+      .eq("id", id);
+    return true;
+  };
+
+  if (q.get("despedidos") === "1") {
+    let feitos = 0;
+    for (const d of despedidos.slice(0, POR_RODADA)) {
+      const ok = await encerrarLead(
+        d.id,
+        `🚫 Desqualificado em ${dia} por decisão do Brenno: recebeu a despedida da régua e não respondeu (${d.tentativas} tentativas).`
+      );
+      if (ok) feitos++;
+    }
+    return NextResponse.json({ ok: true, despedidos: despedidos.length, desqualificados: feitos });
   }
 
   let movidos = 0;
@@ -110,16 +136,9 @@ export async function GET(request: NextRequest) {
   }
 
   let desqualificados = 0;
-  const dia = new Date(agora - 3 * 3600_000).toISOString().slice(0, 10).split("-").reverse().join("/");
   for (const e of encerrar.slice(0, POR_RODADA)) {
-    if (!(await desqualificarLead(e.id))) continue;
-    const { data: l } = await supabase.from("leads").select("anotacoes").eq("id", e.id).single();
-    const nota = `🚫 Desqualificado automaticamente em ${dia}: ${e.tentativas} tentativas sem resposta.`;
-    await supabase
-      .from("leads")
-      .update({ sem_resposta: true, anotacoes: [l?.anotacoes, nota].filter(Boolean).join("\n\n") })
-      .eq("id", e.id);
-    desqualificados++;
+    const ok = await encerrarLead(e.id, `🚫 Desqualificado automaticamente em ${dia}: ${e.tentativas} tentativas sem resposta.`);
+    if (ok) desqualificados++;
   }
 
   return NextResponse.json({
