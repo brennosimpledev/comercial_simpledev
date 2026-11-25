@@ -297,6 +297,14 @@ O que a conferência de 24/11 mostrou na CA 02:
   os três fechamentos vieram de SP, SC e MG. As campanhas antigas da CA 01
   eram restritas a nove estados do Sul, Sudeste e Centro-Oeste. Candidato a
   ajuste **depois** de 09/12 (mudar a região reinicia o aprendizado).
+  Separando as duas regiões, o problema é o **Nordeste** (87 leads, 7%
+  qualificados, 3% com reunião feita, 1 avanço) e o **Pará** (25 leads, 2
+  qualificados, 1 reunião). O resto do Norte (29 leads, 8 qualificados, 6
+  reuniões, nenhum avanço depois da reunião) é amostra pequena e não
+  condena. Recomendação dada em 24/11: tirar Nordeste e Pará e, no mesmo
+  dia, trocar o formulário por um em português do tipo "maior intenção"
+  (formulário publicado não se edita; trocar o formulário do anúncio também
+  reinicia o aprendizado, então as duas mudanças vão juntas).
 
 ### Idempotência
 
