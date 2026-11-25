@@ -130,6 +130,12 @@ export async function gravarLeadDaMeta(
   aviso: Record<string, unknown>,
   opts: { recuperado?: boolean } = {}
 ): Promise<{ ok: true; acao: "criado" | "atualizado"; id: string } | { ok: false; erro: string }> {
+  // Lead de teste da Meta (ferramenta de teste ou POST /{form}/test_leads):
+  // todo campo vem como "<test lead: dummy data for ...>". Nao e gente e nao
+  // pode virar card; sem esta trava a rotina de conferencia o recriaria.
+  if ((lead.field_data ?? []).some((c) => (c.values ?? []).some((v) => String(v).startsWith("<test lead:")))) {
+    return { ok: false, erro: "lead_de_teste" };
+  }
   const f = mapFields(lead.field_data);
   const nome =
     f.full_name ||
@@ -145,7 +151,8 @@ export async function gravarLeadDaMeta(
   const known = new Set(["full_name", "name", "first_name", "last_name", "email", "phone_number", "phone"]);
   const extras = Object.entries(f)
     .filter(([k]) => !known.has(k))
-    .map(([k, v]) => `${k}: ${v}`)
+    // Pergunta terminada em ":" ("O projeto e para:") nao pode virar "chave::".
+    .map(([k, v]) => `${k.replace(/:+$/, "")}: ${v}`)
     .join(" | ");
 
   // O lead pode ja existir: a automacao que repassa o formulario pelo
