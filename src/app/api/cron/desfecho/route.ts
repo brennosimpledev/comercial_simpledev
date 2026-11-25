@@ -61,21 +61,30 @@ export async function GET(request: NextRequest) {
   const todos = await leadsComSituacao(supabase, 30);
   const mover: { id: string; nome: string; tentativas: number }[] = [];
   const encerrar: { id: string; nome: string; tentativas: number; ultima: string }[] = [];
+  const despedidos: { nome: string; tentativas: number; ultima: string }[] = [];
 
   for (const { lead, s } of todos) {
     // Sem conversa, ou o cliente falou por ultimo: nao e caso de desfecho.
     if (s.ultimaDirecao !== "outbound" || !s.ultimaNossa) continue;
     if (lead.proximo_contato && lead.proximo_contato > hoje) continue;
 
-    const nuncaRespondeu = !s.respondeu && !s.falouDeVerdade;
-    const tentativas = Math.max(s.turnosDesdeCliente, nuncaRespondeu ? s.automaticos : 0);
+    // So tentativa de verdade conta. `automaticos` nao serve aqui: quem
+    // recebeu a despedida da regua antiga, de 4 passos, aparece la como 10.
+    const tentativas = s.turnosDesdeCliente;
     const naRegua = proximaDaRegua(s) !== null && tentativas < LIMITE_SEM_REGUA;
     const paradoH = (agora - new Date(s.ultimaNossa.em).getTime()) / 3600_000;
 
     if (tentativas >= LIMITE && !naRegua && paradoH >= FOLGA_H) {
       encerrar.push({ id: lead.id, nome: lead.nome, tentativas, ultima: s.ultimaNossa.em });
-    } else if (tentativas >= EM_CONTATO && lead.estagio === "novo") {
+      continue;
+    }
+    if (tentativas >= EM_CONTATO && lead.estagio === "novo") {
       mover.push({ id: lead.id, nome: lead.nome, tentativas });
+    }
+    // Regua encerrada (despedida enviada) com menos de 10 tentativas: nao
+    // entra na regra; aparece no ensaio para alguem decidir.
+    if (!s.respondeu && !s.falouDeVerdade && s.automaticos >= LIMITE && tentativas < LIMITE) {
+      despedidos.push({ nome: lead.nome, tentativas, ultima: s.ultimaNossa.em });
     }
   }
 
@@ -86,6 +95,7 @@ export async function GET(request: NextRequest) {
       avaliados: todos.length,
       iria_para_tentando_contato: mover.map(({ nome, tentativas }) => ({ nome, tentativas })),
       seria_desqualificado: encerrar.map(({ nome, tentativas, ultima }) => ({ nome, tentativas, ultima })),
+      despedida_enviada_com_menos_de_10: despedidos,
     });
   }
 
