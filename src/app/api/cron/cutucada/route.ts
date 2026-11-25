@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { evolutionConfigured } from "@/lib/evolution/client";
 import { enviarCutucada, podeCutucarAgora, quemCutucar } from "@/lib/bot/cutucada";
+import { podeResgatarAgora, resgatar, semRespostaDoBot } from "@/lib/bot/resgate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,12 +27,22 @@ export async function GET(request: NextRequest) {
 
   const ensaio = q.get("ensaio") === "1";
   const bloqueio = podeCutucarAgora();
+  const supabase = createAdminClient();
+
+  // Antes da cutucada: quem escreveu fora do expediente e ficou sem
+  // resposta do bot ganha nova tentativa (lib/bot/resgate.ts). Vale a
+  // qualquer hora fora do expediente, nao so das 7h as 22h: e resposta a
+  // quem acabou de escrever, nao mensagem nossa do nada.
+  const bloqueioResgate = podeResgatarAgora();
+  const semResposta = ensaio ? await semRespostaDoBot(supabase) : [];
+  const resgatados =
+    !ensaio && !bloqueioResgate && evolutionConfigured() ? await resgatar(supabase) : [];
+
   if (!ensaio) {
-    if (bloqueio) return NextResponse.json({ ok: true, skipped: bloqueio });
+    if (bloqueio) return NextResponse.json({ ok: true, skipped: bloqueio, resgatados });
     if (!evolutionConfigured()) return NextResponse.json({ ok: true, skipped: "evolution not configured" });
   }
 
-  const supabase = createAdminClient();
   const { plano, pulados } = await quemCutucar(supabase);
 
   if (ensaio) {
@@ -40,6 +51,7 @@ export async function GET(request: NextRequest) {
       enviaria_agora: !bloqueio,
       bloqueio,
       pulados,
+      resgate: { bloqueio: bloqueioResgate, sem_resposta_do_bot: semResposta.map((p) => ({ lead: p.nome, desde: p.desde })) },
       mandaria: plano.map((p) => ({ lead: p.nome, ultima_nossa: p.ultimaNossa, texto: p.texto })),
     });
   }
@@ -50,5 +62,5 @@ export async function GET(request: NextRequest) {
     if (!r.ok) console.error("[cron/cutucada]", p.leadId, r.motivo);
     resultado.push({ lead: p.nome, ...r });
   }
-  return NextResponse.json({ ok: true, enviados: resultado.filter((r) => r.ok).length, resultado, pulados });
+  return NextResponse.json({ ok: true, enviados: resultado.filter((r) => r.ok).length, resultado, pulados, resgatados });
 }

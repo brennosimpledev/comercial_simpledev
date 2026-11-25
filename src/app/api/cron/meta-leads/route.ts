@@ -83,7 +83,11 @@ export async function GET(request: NextRequest) {
         `${GRAPH}/${f.id}/leads?fields=id,created_time,ad_id,ad_name,adset_name,campaign_name,form_id,platform,field_data&filtering=${filtro}&limit=200&access_token=${t}`;
       for (let pag = 0; url && pag < 10; pag++) {
         const j: { data?: unknown[]; paging?: { next?: string } } = await ler(url);
-        for (const l of (j.data ?? []) as LeadDoForm[]) naMeta.push({ ...l, form_id: l.form_id ?? f.id });
+        for (const l of (j.data ?? []) as LeadDoForm[]) {
+          // Lead de teste da Meta nao e gente (gravarLeadDaMeta tambem recusa).
+          if ((l.field_data ?? []).some((c) => (c.values ?? []).some((v) => String(v).startsWith("<test lead:")))) continue;
+          naMeta.push({ ...l, form_id: l.form_id ?? f.id });
+        }
         url = j.paging?.next;
       }
     }
