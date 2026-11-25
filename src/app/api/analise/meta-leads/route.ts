@@ -39,6 +39,31 @@ export async function GET(request: NextRequest) {
   if (!secret || q.get("secret") !== secret) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  // ?conferir=id1,id2: para leads que estao no CRM sem nenhuma mensagem,
+  // diz se o numero tem WhatsApp e quantas mensagens o servidor do WhatsApp
+  // guarda com ele (nossas e dele). Separa "numero invalido" de "ninguem
+  // chamou" e de "chamaram pelo celular e o CRM nao registrou". So leitura.
+  const conferir = q.get("conferir");
+  if (conferir) {
+    const supabase = createAdminClient();
+    const { data } = await supabase.from("leads").select("id, whatsapp").in("id", conferir.split(",").slice(0, 30));
+    const saida = [];
+    for (const l of data ?? []) {
+      const tel = String(l.whatsapp ?? "").replace(/[^0-9]/g, "");
+      const consulta = tel.length >= 10 ? await consultarNumeros(variantesBR(tel)) : null;
+      const achado = consulta?.find((n) => n.exists);
+      const numero = achado ? (achado.number ?? achado.jid?.split("@")[0] ?? tel) : tel;
+      const hist = tel.length >= 10 ? await fetchWhatsAppHistory(toWaNumber(numero)) : [];
+      saida.push({
+        id: l.id,
+        digitos: tel.length,
+        numero_tem_whatsapp: consulta ? consulta.some((n) => n.exists) : null,
+        mensagens_no_whatsapp: hist.length,
+        nossas: hist.filter((m) => m.key?.fromMe).length,
+      });
+    }
+    return NextResponse.json({ conferir: saida });
+  }
   const token = process.env.META_PAGE_ACCESS_TOKEN;
   const pagina = process.env.META_PAGE_ID;
   if (!token || !pagina) return NextResponse.json({ erro: "Falta META_PAGE_ACCESS_TOKEN ou META_PAGE_ID." });
