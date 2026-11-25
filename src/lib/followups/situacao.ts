@@ -47,6 +47,16 @@ export type Situacao = {
   falouDeVerdade: boolean;
   /** Mensagens nossas (bot, time ou regua) depois da ultima fala do cliente. */
   nossasDesdeCliente: number;
+  /**
+   * Tentativas depois da ultima fala do cliente: turnos (manha ou tarde, em
+   * Brasilia) com pelo menos uma mensagem nossa. E o que o desfecho conta.
+   */
+  turnosDesdeCliente: number;
+};
+
+const turno = (iso: string) => {
+  const b = new Date(new Date(iso).getTime() - 3 * 3600_000);
+  return `${b.toISOString().slice(0, 10)}${b.getUTCHours() < 12 ? "m" : "t"}`;
 };
 
 // Texto pronto do formulario repassado ou do anuncio: nao e conversa.
@@ -202,6 +212,12 @@ export async function leadsComSituacao(
             [...msgs].reverse().find((m) => m.direction === "outbound" && !automatica(m))?.created_at ?? null,
           falouDeVerdade: msgs.some(falaDeVerdade),
           nossasDesdeCliente: msgs.slice(iUltimaDoCliente + 1).filter((m) => m.direction === "outbound").length,
+          turnosDesdeCliente: new Set(
+            msgs
+              .slice(iUltimaDoCliente + 1)
+              .filter((m) => m.direction === "outbound")
+              .map((m) => turno(m.created_at))
+          ).size,
         },
       };
     });

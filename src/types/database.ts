@@ -91,7 +91,7 @@ export interface Lead {
 
 export const STAGE_LABELS: Record<LeadStage, string> = {
   novo: "Novo",
-  sdr: "Em contato",
+  sdr: "Tentando contato",
   reuniao_marcada: "Reunião Marcada",
   reuniao_feita: "Reunião Feita",
   escopo_enviado: "Escopo Enviado",
