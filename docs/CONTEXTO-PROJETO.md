@@ -247,6 +247,57 @@ tempo) e `&juntar=parados` junta os que nunca foram trabalhados.
 **Registro do banco:** o plano gratuito do Supabase guarda só 1 dia. Para
 saber quem excluiu ou alterou algo, olhar em Logs no mesmo dia.
 
+### Pente fino da conta de anúncios (24/11/2026)
+
+`/api/analise/meta-auditoria?secret=...` lê da Meta, de uma vez: situação da
+conta e do pagamento, campanhas, conjuntos, anúncios (reprovação, formulário
+usado, rastreamento), formulários, públicos, pessoas com acesso e a validade
+dos três tokens. `&reserva=1` prova o token de reserva. `&ler=<id>[/aresta]
+&campos=...&com=ads|pagina|crm` faz uma consulta avulsa de leitura. Nada
+grava na Meta. As respostas nunca devolvem o token (a Graph o embute em
+`paging.next`; as rotas trocam por `OCULTO`).
+
+O que a conferência de 24/11 mostrou na CA 02:
+
+- **A ligação conjunto de anúncios ↔ CRM está provada.** O relatório do
+  conjunto (`insights` com `conversions`) traz
+  `offsite_conversion.fb_pixel_custom.Lead Qualificado` (24 em 30 dias,
+  R$ 369,63 cada) e `Lead Recebido`. Ou seja: os eventos do `crm_SD` são
+  atribuídos aos anúncios, mesmo com `promoted_object` só com a página. O
+  `crm_SD` está conectado à CA 01, à CA 02 e à CA 01 onegarage.
+- **24 "Lead Qualificado" em 30 dias** é pouco para a Meta sair do
+  aprendizado (ela pede ~50 por semana). A tela mostra "Ativo", sem alerta;
+  o volume baixo é o limite real desta otimização, não um defeito.
+- **Dataset `2524535781334252` ("SimpleDev")**: antigo, sem evento desde
+  18/08/2026, conectado só à CA 01. Aparece no `tracking_specs` dos anúncios
+  como resto histórico. Não recebe nada do CRM.
+- **Token da página.** `META_PAGE_ACCESS_TOKEN` vem do login de uma pessoa e
+  a Meta marcava o "acesso aos dados" dele como vencido desde 15/11 (ainda
+  respondia em 24/11). O aviso de lead e a rotina de conferência usavam só
+  ele. Agora, se ele falhar, os dois pedem um token da página ao usuário de
+  sistema (`tokenDaPaginaReserva` em `lib/meta/leadgen.ts`), que não vence.
+  Quando a reserva entra, sai no log "Renovar o token da pagina na Vercel".
+  Teste: `/api/cron/meta-leads?secret=...&ensaio=1&testar_reserva=1`.
+- **Cobrança.** O cartão padrão (Visa final 0109) falhou em todas as 15
+  cobranças de 16/09 a 23/11; quem paga é o reserva (final 8070). Se o
+  reserva falhar uma vez, a conta para de veicular.
+- **Acesso.** Quatro pessoas com acesso total ao Business (Brenno, Glauco,
+  Micael Mantelli com e-mail de outra empresa, e o perfil do Instagram);
+  autenticação em dois fatores não é exigida de ninguém; empresa não
+  verificada e sem razão social/endereço/site cadastrados. Sem parceiros e
+  sem apps de terceiros conectados; só o app `Simple_leads` assina os leads
+  da Página.
+- **Formulário em uso** (`909280838465128`): idioma `en_US` (rótulos "Full
+  name", "Phone number", "Work email" em inglês), tipo "mais volume", link de
+  privacidade apontando para a raiz de `pages.simpledev.com.br`. Dois
+  formulários ativos de mesmo nome e zero leads.
+- **Região.** A campanha entrega no Brasil inteiro. De setembro a novembro,
+  Norte e Nordeste foram 32% dos leads de formulário (141 de 439) e 1 dos 20
+  que chegaram a escopo, apresentação, negociação, interesse ou fechamento;
+  os três fechamentos vieram de SP, SC e MG. As campanhas antigas da CA 01
+  eram restritas a nove estados do Sul, Sudeste e Centro-Oeste. Candidato a
+  ajuste **depois** de 09/12 (mudar a região reinicia o aprendizado).
+
 ### Idempotência
 
 `ads_conversions` tem unique `(lead_id, tipo, canal)`. As duas plataformas
