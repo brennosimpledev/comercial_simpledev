@@ -306,6 +306,42 @@ O que a conferência de 24/11 mostrou na CA 02:
   (formulário publicado não se edita; trocar o formulário do anúncio também
   reinicia o aprendizado, então as duas mudanças vão juntas).
 
+### Troca de região e de formulário na Meta (24/11/2026, noite)
+
+Decisão do Brenno: não esperar 09/12, porque a semana já estava sem reunião
+(semanas de novembro: ~48 leads e ~3 chegando a reunião; outubro: ~31 e ~5).
+
+- **Conjunto novo** `120250950776710447` "Leads qualidade — sem Nordeste e
+  Pará (24/11)", na mesma campanha (`120246088668970447`, verba de campanha
+  R$ 290/dia). Cópia do antigo com `excluded_geo_locations` dos nove estados
+  do Nordeste e do Pará. O antigo (`120246088668980447`) fica **pausado, não
+  apagado**: religar ele e pausar o novo desfaz tudo.
+- **Formulário novo** `3594446980733869` "SimpleDev - Qualificacao PT - maior
+  intencao (24/11/2026)": pt_BR, maior intenção, entrega flexível desligada.
+  Três perguntas de clique (para quem é o projeto; quem decide; quanto
+  pretende investir). "Menos de R$ 20 mil" **fecha o formulário sem criar
+  lead** (lógica condicional da Meta; não existe na API, só na tela). A
+  abertura já diz "projetos a partir de R$ 20 mil". As quatro perguntas do
+  formulário antigo não separavam nada: toda opção dava 15–20% de
+  qualificados e 9–14% de reunião.
+- **Anúncios novos** no conjunto novo, mesmos vídeos e textos, apontando para
+  o formulário novo: AD 22 `120250950844770447` e AD 23 `120250950845160447`
+  ligados; AD 18 `120250950845520447` pausado (reserva). Criados pela API:
+  `POST /{ad}/copies` falha porque o criativo antigo carrega
+  `standard_enhancements` (descontinuado); o caminho é criar criativo novo
+  sem esse campo e anúncio novo. Anúncio criado pela API **não** vem com o
+  rastreio do `crm_SD`: foi preciso acrescentar em `tracking_specs`
+  `offsite_conversion` e `leadgen_quality_conversion` com
+  `fb_pixel: 36869866015945984`.
+- **Nome dos campos.** Formulário em português manda `nome_completo`,
+  `telefone` e `email_comercial` em vez de `full_name`, `phone_number` e
+  `work_email`. `mapFields` (`lib/meta/leadgen.ts`) traduz na entrada; o
+  reconhecimento da mensagem pronta do formulário no WhatsApp
+  (`pareceFormularioMeta`) aceita os dois idiomas.
+- **Teste com a landing page** (formulário do site em vez do nativo): adiado.
+  Se for feito, é campanha própria com verba própria, comparando reunião
+  feita por real gasto.
+
 ### Idempotência
 
 `ads_conversions` tem unique `(lead_id, tipo, canal)`. As duas plataformas
