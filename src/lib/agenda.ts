@@ -51,6 +51,15 @@ const DIAS_UTEIS_A_FRENTE = 3;
 
 export type Horario = { iso: string; rotulo: string };
 
+// O bot so marca e remarca na janela dele, em dia util. Almoco e 18h sao
+// so do login do closer, pela tela (lib/janelaReuniao). O horario vem da
+// IA, entao a trava fica aqui e nao so na lista oferecida.
+function foraDaJanelaDoBot(inicio: Date) {
+  const br = new Date(inicio.getTime() - 3 * 3600_000);
+  const semana = br.getUTCDay();
+  return semana === 0 || semana === 6 || !HORAS_INICIO.includes(br.getUTCHours());
+}
+
 export function rotuloHorario(d: Date) {
   const dia = d.toLocaleDateString("pt-BR", {
     weekday: "long",
@@ -185,6 +194,7 @@ export async function agendarPeloBot(
   if (isNaN(inicio.getTime())) return { ok: false, motivo: "horario_invalido" };
   // So hora cheia, como no CRM (o fuso de Brasilia e hora inteira).
   if (inicio.getUTCMinutes() !== 0) return { ok: false, motivo: "horario_quebrado" };
+  if (foraDaJanelaDoBot(inicio)) return { ok: false, motivo: "fora_da_janela" };
   const fim = new Date(inicio.getTime() + DURACAO_BOT_MIN * 60_000);
 
   const token = await getTeamAccessToken();
@@ -269,6 +279,7 @@ export async function remarcarPeloBot(
   if (isNaN(inicio.getTime())) return { ok: false, motivo: "horario_invalido" };
   // So hora cheia, como no CRM (o fuso de Brasilia e hora inteira).
   if (inicio.getUTCMinutes() !== 0) return { ok: false, motivo: "horario_quebrado" };
+  if (foraDaJanelaDoBot(inicio)) return { ok: false, motivo: "fora_da_janela" };
 
   const { data: mtg } = await supabase
     .from("meetings")

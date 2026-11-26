@@ -265,12 +265,14 @@ export function FunilBoard({
   initialUpsells = [],
   reunioes = [],
   googleConnected = false,
+  horarioEstendido = false,
 }: {
   initialLeads: Lead[];
   atuais: ArquivoAtual[];
   initialUpsells?: LeadUpsell[];
   reunioes?: ReuniaoResumo[];
   googleConnected?: boolean;
+  horarioEstendido?: boolean;
 }) {
   const [leads, setLeads] = useState<Lead[]>(initialLeads);
   const [upsells, setUpsells] = useState<LeadUpsell[]>(initialUpsells);
@@ -616,6 +618,7 @@ export function FunilBoard({
                       leadId={sel.id}
                       meetings={reunioes.filter((r) => r.lead_id === sel.id)}
                       googleConnected={googleConnected}
+                      horarioEstendido={horarioEstendido}
                       hasWhatsapp={Boolean(sel.whatsapp)}
                       leadName={sel.nome}
                       leadEmail={sel.email}

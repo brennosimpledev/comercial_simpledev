@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { MeetingsCalendar } from "@/components/meetings/MeetingsCalendar";
 import type { MeetingWithLead } from "@/types/database";
+import { temJanelaEstendida } from "@/lib/janelaReuniao";
 
 export const dynamic = "force-dynamic";
 
@@ -26,5 +27,11 @@ export default async function ReunioesPage() {
 
   const meetings = (data ?? []) as MeetingWithLead[];
 
-  return <MeetingsCalendar meetings={meetings} />;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  return (
+    <MeetingsCalendar meetings={meetings} horarioEstendido={temJanelaEstendida(user?.email)} />
+  );
 }

@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { FunilBoard } from "@/components/funil/FunilBoard";
 import { CLOSER_STAGES, type Lead, type LeadArquivo, type LeadUpsell } from "@/types/database";
 import type { ReuniaoResumo } from "@/components/funil/FunilBoard";
+import { temJanelaEstendida } from "@/lib/janelaReuniao";
 
 export const dynamic = "force-dynamic";
 // A analise da IA (server action do card) le conversa e transcricao.
@@ -72,8 +73,13 @@ export default async function FunilPage() {
     .limit(1)
     .maybeSingle();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <FunilBoard
+      horarioEstendido={temJanelaEstendida(user?.email)}
       initialLeads={leads}
       initialUpsells={(ups ?? []) as LeadUpsell[]}
       googleConnected={Boolean(gacc)}

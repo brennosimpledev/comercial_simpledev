@@ -7,6 +7,7 @@ import {
   updateMeetingStatus,
 } from "@/app/(app)/leads/meetings";
 import type { Meeting, MeetingStatus } from "@/types/database";
+import { horariosPorGrupo } from "@/lib/janelaReuniao";
 
 const STATUS_CFG: Record<MeetingStatus, { label: string; cls: string }> = {
   agendada: { label: "Agendada", cls: "bg-brand/15 text-brand" },
@@ -32,23 +33,6 @@ function isWeekday(dateStr: string) {
   return day >= 1 && day <= 5;
 }
 
-function buildSlots(durMin: number) {
-  const make = (start: number, end: number) => {
-    const arr: string[] = [];
-    const last = end - durMin;
-    // So hora cheia: reuniao as 9h30 ou 10h10 baguncava a agenda do time.
-    for (let m = start; m <= last; m += 60) {
-      const h = Math.floor(m / 60);
-      const min = m % 60;
-      arr.push(
-        `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`
-      );
-    }
-    return arr;
-  };
-  return { morning: make(540, 720), afternoon: make(840, 1080) };
-}
-
 export function MeetingsPanel({
   leadId,
   meetings,
@@ -56,6 +40,7 @@ export function MeetingsPanel({
   hasWhatsapp,
   leadName,
   leadEmail,
+  horarioEstendido = false,
 }: {
   leadId: string;
   meetings: Meeting[];
@@ -63,6 +48,8 @@ export function MeetingsPanel({
   hasWhatsapp: boolean;
   leadName: string;
   leadEmail: string | null;
+  /** Almoco e 18h liberados: so para o login do closer (lib/janelaReuniao). */
+  horarioEstendido?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -75,9 +62,9 @@ export function MeetingsPanel({
   const [notify, setNotify] = useState(true);
   const [dateError, setDateError] = useState("");
 
-  const { morning, afternoon } = useMemo(
-    () => buildSlots(durationMin),
-    [durationMin]
+  const grupos = useMemo(
+    () => horariosPorGrupo(horarioEstendido, durationMin),
+    [horarioEstendido, durationMin]
   );
 
   function handleDateChange(val: string) {
@@ -89,7 +76,7 @@ export function MeetingsPanel({
 
   function handleDurationChange(val: number) {
     setDurationMin(val);
-    const all = [...buildSlots(val).morning, ...buildSlots(val).afternoon];
+    const all = horariosPorGrupo(horarioEstendido, val).flatMap((g) => g.horas);
     if (time && !all.includes(time)) setTime("");
   }
 
@@ -187,24 +174,15 @@ export function MeetingsPanel({
                 className="sd-input px-2 py-1.5"
               >
                 <option value="">Selecione</option>
-                {morning.length > 0 && (
-                  <optgroup label="Manhã (9h–12h)">
-                    {morning.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
+                {grupos.map((g) => (
+                  <optgroup key={g.rotulo} label={g.rotulo}>
+                    {g.horas.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
                       </option>
                     ))}
                   </optgroup>
-                )}
-                {afternoon.length > 0 && (
-                  <optgroup label="Tarde (14h–18h)">
-                    {afternoon.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
+                ))}
               </select>
             </div>
             <div className="flex-1">

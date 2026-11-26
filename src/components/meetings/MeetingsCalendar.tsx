@@ -1,5 +1,6 @@
 "use client";
 
+import { horariosPorGrupo } from "@/lib/janelaReuniao";
 import { useState, useMemo, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -203,17 +204,13 @@ function fileNameFromUrl(url: string) {
   }
 }
 
-function genSlots(startH: number, endH: number) {
-  const slots: string[] = [];
-  // So hora cheia: reuniao as 9h30 ou 10h10 baguncava a agenda do time.
-  for (let h = startH; h < endH; h++) slots.push(`${String(h).padStart(2, "0")}:00`);
-  return slots;
-}
-
 export function MeetingsCalendar({
   meetings,
+  horarioEstendido = false,
 }: {
   meetings: MeetingWithLead[];
+  /** Almoco e 18h liberados: so para o login do closer (lib/janelaReuniao). */
+  horarioEstendido?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -1326,16 +1323,15 @@ export function MeetingsCalendar({
                       className="sd-input w-28"
                     >
                       <option value="">Horário</option>
-                      <optgroup label="Manhã">
-                        {genSlots(9, 12).map((t) => (
-                          <option key={t} value={t}>{t}</option>
+                      {horariosPorGrupo(horarioEstendido).map((g) => (
+                      <optgroup key={g.rotulo} label={g.rotulo}>
+                        {g.horas.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
                         ))}
                       </optgroup>
-                      <optgroup label="Tarde">
-                        {genSlots(14, 18).map((t) => (
-                          <option key={t} value={t}>{t}</option>
-                        ))}
-                      </optgroup>
+                    ))}
                     </select>
                   </div>
                   <div className="mt-2 flex gap-2">
@@ -1418,20 +1414,15 @@ export function MeetingsCalendar({
                     className="sd-input w-28"
                   >
                     <option value="">Horário</option>
-                    <optgroup label="Manhã">
-                      {genSlots(9, 12).map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Tarde">
-                      {genSlots(14, 18).map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </optgroup>
+                    {horariosPorGrupo(horarioEstendido).map((g) => (
+                      <optgroup key={g.rotulo} label={g.rotulo}>
+                        {g.horas.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
                 <div className="mt-2 flex items-center gap-2">

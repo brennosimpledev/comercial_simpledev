@@ -17,6 +17,7 @@ import { findMeetFiles, type DriveFile } from "@/lib/google/drive";
 import { avancarEstagio } from "./actions";
 import { conflitoComBloqueio, zerarConfirmacao } from "@/lib/agenda";
 import { reportarEtapa } from "@/lib/conversions/report";
+import { foraDaJanela, temJanelaEstendida } from "@/lib/janelaReuniao";
 import { after } from "next/server";
 
 // "a@x.com, b@y.com" ou um por linha. Devolve os validos sem repetir e os
@@ -78,11 +79,9 @@ export async function scheduleMeeting(
   const timePart = opts.startLocal.split("T")[1] ?? "";
   const [brH, brM] = timePart.split(":").map(Number);
   const totalMin = brH * 60 + brM;
-  const inMorning = totalMin >= 540 && totalMin < 720;
-  const inAfternoon = totalMin >= 840 && totalMin < 1080;
-  if (!inMorning && !inAfternoon) {
-    return { error: "Horário fora do comercial (9h–12h ou 14h–18h)." };
-  }
+  // Almoco e 18h so para o login com janela estendida (lib/janelaReuniao).
+  const fora = foraDaJanela(totalMin, temJanelaEstendida(user.email));
+  if (fora) return { error: fora };
   if (brM !== 0) return { error: "Reuniões só em hora cheia (9h, 10h, 11h...)." };
 
   const datePart = opts.startLocal.split("T")[0];
@@ -355,11 +354,9 @@ export async function rescheduleMeeting(
   const timePart = startLocal.split("T")[1] ?? "";
   const [brH, brM] = timePart.split(":").map(Number);
   const totalMin = brH * 60 + brM;
-  const inMorning = totalMin >= 540 && totalMin < 720;
-  const inAfternoon = totalMin >= 840 && totalMin < 1080;
-  if (!inMorning && !inAfternoon) {
-    return { error: "Horário fora do comercial (9h–12h ou 14h–18h)." };
-  }
+  // Almoco e 18h so para o login com janela estendida (lib/janelaReuniao).
+  const fora = foraDaJanela(totalMin, temJanelaEstendida(user.email));
+  if (fora) return { error: fora };
   if (brM !== 0) return { error: "Reuniões só em hora cheia (9h, 10h, 11h...)." };
 
   const datePart = startLocal.split("T")[0];

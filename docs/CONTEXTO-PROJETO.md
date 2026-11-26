@@ -417,8 +417,18 @@ alguém preenche `valor_fechado`.
 Google Calendar + Meet via OAuth. Título padronizado `Nome — SimpleDEV`, o que
 permite achar transcrição e gravação no Drive buscando pelo nome do lead.
 
-Horário comercial 9h–12h e 14h–18h, seg–sex, intervalos de 10 min, validado no
+Horário comercial 9h–12h e 14h–18h, seg–sex, só hora cheia, validado no
 cliente e no servidor.
+
+**Janela estendida do closer (26/11/2026).** Só o login
+`brenno@simpledev.com.br` marca e remarca também no almoço (12h e 13h) e às
+18h (reunião até 19h). A lista de logins e a regra ficam em
+`lib/janelaReuniao.ts`; as telas (lead, funil, agenda) recebem
+`horarioEstendido` do servidor e as actions `scheduleMeeting` /
+`rescheduleMeeting` validam pelo e-mail de quem está logado, então o SDR não
+passa nem forçando a chamada. O bot tem a janela própria (`HORAS_INICIO` em
+`lib/agenda.ts`) e `agendarPeloBot` / `remarcarPeloBot` recusam qualquer
+horário fora dela (`fora_da_janela`), mesmo que a IA devolva um.
 
 **Token compartilhado:** `getTeamAccessToken()` usa o admin client para pegar
 os tokens de qualquer conta Google conectada. Um admin conecta, o time todo

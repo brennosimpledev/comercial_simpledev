@@ -6,6 +6,7 @@ import { LeadFlags } from "@/components/leads/LeadFlags";
 import { FollowUpPanel } from "@/components/leads/FollowUpPanel";
 import { NotesEditor } from "@/components/leads/NotesEditor";
 import { LeadInfoEditor } from "@/components/leads/LeadInfoEditor";
+import { temJanelaEstendida } from "@/lib/janelaReuniao";
 import { MeetingsPanel } from "@/components/leads/MeetingsPanel";
 import { BackLink } from "@/components/leads/BackLink";
 
@@ -93,6 +94,7 @@ export default async function LeadDetailPage({
               leadId={lead.id}
               meetings={meetings}
               googleConnected={googleConnected}
+              horarioEstendido={temJanelaEstendida(user?.email)}
               hasWhatsapp={hasWhatsapp}
               leadName={lead.nome}
               leadEmail={lead.email}
